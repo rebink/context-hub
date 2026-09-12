@@ -21,6 +21,7 @@
     }
   },
   "scripts": {
+    "audit:pi-tokens": "tsx scripts/pi-token-audit.ts",
     "test": "tsx --test test/**/*.test.ts",
     "typecheck": "tsc -p tsconfig.json",
     "build": "tsc -p tsconfig.build.json"

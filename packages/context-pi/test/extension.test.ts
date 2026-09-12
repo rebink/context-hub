@@ -423,17 +423,56 @@ test("rejects unsafe API origins before sending a credential", async () => {
   assert.equal(ctx.notifications[0]!.message, "INVALID_API_ORIGIN");
 });
 
-test("bounds command output and snapshot remains non-mutating", async () => {
+test("bounds command output on a valid UTF-8 boundary and redacts successful status", async () => {
   const app = harness({
-    status: async () => ({ payload: "x".repeat(40_000) }),
+    status: async () => ({ payload: "界".repeat(20_000) }),
   });
   const status = context();
   await app.handler("status", status);
-  assert.ok(Buffer.byteLength(status.notifications[0]!.message) <= 16 * 1024);
-  assert.match(status.notifications[0]!.message, /truncated/);
+  const message = status.notifications[0]?.message ?? "";
+  const bytes = new TextEncoder().encode(message);
+  assert.ok(bytes.byteLength <= 16 * 1024);
+  assert.doesNotThrow(() => new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  assert.match(message, /\n\[output truncated\]$/);
+
+  const secretStatus = harness({ status: async () => ({ ok: true, credential: token }) });
+  const redacted = context();
+  await secretStatus.handler("status", redacted);
+  assert.match(redacted.notifications[0]?.message ?? "", /\[REDACTED\]/);
+  assert.doesNotMatch(redacted.notifications[0]?.message ?? "", /chmcp_|a{43}/);
+
   const snapshot = context();
   await app.handler("snapshot", snapshot);
-  assert.match(snapshot.notifications[0]!.message, /unavailable until Phase 18/);
+  assert.match(snapshot.notifications[0]?.message ?? "", /unavailable until Phase 18/);
+});
+
+test("redacts a valid credential from otherwise successful MCP output", async () => {
+  const fakeFetch = async (_input: string | URL | Request, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.method === "notifications/initialized") return new Response(null, { status: 202 });
+    if (body.method === "initialize")
+      return Response.json({ jsonrpc: "2.0", id: body.id, result: initializeResult });
+    return Response.json({
+      jsonrpc: "2.0",
+      id: body.id,
+      result: {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ projects: [{ projectId: "project-one", content: token }] }),
+          },
+        ],
+      },
+    });
+  };
+  const app = harness({
+    env: { CONTEXT_HUB_API: "https://api.example.test", CONTEXT_HUB_MCP_TOKEN: token },
+    fetchImplementation: fakeFetch,
+  });
+  const ctx = context();
+  await app.handler("search refunds", ctx);
+  assert.match(ctx.notifications[0]?.message ?? "", /\[REDACTED\]/);
+  assert.doesNotMatch(ctx.notifications[0]?.message ?? "", /chmcp_|a{43}/);
 });
 
 test("shutdown fences deferred automatic selection before cache mutation or notification", async () => {

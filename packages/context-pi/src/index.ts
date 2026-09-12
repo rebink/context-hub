@@ -13,9 +13,18 @@ import {
   validateApiOrigin,
 } from "@context-hub/context-cli";
 
-const OUTPUT_BYTES = 16 * 1024;
-const SEARCH_BYTES = 12 * 1024;
-const MCP_RESPONSE_BYTES = 128 * 1024;
+export const PI_COMMAND = Object.freeze({
+  name: "context",
+  description: "Connect, status, sync, search, graph, or inspect snapshot availability",
+  subcommands: Object.freeze(["connect", "status", "sync", "search", "graph", "snapshot"]),
+});
+
+export const PI_OUTPUT_LIMITS = Object.freeze({
+  notificationBytes: 16 * 1024,
+  searchRequestBytes: 12 * 1024,
+  mcpResponseBytes: 128 * 1024,
+});
+
 const MCP_TOKEN = /^chmcp_[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/;
 
 type NotifyLevel = "info" | "warning" | "error";
@@ -64,6 +73,8 @@ type RpcResponse = {
   error?: { code: number; message: string };
 };
 
+const TRUNCATION_MARKER = "\n[output truncated]";
+
 function safeText(value: string): string {
   const redacted = value
     .replace(/chmcp_[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}/g, "[REDACTED]")
@@ -73,9 +84,20 @@ function safeText(value: string): string {
       return code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127);
     })
     .join("");
-  const bytes = new TextEncoder().encode(redacted);
-  if (bytes.byteLength <= OUTPUT_BYTES) return redacted;
-  return `${new TextDecoder().decode(bytes.slice(0, OUTPUT_BYTES - 32))}\n[output truncated]`;
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(redacted);
+  if (bytes.byteLength <= PI_OUTPUT_LIMITS.notificationBytes) return redacted;
+  const markerBytes = encoder.encode(TRUNCATION_MARKER).byteLength;
+  let end = PI_OUTPUT_LIMITS.notificationBytes - markerBytes;
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  while (end > 0) {
+    try {
+      return `${decoder.decode(bytes.subarray(0, end))}${TRUNCATION_MARKER}`;
+    } catch {
+      end -= 1;
+    }
+  }
+  return TRUNCATION_MARKER;
 }
 
 function notify(context: CommandContext, message: string, level: NotifyLevel = "info") {
@@ -108,7 +130,7 @@ function errorCode(error: unknown) {
 
 async function boundedResponseBytes(response: Response) {
   const declared = response.headers.get("content-length");
-  if (declared && (!/^\d+$/.test(declared) || Number(declared) > MCP_RESPONSE_BYTES))
+  if (declared && (!/^\d+$/.test(declared) || Number(declared) > PI_OUTPUT_LIMITS.mcpResponseBytes))
     throw new Error("RESPONSE_TOO_LARGE");
   if (!response.body) throw new Error("MCP_PROTOCOL_ERROR");
   const reader = response.body.getReader();
@@ -118,7 +140,7 @@ async function boundedResponseBytes(response: Response) {
     const { done, value } = await reader.read();
     if (done) break;
     total += value.byteLength;
-    if (total > MCP_RESPONSE_BYTES) {
+    if (total > PI_OUTPUT_LIMITS.mcpResponseBytes) {
       await reader.cancel();
       throw new Error("RESPONSE_TOO_LARGE");
     }
@@ -432,8 +454,8 @@ export function createContextExtension(overrides: Partial<Dependencies> = {}) {
       return mcp;
     };
 
-    pi.registerCommand("context", {
-      description: "Connect, status, sync, search, graph, or inspect snapshot availability",
+    pi.registerCommand(PI_COMMAND.name, {
+      description: PI_COMMAND.description,
       handler: async (rawArgs, context) => {
         const [subcommand = "", ...rest] = rawArgs.trim().split(/\s+/);
         const argument = rest.join(" ").trim();
@@ -466,7 +488,7 @@ export function createContextExtension(overrides: Partial<Dependencies> = {}) {
               projectId: selection.manifest.projectId,
               query: argument,
               maxTokens: 1000,
-              maxBytes: SEARCH_BYTES,
+              maxBytes: PI_OUTPUT_LIMITS.searchRequestBytes,
             });
             notify(
               context,

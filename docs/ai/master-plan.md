@@ -25,7 +25,7 @@ Durable implementation ledger for the PRD, technical architecture, implementatio
 - [x] Context results are relevance-first, deduplicated, explicitly budgeted, bounded, and carry project/source/path/version/commit/checksum provenance where applicable.
 - [x] Sync writes through a temporary path, verifies checksum and source commit, atomically replaces the cache, and preserves the last valid graph on failure.
 - [x] One authenticated provider-neutral MCP endpoint exposes a stable six-tool, read-oriented surface regardless of project count; Phase 15 measures the complete schema as byte-identical for 1, 10, and 100 authorized projects.
-- [x] The Phase 16 Pi client adds no LLM tools or prompt injection, never injects the repository/full graph/all artifacts, and does not duplicate Context Engine or Graphify logic; Phase 17's quantitative token audit remains pending.
+- [x] The Phase 16 Pi client adds no LLM tools or prompt injection, never injects the repository/full graph/all artifacts, and does not duplicate Context Engine or Graphify logic; Phase 17's reviewed quantitative audit now derives and regression-locks that zero-context result, with only its root gate pending.
 - [~] Local-first use continues from Git, manifest, and the verified graph cache when Context Hub is unavailable; artifact/offline context caches remain deferred.
 - [x] The MVP uses minimal dependencies and free/open-source-compatible Pages, Workers, D1, R2, GitHub OAuth, and GitHub Actions architecture; no mandatory paid service.
 
@@ -252,13 +252,16 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Complete the one independent phase review and this single consolidated four-item P1 correction pass: live remote/manifest fencing before every MCP or cached graph read, strict initialize-result negotiation, streaming 128 KiB response enforcement, and abortable generation-fenced startup auto-selection.
 - [x] Passed the root phase stop gate: fresh/staged-through-0015 migration integrity plus 245 tests (136 API, 26 web, 22 CLI, 20 Pi, 41 adapter), typecheck, Biome lint, and all builds.
 - [ ] Collect external live Pi/TUI command, reload, and shutdown evidence plus live OS-secret-helper handoff before release.
-- **P2 backlog (non-blocking):** typecheck against Pi's exported types when an install fixture is available; strengthen the fake to detect prompt/model mutation; add explicit redirect, no-UI ambiguity, invalid-credential, and distinct nonce/ID tests; collect package distribution evidence for Node >=22.19.
+- **P2 backlog (non-blocking):** typecheck against Pi's exported types when an install fixture is available; add explicit redirect, no-UI ambiguity, invalid-credential, and distinct nonce/ID tests; collect package distribution evidence for Node >=22.19.
 
-### 17. Pi token audit (Prompt 17) — `PENDING`
+### 17. Pi token audit (Prompt 17) — `COMPLETE LOCALLY`
 
-- [ ] Verify no unnecessary system-prompt growth, tools, all-artifact/full-graph injection, Graphify duplication, or provider behavior modification.
-- [ ] Record estimated model-visible overhead; target approximately zero permanent additional context.
-- [ ] Run the phase stop gate.
+- [x] Verify no unnecessary system-prompt growth, tools, all-artifact/full-graph injection, Graphify duplication, hidden context payload, or provider/model/agent behavior modification.
+- [x] Record reproducible output and activation measurements in [`pi-token-budget.md`](pi-token-budget.md): permanent model-visible overhead is structurally exactly 0 bytes / 0 estimated tokens, registration is byte-identical for 1, 10, and 100 authorized projects, and all native command formatted notification payloads are bounded.
+- [x] Add dependency-free executable audit and regression tests over actual exported Pi registration, formatting, lifecycle, and limits, with a canonical exact-locked final audit digest.
+- [x] Complete the one independent Phase 17 review and its complete four-item P1 correction in one consolidated pass: fail-closed derived mutation evidence, canonical final digest, UTF-8-safe/redacted successful output, and accurate formatted-payload labeling.
+- [x] Passed the root phase stop gate: fresh/staged-through-0015 migration integrity plus 249 tests (136 API, 26 web, 22 CLI, 24 Pi, 41 adapter), typecheck, Biome lint, and all builds.
+- **P2 backlog (non-blocking):** typecheck against Pi's exported API when an install fixture is available; collect Node >=22.19/package installation evidence; collect live TUI/RPC/provider/reload/shutdown telemetry.
 
 ### 18. Immutable snapshots (Prompt 18) — `PENDING`
 

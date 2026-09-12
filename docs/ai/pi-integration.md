@@ -1,6 +1,6 @@
 # Pi integration
 
-Phase 16/C implements the thin Context Hub Pi client in [`../../packages/context-pi`](../../packages/context-pi). This document records implementation assumptions from the exact researched Pi installation; it is not the Phase 17 token audit.
+Phase 16/C implements the thin Context Hub Pi client in [`../../packages/context-pi`](../../packages/context-pi). This document records implementation assumptions from the exact researched Pi installation; Phase 17's deterministic measurements are in [`pi-token-budget.md`](pi-token-budget.md).
 
 ## Researched Pi contract
 
@@ -32,6 +32,6 @@ Automatic resolution runs without making the model or cached local operations de
 
 ## Review correction
 
-The single Phase 16/C review's complete four-item P1 set is fixed in one consolidated pass: live repository and API-origin fencing, initialize-result validation, streaming response bounds, and abortable generation-fenced startup selection. Regression tests cover changed remotes for search/online graph/credential-free graph, malformed negotiation, chunked overflow cancellation, and shutdown during deferred resolution/connect. The root gate and live Pi/TUI evidence remain pending.
+The single Phase 16/C review's complete four-item P1 set is fixed in one consolidated pass: live repository and API-origin fencing, initialize-result validation, streaming response bounds, and abortable generation-fenced startup selection. Regression tests cover changed remotes for search/online graph/credential-free graph, malformed negotiation, chunked overflow cancellation, and shutdown during deferred resolution/connect. The Phase 16 root gate is complete; Phase 17's root gate and live Pi/TUI evidence remain pending.
 
 Snapshots remain unavailable. `/context snapshot` reports a fixed non-mutating Phase 18 placeholder and creates no metadata or payload.

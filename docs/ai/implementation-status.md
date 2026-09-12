@@ -13,6 +13,7 @@ The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`
 - [x] Phase 14/B universal MCP is complete locally from checkpoint `8f128d1`: accepted ADR 0007, additive migration 0015, separate sealed-scope/hash-only MCP credentials, one bounded Worker transport, standards-compatible initialize/notification handling, exact six-tool universal endpoint, all-or-nothing caller-bounded cross-project authorization, pre-decode replay/rate/audit controls, exact lifecycle auditing, and SQL-sensitive tests pass the single review and 219-test root gate.
 - [x] Phase 15 MCP token audit is complete locally from Phase 14 checkpoint `cef956a`: the executable audit measures the actual exported six-tool schemas, production limits, and transport encoding; proves the 4,082-byte schema is identical for 1, 10, and 100 authorized projects; measures required success/denial fixtures; and locks the 135,154-byte conservative schema-plus-response bound in [`mcp-token-budget.md`](mcp-token-budget.md). The single review, consolidated two-item P1 fix pass, and 222-test root gate are complete.
 - [x] Phase 16/C Pi integration is complete locally from checkpoint `b7cd40e`: one native `/context` command family reuses the local CLI and MCP, resolves the normalized repository with explicit ambiguity handling/switching, consumes environment/OS-helper-injected human and scoped MCP credentials, preserves offline status and verified cached graph use, and keeps snapshots unavailable. Its single review, consolidated four-item P1 correction pass, and 245-test root gate are complete; external live Pi/TUI and OS-helper evidence remains pending.
+- [x] Phase 17 Pi token audit is complete locally: the canonical executable audit derives fail-closed zero permanent model-visible bytes/tokens, byte-identical registration for 1/10/100 projects, UTF-8-safe/redacted bounded formatted notification payloads, and exact digest evidence in [`pi-token-budget.md`](pi-token-budget.md). Its single review, consolidated four-item P1 correction, and 249-test root gate are complete.
 - [!] Production D1 ID, R2 bucket, Pages origin, and Worker origin remain placeholders. GitHub OAuth credentials and live Cloudflare resources are not configured.
 - [!] No browser, live OAuth, remote D1/R2, or deployment end-to-end test has run.
 
@@ -54,15 +55,15 @@ Every significant architecture choice first needs an approved ADR. The mandatory
 7. [x] Phase 14/B universal MCP is complete locally after one review, one consolidated seven-item P1 fix pass, fresh/staged migration integrity, and the 219-test root gate.
 8. [x] Phase 15 MCP schema/response token audits are complete locally after one review, one consolidated two-item P1 fix pass, and the 222-test root gate.
 9. [x] Phase 16/C Pi integration is complete locally after one review, one consolidated four-item P1 pass, and the 245-test root gate; external live Pi/TUI evidence remains a release gate.
-10. [ ] Perform the separate Phase 17 Pi token audit.
-10. [ ] Add immutable snapshots, then integrate the shared freshness classifier into artifact UI and persist/index sync state.
-11. [ ] Add team invitations, acceptance, removal, and role changes.
-12. [ ] Add ADMIN-only project update/settings and logical artifact archive/delete, including immutable-history preservation, expected-version conflicts, audit, UI, endpoint/data-model acceptance, and role/isolation tests.
-13. [ ] Complete generalized audit-event coverage and project audit history UI.
-14. [ ] Approve the cross-project retrieval ADR; implement explicit all-project-authorized, bounded cross-project context retrieval.
-15. [ ] Complete remaining management UI: global Activity aggregated only across directly authorized projects via a bounded API; minimal real-data account/session and connection/configuration Settings; and remaining project Git, Graphify, Team, Snapshot, Activity, and Settings surfaces. No fake data.
-16. [ ] Run security, free-tier, single-project E2E, multi-project E2E, final architecture, and product QA reviews.
-17. [ ] Configure production resources, deploy, and complete live OAuth, D1/R2, browser, Graphify, sync, MCP, and Pi verification.
-18. [ ] Establish, collect, and review the required context-efficiency, reliability, developer-experience, infrastructure, and performance success metrics.
+10. [x] Phase 17 Pi token audit is complete locally after one review, one consolidated four-item P1 pass, and the 249-test root gate.
+11. [ ] Add immutable snapshots, then integrate the shared freshness classifier into artifact UI and persist/index sync state.
+12. [ ] Add team invitations, acceptance, removal, and role changes.
+13. [ ] Add ADMIN-only project update/settings and logical artifact archive/delete, including immutable-history preservation, expected-version conflicts, audit, UI, endpoint/data-model acceptance, and role/isolation tests.
+14. [ ] Complete generalized audit-event coverage and project audit history UI.
+15. [ ] Approve the cross-project retrieval ADR; implement explicit all-project-authorized, bounded cross-project context retrieval.
+16. [ ] Complete remaining management UI: global Activity aggregated only across directly authorized projects via a bounded API; minimal real-data account/session and connection/configuration Settings; and remaining project Git, Graphify, Team, Snapshot, Activity, and Settings surfaces. No fake data.
+17. [ ] Run security, free-tier, single-project E2E, multi-project E2E, final architecture, and product QA reviews.
+18. [ ] Configure production resources, deploy, and complete live OAuth, D1/R2, browser, Graphify, sync, MCP, and Pi verification.
+19. [ ] Establish, collect, and review the required context-efficiency, reliability, developer-experience, infrastructure, and performance success metrics.
 
 Every step must stop unless tests, typecheck, lint, and build pass. Detailed dependencies and acceptance checks are maintained in [`docs/ai/master-plan.md`](master-plan.md).
