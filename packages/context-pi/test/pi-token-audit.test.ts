@@ -97,7 +97,7 @@ describe("Pi token audit invariants", () => {
           458,
           "cb3a3315bc3354fe22579f61fc0ac0abc4efea84f51ec5ef2566ec5e5ad2e1c8",
         ],
-        ["snapshot", 74, "c18167db158b2cb38975ce7e624a8f6766ca84e2fbdac5dcb4b383dc92b0ad32"],
+        ["snapshot", 132, "da68db1f47c6ae26943b7e51081467fe931196b9e3708f043c0fbda8c16e10e7"],
         [
           "unauthorized-search",
           33,
@@ -175,7 +175,7 @@ describe("Pi token audit invariants", () => {
     );
     assert.equal(
       result.auditSha256,
-      "83dba8c0a5e807503fe55ecbd76204eb554e6a3e59e3dc87941013fc9393ce6a",
+      "582ca398d6c8ad4db1db7e6158a87cb9673e5227df1b2fbdd0bb0de8a0fbdca0",
     );
   });
 });

@@ -521,7 +521,7 @@ export function createContextExtension(overrides: Partial<Dependencies> = {}) {
           } else if (subcommand === "snapshot") {
             notify(
               context,
-              "Context snapshots are unavailable until Phase 18; no snapshot was created.",
+              "Context snapshots are available through the web/API. Pi creation requires a defined mutation-auth contract; no snapshot was created.",
               "warning",
             );
           } else throw new Error("USAGE_CONTEXT_COMMAND");

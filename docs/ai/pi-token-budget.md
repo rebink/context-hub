@@ -1,6 +1,6 @@
 # Pi Token Budget Audit
 
-Phase 17 audits the Phase 16 Context Hub extension at checkpoint `b7307a0` plus this evidence-only change. It adds no Pi behavior, retrieval, snapshot, freshness, team, generalized audit, deployment, or UI capability beyond correcting the shared notification formatter's UTF-8 cutoff.
+Phase 17 audits the Phase 16 Context Hub extension at checkpoint `b7307a0`; Phase 18 refreshes its canonical fixture after replacing the misleading snapshot-unavailable placeholder with a truthful fixed availability notice. The notice remains non-mutating and adds no Pi retrieval, snapshot creation, freshness, team, generalized audit, deployment, model-facing tool, or UI capability.
 
 ## Reproducible method
 
@@ -13,7 +13,7 @@ npx tsx --test packages/context-pi/test/pi-token-audit.test.ts packages/context-
 
 The dependency-free measurement in [`../../packages/context-pi/scripts/pi-token-audit-lib.ts`](../../packages/context-pi/scripts/pi-token-audit-lib.ts) activates the real exported `createContextExtension`, invokes its registered handler for all six exported `PI_COMMAND` subcommands, executes both lifecycle handlers, and imports the real `PI_OUTPUT_LIMITS`. It does not copy command names, descriptions, formatters, or bounds.
 
-The executable emits `{ "audit": ..., "auditSha256": ... }`. `auditSha256` is SHA-256 over the compact deterministic `JSON.stringify(audit)` payload before the digest field is added, so the hash is canonical and not self-referential. The accepted payload digest is **`83dba8c0a5e807503fe55ecbd76204eb554e6a3e59e3dc87941013fc9393ce6a`**. Tests recompute and exact-lock it.
+The executable emits `{ "audit": ..., "auditSha256": ... }`. `auditSha256` is SHA-256 over the compact deterministic `JSON.stringify(audit)` payload before the digest field is added, so the hash is canonical and not self-referential. The accepted payload digest is **`582ca398d6c8ad4db1db7e6158a87cb9673e5227df1b2fbdd0bb0de8a0fbdca0`**. Tests recompute and exact-lock it.
 
 All byte counts are `TextEncoder` UTF-8 byte lengths. The Context Engine estimator is `ceil(bytes / 4)`, but this audit applies it only to genuinely model-visible bytes. Structural evidence proves no model-visible insertion API or hook is used, so estimated permanent model-visible overhead is **0 tokens**. Formatted notification/status payloads and MCP wire envelopes receive no token estimate. Tokenizer-specific counts and live provider telemetry were not measured.
 
@@ -58,7 +58,7 @@ The complete registration bytes and hash are identical at all project counts. `/
 | `/context sync` | 46 | info | 0 / 0 | `2924a88e...e573` |
 | `/context search payment retries`, single project | 658 | info | 0 / 0 | `105c40a4...cabcc` |
 | `/context graph RetryPayment`, single project | 458 | info | 0 / 0 | `cb3a3315...e1c8` |
-| `/context snapshot` unavailable placeholder | 74 | warning | 0 / 0 | `c18167db...ad32` |
+| `/context snapshot` truthful web/API availability and Pi mutation-auth notice | 132 | warning | 0 / 0 | `da68db1f...10e7` |
 | Unauthorized search | 33 | error | 0 / 0 | `486a3ae7...abcc` |
 | Offline verified local graph fallback | 225 | warning | 0 / 0 | `52f11a18...a878` |
 | Invalid subcommand/usage | 21 | error | 0 / 0 | `dec7e6a2...fd94b` |
@@ -85,6 +85,6 @@ The audit records exact compact JSON-RPC request/response byte counts and hashes
 
 ## Review and residual evidence
 
-The one Phase 17 review reported four P1 findings. This consolidated pass fixes all four: derived fail-closed mutation evidence, canonical final audit digest, UTF-8-safe truncation plus successful-output secret regression coverage, and accurate formatted-payload labeling. No second review is planned; the implementation owner verifies this bounded correction with tests and the pending root gate.
+The one Phase 17 review reported four P1 findings. Its consolidated pass fixed all four: derived fail-closed mutation evidence, canonical final audit digest, UTF-8-safe truncation plus successful-output secret regression coverage, and accurate formatted-payload labeling. Phase 18 changes only the fixed snapshot notice and refreshes its exact byte/hash fixture plus the resulting canonical digest; the six-command and zero-mutation invariants are unchanged.
 
 The remaining P2/release evidence is limited to typechecking against Pi's exported API with an install fixture, Node >=22.19/package installation evidence, and live TUI/RPC/provider/reload/shutdown telemetry. No live model tokenizer, hosted telemetry, deployed Worker, or production traffic was used.

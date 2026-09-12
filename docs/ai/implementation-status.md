@@ -14,6 +14,7 @@ The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`
 - [x] Phase 15 MCP token audit is complete locally from Phase 14 checkpoint `cef956a`: the executable audit measures the actual exported six-tool schemas, production limits, and transport encoding; proves the 4,082-byte schema is identical for 1, 10, and 100 authorized projects; measures required success/denial fixtures; and locks the 135,154-byte conservative schema-plus-response bound in [`mcp-token-budget.md`](mcp-token-budget.md). The single review, consolidated two-item P1 fix pass, and 222-test root gate are complete.
 - [x] Phase 16/C Pi integration is complete locally from checkpoint `b7cd40e`: one native `/context` command family reuses the local CLI and MCP, resolves the normalized repository with explicit ambiguity handling/switching, consumes environment/OS-helper-injected human and scoped MCP credentials, preserves offline status and verified cached graph use, and keeps snapshots unavailable. Its single review, consolidated four-item P1 correction pass, and 245-test root gate are complete; external live Pi/TUI and OS-helper evidence remains pending.
 - [x] Phase 17 Pi token audit is complete locally: the canonical executable audit derives fail-closed zero permanent model-visible bytes/tokens, byte-identical registration for 1/10/100 projects, UTF-8-safe/redacted bounded formatted notification payloads, and exact digest evidence in [`pi-token-budget.md`](pi-token-budget.md). Its single review, consolidated four-item P1 correction, and 249-test root gate are complete.
+- [x] Phase 18 immutable snapshots are complete locally from checkpoint `83993d9`: additive migration 0016, sealed exact graph/artifact provenance references, one bounded canonical create-only R2 manifest, authenticated ADMIN/EDITOR create plus direct-member list/inspect/retrieve, shared integrity revalidation, ownership-safe idempotency/compensation, D1-authoritative narrow immutable outcomes, and SQL-aware acceptance/migration evidence are present. Its single review, consolidated seven-item P1 correction, and 261-test root gate are complete; remote R2 contention/deployment evidence remains external.
 - [!] Production D1 ID, R2 bucket, Pages origin, and Worker origin remain placeholders. GitHub OAuth credentials and live Cloudflare resources are not configured.
 - [!] No browser, live OAuth, remote D1/R2, or deployment end-to-end test has run.
 
@@ -37,10 +38,10 @@ The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`
 
 - [~] Authentication/projects scope beyond Prompt 2: member invitation, removal, and role-management APIs/UI are deferred.
 - [~] Phase 6 / remaining task #2: the backend and project repository UI fixes pass locally, including demotion/removal race rejection, every-request sync audit rollback, callback-to-authorized-project binding, verified-GET success announcements, recovery states, focus restoration, and narrow mobile styling. The overall phase remains partial pending independent final-review acceptance. Live browser/GitHub App/Cloudflare verification remains a separate external release blocker.
-- [~] Audit history: artifact and redacted Git lifecycle events exist, but generalized project/member/graph/snapshot auditing and audit UI do not.
+- [~] Audit history: artifact and redacted Git lifecycle events plus narrow immutable snapshot creation outcomes exist, but generalized project/member/graph/sync auditing and audit UI do not.
 - [~] Artifact UI freshness is pending: Phase 12 now provides the shared `CURRENT | STALE | UNKNOWN` classifier and Context Engine exposure, while artifact UI and sync-state persistence integration remain deferred to Phase 19.
 - [~] Artifact formats: Markdown, text, JSON, and YAML work; PDF, diagrams, binary, and multipart uploads are intentionally deferred.
-- [~] Git/D1/R2 source-of-truth separation is implemented for artifacts and attempt-scoped graphs. Migrations 0010-0013 preserve legacy graphs; migration 0014 adds CI machine principals/credentials; migration 0015 separately adds scoped MCP/local-client principals, hash-only credentials, replay/rate records, and immutable narrow audits. Snapshot, sync-state, and generalized audit schemas remain pending.
+- [~] Git/D1/R2 source-of-truth separation is implemented for artifacts, attempt-scoped graphs, and immutable snapshot manifests. Migrations 0010-0013 preserve legacy graphs; migrations 0014-0015 add separate CI and MCP/local-client principals; migration 0016 adds exact immutable snapshot references/manifests/outcomes. Sync-state and generalized audit schemas remain pending.
 
 ## Remaining Work — Required Order
 
@@ -56,7 +57,7 @@ Every significant architecture choice first needs an approved ADR. The mandatory
 8. [x] Phase 15 MCP schema/response token audits are complete locally after one review, one consolidated two-item P1 fix pass, and the 222-test root gate.
 9. [x] Phase 16/C Pi integration is complete locally after one review, one consolidated four-item P1 pass, and the 245-test root gate; external live Pi/TUI evidence remains a release gate.
 10. [x] Phase 17 Pi token audit is complete locally after one review, one consolidated four-item P1 pass, and the 249-test root gate.
-11. [ ] Add immutable snapshots, then integrate the shared freshness classifier into artifact UI and persist/index sync state.
+11. [x] Phase 18 immutable snapshots are complete locally after one review, one consolidated seven-item P1 correction, and the 261-test root gate.
 12. [ ] Add team invitations, acceptance, removal, and role changes.
 13. [ ] Add ADMIN-only project update/settings and logical artifact archive/delete, including immutable-history preservation, expected-version conflicts, audit, UI, endpoint/data-model acceptance, and role/isolation tests.
 14. [ ] Complete generalized audit-event coverage and project audit history UI.

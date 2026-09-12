@@ -67,7 +67,7 @@ The browser and future local/MCP clients are untrusted input boundaries. Only th
 ### Planned
 
 - Organize later route families into narrow modules without introducing a framework prematurely. Every route keeps authenticate -> resolve -> direct membership -> role -> execute and project predicates.
-- Add team, snapshot, activity, and generalized audit APIs in their owning phases only. Bounded context/sync, universal MCP, human graph metadata/build reservation, and Phase 10 machine publication routes are current.
+- Add team, activity, and generalized audit APIs in their owning phases only. Snapshot APIs, bounded context/sync, universal MCP, human graph metadata/build reservation, and Phase 10 machine publication routes are current.
 - Graph publication continues to accept uploads/finalization only from the exact CI machine principal; human browser sessions, MCP/local-client principals, including their ADMIN owner, cannot publish bytes.
 - Webhooks are optional; if enabled they verify the signature over raw bytes, deduplicate delivery IDs, bind the exact repository, and only schedule work.
 
@@ -98,12 +98,12 @@ Ordered SQL migrations in `apps/api/migrations` are authoritative. Applied migra
 - **Artifacts:** `artifacts` stores current pointer/status and project metadata; `artifact_versions` stores immutable object metadata and provenance. Indexes support project/type cursor listing and version history.
 - **Graphs:** `graph_versions` stores logical build identity/lifecycle and the selected immutable payload, `graph_build_attempts` stores exact lease/publication/object/cleanup ownership keyed by project/version/attempt, and immutable `graph_events` records logical transitions. Migration 0010 preserves selected legacy version-only rows under `LEGACY_V1`; migration 0011 forward-restores bounded constraints and missing migration transition evidence; migration 0012 requires every `ATTEMPT_V2` logical transition to have exact matching attempt state and identity; migration 0013 adds database-time publication fencing and makes retry independent of old-attempt cleanup ownership. All new claims use `ATTEMPT_V2`. Project-first lifecycle and cleanup indexes plus one current READY row are enforced.
 - **MCP/local clients:** migration 0015 adds MCP-specific principals, immutable exact project/operation scopes, optional exact repository binding, SHA-256-only expiring/rotatable/revocable credentials, bounded one-hour nonce/rate records, and immutable redacted outcomes. These identities are separate from Phase 10 CI principals.
-- **Audit:** `audit_events` is artifact-specific, `git_audit_events` records bounded Git connect/sync/disconnect metadata, and MCP has narrow immutable lifecycle/request outcomes. These are indexed by project/principal/time as applicable; none is the generalized planned audit schema.
+- **Snapshots:** migration 0016 adds immutable `context_snapshots`, `snapshot_artifacts`, and narrow `snapshot_events`. Rows capture exact Git, selected graph publication/attempt/storage/checksum identity, sealed expected artifact count, exact artifact ID/version/logical type/storage/checksum/source/change provenance, creator and D1-authoritative time, idempotency, and canonical manifest metadata. Composite foreign keys, insertion/count seals, referenced artifact/version immutability triggers, and project-first indexes preserve exact project scope and replay.
+- **Audit:** `audit_events` is artifact-specific, `git_audit_events` records bounded Git connect/sync/disconnect metadata, and MCP/snapshots have narrow immutable lifecycle/request outcomes. These are indexed by project/principal/time as applicable; none is the generalized planned audit schema.
 
 ### Planned owner tables/indexes
 
 - **Project/artifact administration:** project settings revision and artifact archive actor/time/revision plus active/archive indexes; immutable versions remain untouched.
-- **Snapshots phase:** `context_snapshots` and `snapshot_artifacts` own exact Git SHA, graph version, and artifact-version references; index project/time and enforce same-project references.
 - **Sync/freshness phase:** `sync_states` owns project+client local/remote Git/graph state and last sync; unique/index project+client.
 - **Team phase:** invitations own token hash, project, invitee, role, inviter, status, expiry, and indexed lookup/expiry.
 - **Audit phase:** generalized immutable `audit_events` owns project, actor/principal, action, target type/ID, bounded redacted metadata, outcome, and time with project/time index.
@@ -121,7 +121,7 @@ projects/{projectId}/artifacts/{artifactId}/v/{version}/content
 
 The Worker composes `R2ObjectStorage` from `Env.OBJECTS`; all R2 operations, including health, pass through it. Artifact domain logic generates keys. Create-only writes include checksum/content-type/upload ownership metadata. D1 publication follows object success. On D1 failure, compensation deletes only after checking that no matching publication exists; uncertainty leaves an orphan rather than risking data loss. Reads resolve the key through authorized D1 metadata and verify byte size and SHA-256 before returning UTF-8 content. Buckets remain private.
 
-### Graphs and planned snapshots
+### Graphs and snapshots
 
 ```text
 # Legacy selected objects remain readable and immutable
@@ -130,12 +130,14 @@ projects/{projectId}/graphs/v/{graphVersion}/graph.json
 # Current physical key; logical graph version/API is unchanged
 projects/{projectId}/graphs/v/{graphVersion}/attempts/{attempt}/{publicationId}/graph.json
 
-projects/{projectId}/snapshots/{snapshotId}/manifest.json  # planned
+projects/{projectId}/snapshots/{snapshotId}/manifest.json
 ```
 
 Accepted [`adr/0004-attempt-scoped-graph-payloads.md`](adr/0004-attempt-scoped-graph-payloads.md) replaces only ADR 0003's physical-key assumption with attempt-scoped object identity. Claim atomically creates attempt metadata and a random, server-generated, never-reused publication ID/key. Upload and finalize bind the exact project/version/attempt/lease/publication/key, complete build identity, content, checksum, and `uploadId=publicationId`; no attempt may adopt another attempt's object. Finalize selects the physical key, marks the logical version READY, and supersedes only lower READY versions. Exact replay of that selected attempt remains valid when READY or SUPERSEDED only after the full submitted bytes validate and the matching immutable PUBLISHED attempt evidence and R2 metadata are present.
 
-Cleanup may delete only an exact failed/expired unpublished attempt key after grace, a serialized D1 cleanup claim, a fresh no-reference proof immediately before delete, and exact R2 HEAD metadata checks; uncertainty retains the object, releases exact cleanup ownership where possible, and forbids prefix deletion. Retry proceeds independently of an old attempt's cleanup claim because the new attempt has a distinct key. A successful delete leaves the failed attempt recheckable rather than terminal, so a late recreation of the same exact key can be reconciled again. Existing version-only READY/SUPERSEDED objects remain immutable and queryable through a storage-layout marker without move/rewrite. Existing unready rows may retry under v2. Authorized explorer reads continue to resolve selected keys through D1, verify exact metadata/checksum/full format-v1 bytes, and expose neither raw graph bytes nor keys. Snapshot manifests remain planned; quotas and retention still require operational evidence.
+Cleanup may delete only an exact failed/expired unpublished attempt key after grace, a serialized D1 cleanup claim, a fresh no-reference proof immediately before delete, and exact R2 HEAD metadata checks; uncertainty retains the object, releases exact cleanup ownership where possible, and forbids prefix deletion. Retry proceeds independently of an old attempt's cleanup claim because the new attempt has a distinct key. A successful delete leaves the failed attempt recheckable rather than terminal, so a late recreation of the same exact key can be reconciled again. Existing version-only READY/SUPERSEDED objects remain immutable and queryable through a storage-layout marker without move/rewrite. Existing unready rows may retry under v2. Authorized explorer reads continue to resolve selected keys through D1, verify exact metadata/checksum/full format-v1 bytes, and expose neither raw graph bytes nor keys.
+
+Snapshot creation requires one exact READY/SUPERSEDED graph and rejects an absent graph because Prompt 18 defines graph version as mandatory. The graph commit must equal the requested 40-hex Git SHA and its immutable repository identity must match the current verified project connection; artifacts may retain older or unknown source provenance but must be exact same-project immutable versions. The Worker verifies every referenced graph/artifact through D1, R2 HEAD metadata, exact bytes, checksums, and the production graph validator before publishing one deterministic JSON manifest. The manifest repeats exact artifact logical type and immutable version provenance but no private storage key or payload bytes. A random project/snapshot-derived key is create-only; created, collision-adopted, and ambiguous-adopted outcomes remain distinct, and adopted bytes are never compensation-deleted. Compensation applies only to request-created bytes after object verification and the freshest exact D1 no-reference proof immediately before delete; uncertainty retains an orphan. D1 snapshot/reference/success-event publication is one batch, stores an expected artifact count, and seals further references after exact-count success. Quotas, retention, and remote contention evidence remain pending.
 
 ## GitHub identity and Git connection
 
@@ -220,9 +222,9 @@ Update order is bounded authenticated download -> exact repository provenance/me
 
 ## Snapshots and freshness
 
-**Current:** artifact versions may carry a source commit, but no classifier, snapshot, or persisted client sync state exists.
+**Current snapshots:** authenticated browser-session routes provide ADMIN/EDITOR create and direct-member bounded list, inspect, and exact-manifest retrieval. Snapshots reference rather than copy graph/artifact payloads. D1 stores immutable exact provenance, sealed artifact membership, D1-authoritative creation/outcome timestamps, and narrow creation outcomes; private R2 stores one bounded canonical immutable manifest. One shared integrity verifier backs matching idempotent replay, list, inspect, and retrieve: it requires the exact artifact count, captured D1 graph/artifact rows, graph schema, all R2 HEAD/GET metadata and bytes, checksums, manifest schema, and canonical byte equality. Metadata list/inspect and exact-manifest retrieval retain distinct response shapes but all fail closed rather than claiming reproducibility after corruption.
 
-**Planned:** a snapshot references project, name, exact Git SHA, graph version, exact artifact versions, creator, and time rather than copying payloads. An optional immutable R2 manifest repeats these references/checksums for reproducibility; D1 remains metadata truth. Creation validates that every referenced version belongs to the authorized project. Freshness uses the shared classifier and known repository commit, reports unknown provenance honestly, and never rewrites historical records.
+`/context snapshot` remains fixed and non-mutating while truthfully reporting that snapshots are available through web/API and Pi creation awaits a defined mutation-authentication contract. Prompt 18 does not define that local-client mutation contract, and adding MCP snapshot tools would violate the explicit deferred-tools and exact six-tool invariants. Freshness UI and persisted sync state remain Phase 19. The shared classifier already reports `CURRENT | STALE | UNKNOWN` in Context Engine results and never rewrites historical records.
 
 ## Authentication and authorization
 

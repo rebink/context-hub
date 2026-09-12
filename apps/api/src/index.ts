@@ -28,6 +28,7 @@ import {
   STATE_COOKIE,
   sha256,
 } from "./security.js";
+import { handleSnapshotRoute } from "./snapshots.js";
 import { handleSyncRoute } from "./sync.js";
 
 export interface Env {
@@ -595,6 +596,34 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
             graphRoute[1] ?? "",
             graphRoute[2],
             Boolean(graphQuery),
+          );
+        }
+
+        const snapshotCollection = /^\/projects\/([^/]+)\/snapshots$/.exec(pathname);
+        const snapshotManifest = /^\/projects\/([^/]+)\/snapshots\/([^/]+)\/manifest$/.exec(
+          pathname,
+        );
+        const snapshotDetail = /^\/projects\/([^/]+)\/snapshots\/([^/]+)$/.exec(pathname);
+        const snapshotRoute = snapshotManifest ?? snapshotDetail ?? snapshotCollection;
+        if (snapshotRoute) {
+          const user = await authenticate(request, env);
+          if (!user) return error(request, env, "UNAUTHENTICATED", 401);
+          const allowed = snapshotCollection
+            ? ["GET", "POST"].includes(request.method)
+            : request.method === "GET";
+          if (!allowed) {
+            return json(request, env, { error: "METHOD_NOT_ALLOWED" }, 405, {
+              allow: snapshotCollection ? "GET, POST" : "GET",
+            });
+          }
+          return handleSnapshotRoute(
+            request,
+            env,
+            storage,
+            user,
+            snapshotRoute[1] ?? "",
+            snapshotRoute[2],
+            Boolean(snapshotManifest),
           );
         }
 

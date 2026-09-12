@@ -18,7 +18,7 @@ Durable implementation ledger for the PRD, technical architecture, implementatio
 
 ## Non-negotiable invariants
 
-- **Architectural rule, not completion status:** Git is source-code truth; D1 is tenancy, authorization, version, sync, snapshot, and audit metadata truth; R2 holds immutable payloads. Each phase must preserve this split; pending graph, snapshot, sync, and generalized audit schemas mean end-to-end conformance is not yet complete.
+- **Architectural rule, not completion status:** Git is source-code truth; D1 is tenancy, authorization, version, sync, snapshot, and audit metadata truth; R2 holds immutable payloads. Each phase must preserve this split; pending sync and generalized audit schemas mean end-to-end conformance is not yet complete.
 - [x] Workspace membership alone never grants project data access; inaccessible project, repository, artifact, graph, source-path, snapshot, and member metadata must not leak.
 - [x] Published artifact objects are immutable, versioned, checksum-backed, and project-scoped.
 - [x] Graphify remains a derived build output; implemented graph versions are immutable and checksum-backed; graph JSON is never edited, merged, or overwritten.
@@ -263,13 +263,15 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Passed the root phase stop gate: fresh/staged-through-0015 migration integrity plus 249 tests (136 API, 26 web, 22 CLI, 24 Pi, 41 adapter), typecheck, Biome lint, and all builds.
 - **P2 backlog (non-blocking):** typecheck against Pi's exported API when an install fixture is available; collect Node >=22.19/package installation evidence; collect live TUI/RPC/provider/reload/shutdown telemetry.
 
-### 18. Immutable snapshots (Prompt 18) — `PENDING`
+### 18. Immutable snapshots (Prompt 18) — `COMPLETE LOCALLY`
 
-- [ ] Add snapshot and snapshot-artifact references for project, name, Git SHA, graph version, exact artifact versions, creator, and timestamp.
-- [ ] Implement create, list, inspect, and retrieve without duplicating entire files; store any manifest as an immutable R2 object.
-- [ ] Preserve checksums/provenance and ensure referenced versions belong to the authorized project and remain immutable.
-- [ ] Test authorization, exact reproducibility, missing/mismatched versions, immutable retrieval, and audit creation.
-- [ ] Run the phase stop gate.
+- [x] Add snapshot and snapshot-artifact references for project, name, exact Git SHA, graph version plus selected publication/attempt/storage provenance, exact artifact versions/storage provenance, creator, timestamp, immutable manifest metadata, and narrow immutable creation outcomes in additive migration 0016.
+- [x] Implement authenticated ADMIN/EDITOR create plus direct-member bounded list, inspect, and exact-manifest retrieve without duplicating graph or artifact payloads; publish one canonical create-only R2 manifest and compensate only proven-unpublished owned objects.
+- [x] Preserve and revalidate checksums/provenance, require a READY/SUPERSEDED graph whose Git and current verified repository identity match, require exact same-project artifact versions, and fail closed when any D1/R2 reference or payload is missing, mismatched, or corrupt. A graph is required because Prompt 18 defines graph version as part of every snapshot.
+- [x] Add SQL-aware API and fresh/staged migration tests for role/isolation, bounds/pagination, reproducibility, invalid references, immutable retrieval, R2 collision/ambiguous writes, D1 compensation, audit truthfulness, and route behavior.
+- [x] Complete the one independent review and its full seven-item P1 correction in one consolidated pass: sealed exact artifact membership/count, complete artifact type/version provenance and referenced-row guards, created-versus-adopted publication ownership, integrity-verified idempotent replay, shared list/inspect/retrieve verification, D1-authoritative timestamps, and truthful non-mutating Pi availability text with refreshed token evidence. No second review is planned.
+- [x] Passed the root phase stop gate: fresh/staged-through-0016 migration integrity plus 261 tests (148 API, 26 web, 22 CLI, 24 Pi, 41 adapter), typecheck, Biome lint, and all builds. Remote R2 create-only contention and compensation behavior remain external release evidence.
+- **P2 backlog (non-blocking):** bound cursor decoding before allocation; define infrastructure-failure audit policy; add real-D1/predicate-sensitive fake coverage and race cases beyond the seven fixed P1 findings.
 
 ### 19. Freshness UI and sync-state persistence (Prompt 19) — `PENDING`
 

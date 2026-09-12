@@ -443,7 +443,9 @@ test("bounds command output on a valid UTF-8 boundary and redacts successful sta
 
   const snapshot = context();
   await app.handler("snapshot", snapshot);
-  assert.match(snapshot.notifications[0]?.message ?? "", /unavailable until Phase 18/);
+  assert.match(snapshot.notifications[0]?.message ?? "", /available through the web\/API/);
+  assert.match(snapshot.notifications[0]?.message ?? "", /defined mutation-auth contract/);
+  assert.match(snapshot.notifications[0]?.message ?? "", /no snapshot was created/);
 });
 
 test("redacts a valid credential from otherwise successful MCP output", async () => {

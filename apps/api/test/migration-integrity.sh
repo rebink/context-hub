@@ -416,6 +416,55 @@ grep -Eq '"claim_rolled_back": 1' <<<"$machine_audit_rollback_check"
 grep -Eq '"fail_rolled_back": 1' <<<"$machine_audit_rollback_check"
 grep -Eq '"publish_rolled_back": 1' <<<"$machine_audit_rollback_check"
 
+# Snapshot identity/reference rows and lifecycle evidence are immutable and project-bound.
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO artifacts(id,project_id,type,name,current_version,status,created_by,created_at,updated_at) VALUES('snapshot-artifact','p','architecture','Snapshot artifact',1,'ACTIVE','u','2026-01-01','2026-01-01'),('snapshot-artifact-2','p','architecture','Other snapshot artifact',1,'ACTIVE','u','2026-01-01','2026-01-01'); INSERT INTO artifact_versions(artifact_id,version,storage_key,checksum,content_type,byte_size,source_commit_sha,created_by,created_at) VALUES('snapshot-artifact',1,'projects/p/artifacts/snapshot-artifact/v/1/content','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','text/plain',8,'1111111111111111111111111111111111111111','u','2026-01-01'),('snapshot-artifact-2',1,'projects/p/artifacts/snapshot-artifact-2/v/1/content','dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd','text/plain',9,NULL,'u','2026-01-01'); INSERT INTO context_snapshots(id,project_id,name,git_sha,graph_version,graph_storage_layout,graph_publication_id,graph_published_attempt,graph_published_lease_id,graph_storage_key,graph_upload_id,graph_checksum,graph_byte_size,graph_content_type,graph_repository_provider,graph_provider_repository_id,graph_repository_owner,graph_repository_name,graph_repository_canonical_url,graphify_version,graph_adapter_version,graph_profile,graph_format_version,graph_generator,graph_generated_by,graph_generated_at,created_by,created_at,expected_artifact_count,manifest_storage_key,manifest_byte_size,manifest_checksum,manifest_content_type) SELECT 'snap','p','Baseline',source_commit_sha,version,storage_layout,selected_publication_id,published_attempt,published_lease_id,storage_key,selected_publication_id,checksum,byte_size,'application/json',repository_provider,provider_repository_id,repository_owner,repository_name,repository_canonical_url,graphify_version,adapter_version,profile,format_version,generator,generated_by,generated_at,'u','2026-01-02T00:00:00.000Z',1,'projects/p/snapshots/snap/manifest.json',100,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','application/json' FROM graph_versions WHERE id='g5'; INSERT INTO snapshot_artifacts(snapshot_id,project_id,artifact_id,artifact_version,artifact_type,storage_key,upload_id,checksum,content_type,byte_size,source_commit_sha,change_note,version_created_by,version_created_at) VALUES('snap','p','snapshot-artifact',1,'architecture','projects/p/artifacts/snapshot-artifact/v/1/content','upload-id','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','text/plain',8,'1111111111111111111111111111111111111111',NULL,'u','2026-01-01'); INSERT INTO snapshot_events(id,project_id,snapshot_id,actor_id,action,outcome,created_at) VALUES('se','p','snap','u','snapshot-create','SUCCESS','2026-01-02T00:00:00.000Z');" >/dev/null
+# A successful snapshot seals its exact expected reference count.
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO snapshot_artifacts(snapshot_id,project_id,artifact_id,artifact_version,artifact_type,storage_key,upload_id,checksum,content_type,byte_size,source_commit_sha,change_note,version_created_by,version_created_at) VALUES('snap','p','snapshot-artifact-2',1,'architecture','projects/p/artifacts/snapshot-artifact-2/v/1/content','other-upload','dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd','text/plain',9,NULL,NULL,'u','2026-01-01')" >/dev/null 2>&1; then
+  echo "expected valid post-success snapshot artifact insert rejection" >&2
+  exit 1
+fi
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO context_snapshots SELECT 'snap-count',project_id,name,git_sha,graph_version,graph_storage_layout,graph_publication_id,graph_published_attempt,graph_published_lease_id,graph_storage_key,graph_upload_id,graph_checksum,graph_byte_size,graph_content_type,graph_repository_provider,graph_provider_repository_id,graph_repository_owner,graph_repository_name,graph_repository_canonical_url,graphify_version,graph_adapter_version,graph_profile,graph_format_version,graph_generator,graph_generated_by,graph_generated_at,created_by,created_at,1,NULL,'projects/p/snapshots/snap-count/manifest.json',manifest_byte_size,manifest_checksum,manifest_content_type FROM context_snapshots WHERE id='snap';" >/dev/null
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO snapshot_events(id,project_id,snapshot_id,actor_id,action,outcome,created_at) VALUES('se-count','p','snap-count','u','snapshot-create','SUCCESS','2026-01-02T00:00:00.000Z')" >/dev/null 2>&1; then
+  echo "expected snapshot success count mismatch rejection" >&2
+  exit 1
+fi
+# Every snapshotted artifact identity/version provenance field is frozen.
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO users(id,provider,provider_user_id,username) VALUES('u2','github','2','u2'); INSERT INTO projects(id,workspace_id,name,slug,created_by) VALUES('p2','w','P2','p2','u');" >/dev/null
+for artifact_version_tamper in \
+  "UPDATE artifact_versions SET artifact_id='snapshot-artifact-2' WHERE artifact_id='snapshot-artifact' AND version=1" \
+  "UPDATE artifact_versions SET version=2 WHERE artifact_id='snapshot-artifact' AND version=1" \
+  "UPDATE artifact_versions SET storage_key='projects/p/artifacts/snapshot-artifact/v/2/content' WHERE artifact_id='snapshot-artifact' AND version=1" \
+  "UPDATE artifact_versions SET checksum='cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' WHERE artifact_id='snapshot-artifact' AND version=1" \
+  "UPDATE artifact_versions SET content_type='text/markdown' WHERE artifact_id='snapshot-artifact' AND version=1" \
+  "UPDATE artifact_versions SET byte_size=9 WHERE artifact_id='snapshot-artifact' AND version=1" \
+  "UPDATE artifact_versions SET source_commit_sha=NULL WHERE artifact_id='snapshot-artifact' AND version=1" \
+  "UPDATE artifact_versions SET change_note='changed' WHERE artifact_id='snapshot-artifact' AND version=1" \
+  "UPDATE artifact_versions SET created_by='u2' WHERE artifact_id='snapshot-artifact' AND version=1" \
+  "UPDATE artifact_versions SET created_at='2026-02-01' WHERE artifact_id='snapshot-artifact' AND version=1" \
+  "DELETE FROM artifact_versions WHERE artifact_id='snapshot-artifact' AND version=1" \
+  "UPDATE artifacts SET project_id='p2' WHERE id='snapshot-artifact'" \
+  "UPDATE artifacts SET type='adr' WHERE id='snapshot-artifact'"; do
+  if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "$artifact_version_tamper" >/dev/null 2>&1; then
+    echo "expected snapshotted artifact provenance immutability: $artifact_version_tamper" >&2
+    exit 1
+  fi
+done
+for snapshot_tamper in \
+  "UPDATE context_snapshots SET name='Changed' WHERE id='snap'" \
+  "DELETE FROM context_snapshots WHERE id='snap'" \
+  "UPDATE snapshot_artifacts SET checksum='cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' WHERE snapshot_id='snap'" \
+  "DELETE FROM snapshot_artifacts WHERE snapshot_id='snap'" \
+  "UPDATE snapshot_events SET outcome='FAILED' WHERE id='se'" \
+  "DELETE FROM snapshot_events WHERE id='se'"; do
+  if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "$snapshot_tamper" >/dev/null 2>&1; then
+    echo "expected immutable snapshot evidence rejection: $snapshot_tamper" >&2
+    exit 1
+  fi
+done
+snapshot_schema_check=$("$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "SELECT COUNT(*) AS snapshot_tables FROM sqlite_master WHERE type='table' AND name IN ('context_snapshots','snapshot_artifacts','snapshot_events'); SELECT COUNT(*) AS snapshot_triggers FROM sqlite_master WHERE type='trigger' AND name LIKE 'snapshot_%immutable_%' OR type='trigger' AND name LIKE 'context_snapshots_immutable_%';")
+grep -Eq '"snapshot_tables": 3' <<<"$snapshot_schema_check"
+grep -Eq '"snapshot_triggers": 6' <<<"$snapshot_schema_check"
+
 cp "$SOURCE_CONFIG" "$upgrade_project/wrangler.toml"
 cp "$ROOT"/apps/api/migrations/000[1-4]_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
@@ -494,16 +543,19 @@ cp "$ROOT"/apps/api/migrations/0014_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
 cp "$ROOT"/apps/api/migrations/0015_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
-v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS mcp_tables FROM sqlite_master WHERE type='table' AND name IN ('mcp_principals','mcp_principal_projects','mcp_principal_operations','mcp_credentials','mcp_request_nonces','mcp_audit_events'); SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql','0015_mcp_principals.sql');")
+cp "$ROOT"/apps/api/migrations/0016_*.sql "$upgrade_project/migrations/"
+"$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
+v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS mcp_tables FROM sqlite_master WHERE type='table' AND name IN ('mcp_principals','mcp_principal_projects','mcp_principal_operations','mcp_credentials','mcp_request_nonces','mcp_audit_events'); SELECT COUNT(*) AS snapshot_tables FROM sqlite_master WHERE type='table' AND name IN ('context_snapshots','snapshot_artifacts','snapshot_events'); SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql','0015_mcp_principals.sql','0016_context_snapshots.sql');")
 grep -Eq '"legacy_rows": 2' <<<"$v2_upgrade_check"
 grep -Eq '"attempt_table": 1' <<<"$v2_upgrade_check"
 grep -Eq '"retry_rows": 1' <<<"$v2_upgrade_check"
 grep -Eq '"retry_events": 1' <<<"$v2_upgrade_check"
 grep -Eq '"machine_tables": 4' <<<"$v2_upgrade_check"
 grep -Eq '"mcp_tables": 6' <<<"$v2_upgrade_check"
-grep -Eq '"applied": 6' <<<"$v2_upgrade_check"
+grep -Eq '"snapshot_tables": 3' <<<"$v2_upgrade_check"
+grep -Eq '"applied": 7' <<<"$v2_upgrade_check"
 "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE graph_versions SET status='QUEUED',attempt=attempt+1,failure_category=NULL,failed_at=NULL,build_started_at=NULL,updated_at='2099-01-02' WHERE id='legacy-building'" >/dev/null
 migration_retry_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS queued_retry FROM graph_versions WHERE id='legacy-building' AND status='QUEUED' AND attempt=2")
 grep -Eq '"queued_retry": 1' <<<"$migration_retry_check"
 
-echo "fresh and staged-through-0015 upgrade migrations, separate CI/MCP credential models, nonce/audit constraints, exact graph lifecycle evidence, restored graph bounds/status/provenance constraints, migration-event consistency, immutability, reconciliation, uniqueness, foreign keys, and transactional rollback passed"
+echo "fresh and staged-through-0016 upgrade migrations, immutable snapshot/reference/audit constraints, separate CI/MCP credential models, exact graph lifecycle evidence, restored bounds, reconciliation, foreign keys, and transactional rollback passed"
