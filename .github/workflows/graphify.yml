@@ -1,0 +1,119 @@
+name: Publish Graphify graph
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: Context Hub project ID
+        required: true
+        type: string
+      graph_version:
+        description: Already queued graph version
+        required: true
+        type: string
+      source_repository:
+        description: Exact owner/repository to build
+        required: true
+        type: string
+      commit:
+        description: Exact lowercase 40-hex commit to build
+        required: true
+        type: string
+      repository_provider:
+        description: Bound provider
+        required: true
+        default: github
+        type: string
+      provider_repository_id:
+        description: Stable provider repository ID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: graphify-${{ inputs.project_id }}-${{ inputs.graph_version }}
+  cancel-in-progress: false
+
+jobs:
+  graphify:
+    runs-on: [self-hosted, linux, x64]
+    environment: context-hub-graphify
+    timeout-minutes: 30
+    steps:
+      - name: Validate immutable inputs and trusted tooling pin
+        shell: bash
+        env:
+          INPUT_PROJECT_ID: ${{ inputs.project_id }}
+          INPUT_GRAPH_VERSION: ${{ inputs.graph_version }}
+          INPUT_SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+          INPUT_COMMIT: ${{ inputs.commit }}
+          INPUT_REPOSITORY_PROVIDER: ${{ inputs.repository_provider }}
+          INPUT_PROVIDER_REPOSITORY_ID: ${{ inputs.provider_repository_id }}
+          TOOLING_REPOSITORY: ${{ vars.CONTEXT_HUB_TOOLING_REPOSITORY }}
+          TOOLING_SHA: ${{ vars.CONTEXT_HUB_TOOLING_SHA }}
+        run: |
+          [[ "$INPUT_PROJECT_ID" =~ ^[A-Za-z0-9_-]+$ ]]
+          [[ "$INPUT_GRAPH_VERSION" =~ ^[1-9][0-9]*$ ]]
+          [[ "$INPUT_SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
+          [[ "$INPUT_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$INPUT_REPOSITORY_PROVIDER" == github ]]
+          [[ "$INPUT_PROVIDER_REPOSITORY_ID" =~ ^[0-9]+$ ]]
+          [[ "$TOOLING_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
+          [[ "$TOOLING_SHA" =~ ^[0-9a-f]{40}$ ]]
+      - name: Verify bound source repository
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.CONTEXT_HUB_SOURCE_TOKEN }}
+          SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+          PROVIDER_REPOSITORY_ID: ${{ inputs.provider_repository_id }}
+        run: test "$(gh api "repos/$SOURCE_REPOSITORY" --jq .id)" = "$PROVIDER_REPOSITORY_ID"
+      - name: Checkout exact source commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ${{ inputs.source_repository }}
+          ref: ${{ inputs.commit }}
+          token: ${{ secrets.CONTEXT_HUB_SOURCE_TOKEN }}
+          path: source
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Checkout separately pinned trusted runner code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ${{ vars.CONTEXT_HUB_TOOLING_REPOSITORY }}
+          ref: ${{ vars.CONTEXT_HUB_TOOLING_SHA }}
+          path: tooling
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Install locked tooling
+        shell: bash
+        working-directory: tooling
+        run: |
+          npm ci --ignore-scripts
+          python3.12 -m venv "${GITHUB_WORKSPACE}/.graphify-venv"
+          "${GITHUB_WORKSPACE}/.graphify-venv/bin/python" -m pip install \
+            --disable-pip-version-check --only-binary=:all: --require-hashes \
+            -r packages/graphify-adapter/python/requirements-linux-x86_64-py312.lock
+          test -x "${GITHUB_WORKSPACE}/.graphify-venv/bin/python"
+          mkdir "${GITHUB_WORKSPACE}/graphify-temp"
+          "${GITHUB_WORKSPACE}/.graphify-venv/bin/graphify" --version | grep -Fx 'graphify 0.9.58'
+      - name: Build, validate, checksum, and publish
+        shell: bash
+        working-directory: tooling
+        env:
+          CONTEXT_HUB_API_URL: ${{ vars.CONTEXT_HUB_API_URL }}
+          CONTEXT_HUB_MACHINE_TOKEN: ${{ secrets.CONTEXT_HUB_MACHINE_TOKEN }}
+          CONTEXT_HUB_PROJECT_ID: ${{ inputs.project_id }}
+          CONTEXT_HUB_GRAPH_VERSION: ${{ inputs.graph_version }}
+          CONTEXT_HUB_SOURCE_COMMIT: ${{ inputs.commit }}
+          CONTEXT_HUB_REPOSITORY_PROVIDER: ${{ inputs.repository_provider }}
+          CONTEXT_HUB_REPOSITORY_ID: ${{ inputs.provider_repository_id }}
+          CONTEXT_HUB_CHECKOUT: ${{ github.workspace }}/source
+          CONTEXT_HUB_BUILD_VOLUME: ${{ github.workspace }}
+          CONTEXT_HUB_MEMORY_CGROUP: ${{ vars.CONTEXT_HUB_MEMORY_CGROUP }}
+          CONTEXT_HUB_GIT_EXECUTABLE: /usr/bin/git
+          CONTEXT_HUB_PYTHON_EXECUTABLE: ${{ github.workspace }}/.graphify-venv/bin/python
+          CONTEXT_HUB_GRAPHIFY_EXECUTABLE: ${{ github.workspace }}/.graphify-venv/bin/graphify
+          CONTEXT_HUB_TEMP_ROOT: ${{ github.workspace }}/graphify-temp
+        run: ./node_modules/.bin/tsx scripts/graphify-ci.ts

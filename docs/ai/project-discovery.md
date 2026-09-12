@@ -4,7 +4,7 @@ Repository discovery for Prompt 0A. This document describes the checked-in worki
 
 ## Product and current boundary
 
-Context Hub is a provider-neutral control plane for giving coding agents bounded, source-backed project context. The repository currently implements the foundation, GitHub identity authentication behind a minimal `AuthProvider` seam, workspace/project authorization and resolution, a real-data dashboard, immutable text artifacts behind a minimal `ObjectStorage` seam, the GitHub App repository connection backend and project UI behind a minimal `GitProvider` seam, the independently reviewed isolated Node-only Graphify adapter, and Phase 9 internal graph publication/storage, authenticated human graph routes, and Graphify status/focused-explorer frontend. Phase 10 machine publication transport/workflow, local sync, Context Engine, MCP, Pi, snapshots, team administration, and generalized audit are not implemented.
+Context Hub is a provider-neutral control plane for giving coding agents bounded, source-backed project context. The repository currently implements the foundation, GitHub identity authentication behind a minimal `AuthProvider` seam, workspace/project authorization and resolution, a real-data dashboard, immutable text artifacts behind a minimal `ObjectStorage` seam, the GitHub App repository connection backend and project UI behind a minimal `GitProvider` seam, the independently reviewed isolated Node-only Graphify adapter, and Phase 9 internal graph publication/storage, authenticated human graph routes, and Graphify status/focused-explorer frontend. Phase 10 machine publication transport and the fail-closed canonical workflow are locally complete through migration 0014 after the single phase review and 154-test gate; live bounded-runner execution and remote D1/R2 evidence remain pending release gates. Local sync, Context Engine, MCP, Pi, snapshots, team administration, and generalized audit are not implemented.
 
 The source-of-truth split is an architectural invariant:
 
@@ -19,7 +19,7 @@ The source-of-truth split is an architectural invariant:
 |-- .github/workflows/ci.yml       GitHub Actions quality gate
 |-- apps/
 |   |-- api/
-|   |   |-- migrations/            Ordered D1 SQL migrations 0001-0013
+|   |   |-- migrations/            Ordered D1 SQL migrations 0001-0014
 |   |   |-- src/                   Worker router, provider adapters, security, artifacts
 |   |   |-- test/                  Worker unit/integration-style tests with fakes
 |   |   |-- package.json
@@ -69,7 +69,7 @@ There is no ORM, application framework, component framework, generated API clien
 - `apps/api` is a Cloudflare Worker using the native Fetch API. `src/index.ts` is a hand-written route dispatcher and contains OAuth, session, workspace, project, and repository-resolution handlers.
 - `src/artifacts.ts` is the artifact route module. It validates bounded uploads, authorizes direct project members, writes immutable objects to R2, publishes D1 metadata, compensates safe unpublished writes, and verifies size/checksum before retrieval.
 - `src/security.ts` contains reusable random-token, SHA-256, cookie serialization/parsing, and cookie-name helpers.
-- Current routes are health; GitHub login/callback/session/logout; workspace list/create; project list/create/detail; authorized repository resolution; artifact list/create/detail/version list/publish/read; and graph list/latest/detail/build reservation plus bounded explorer queries.
+- Current routes are health; GitHub login/callback/session/logout; workspace list/create; project list/create/detail; authorized repository resolution; artifact list/create/detail/version list/publish/read; graph list/latest/detail/build reservation plus bounded explorer queries; ADMIN machine-credential lifecycle; and dedicated bearer-auth graph claim/publish/fail.
 - Authentication, project scope, role checks, Origin checks, CORS, and nonleaking errors are server concerns. Browser-provided identity/role is never authoritative.
 
 ### Database and object storage
@@ -97,7 +97,7 @@ There is no ORM, application framework, component framework, generated API clien
 - Builds are a Wrangler dry-run Worker bundle and a TypeScript-plus-Vite web build.
 - `.github/workflows/ci.yml` runs on pull requests and pushes to `main`: `npm ci`, local D1 migrations, tests, typecheck, lint, and build.
 - Deployment targets are Cloudflare Pages for `apps/web` and Workers with D1/R2 bindings for `apps/api`. Production resource IDs, bucket names, and origins are placeholders; GitHub/Cloudflare secrets are external bindings, not source values.
-- The repository has no commits, so the checked-in CI workflow has not run remotely. Browser, live OAuth, remote D1/R2, and production deployment verification have not run.
+- The repository has the Phase 9 baseline checkpoint `cad3dce`, but remote CI has not run. Browser, live OAuth, remote D1/R2, live graph workflow, and production deployment verification have not run.
 
 ## Reusable code and conventions
 

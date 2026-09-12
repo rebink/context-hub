@@ -20,6 +20,7 @@ INSERT INTO users (id, provider, provider_user_id, username) VALUES ('u','github
 INSERT INTO sessions (id,user_id,token_hash,expires_at) VALUES ('s','u','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','2099-01-01T00:00:00.000Z');
 INSERT INTO workspaces (id,name,slug,created_by) VALUES ('w','W','w','u');
 INSERT INTO projects (id,workspace_id,name,slug,created_by) VALUES ('p','w','P','p','u');
+INSERT INTO project_members (project_id,user_id,role) VALUES ('p','u','ADMIN');
 INSERT INTO repository_identities (id,provider,canonical_url,owner,repository_name) VALUES ('r1','github','github.com/o/one','o','one'),('r2','github','github.com/o/two','o','two');
 INSERT INTO git_connections (connection_id,project_id,repository_identity_id,provider,installation_id,provider_repository_id,default_branch,last_known_commit_sha,status,verified_at) VALUES ('c','p','r1','github','1','1','main','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','VERIFIED','2026-01-01T00:00:00.000Z');
 INSERT INTO project_repositories (project_id,repository_identity_id) VALUES ('p','r1');
@@ -268,6 +269,73 @@ fresh_check=$("$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "
 grep -Eq '"audit_rows": 0' <<<"$fresh_check"
 grep -Eq '"hardening_indexes": 3' <<<"$fresh_check"
 
+cat >"$TEMP/machine.sql" <<'SQL'
+INSERT INTO machine_principals(id,project_id,name,repository_provider,provider_repository_id,created_by)
+VALUES('mp','p','CI','github','1','u');
+INSERT INTO machine_credentials(id,principal_id,secret_hash,expires_at,created_by)
+VALUES('mc','mp','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','2099-01-01','u');
+INSERT INTO machine_request_nonces(credential_id,nonce_hash,operation,project_id,graph_version,expires_at)
+VALUES('mc','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','CLAIM','p',1,'2099-01-01');
+INSERT INTO machine_audit_events(id,project_id,principal_id,credential_id,action,outcome,graph_version)
+VALUES('ma','p','mp','mc','GRAPH_CLAIMED','SUCCEEDED',1);
+UPDATE machine_credentials SET revoked_at='2026-01-02',replaced_by_credential_id='mc2' WHERE id='mc';
+INSERT INTO machine_credentials(id,principal_id,secret_hash,expires_at,created_by)
+VALUES('mc2','mp','cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc','2099-01-01','u');
+SQL
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --file "$TEMP/machine.sql" >/dev/null
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "UPDATE machine_principals SET provider_repository_id='2' WHERE id='mp'" >/dev/null 2>&1; then
+  echo "expected machine principal identity immutability failure" >&2
+  exit 1
+fi
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "DELETE FROM machine_request_nonces WHERE credential_id='mc'" >/dev/null 2>&1; then
+  echo "expected unexpired nonce immutability failure" >&2
+  exit 1
+fi
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "UPDATE machine_audit_events SET outcome='FAILED' WHERE id='ma'" >/dev/null 2>&1; then
+  echo "expected machine audit immutability failure" >&2
+  exit 1
+fi
+machine_check=$("$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS plaintext_columns FROM pragma_table_info('machine_credentials') WHERE name IN ('secret','token','credential'); SELECT COUNT(*) AS rotated_pair FROM machine_credentials old JOIN machine_credentials replacement ON replacement.id=old.replaced_by_credential_id AND replacement.principal_id=old.principal_id WHERE old.id='mc' AND old.revoked_at IS NOT NULL AND replacement.revoked_at IS NULL;")
+grep -Eq '"machine_tables": 4' <<<"$machine_check"
+grep -Eq '"plaintext_columns": 0' <<<"$machine_check"
+grep -Eq '"rotated_pair": 1' <<<"$machine_check"
+
+# Machine lifecycle success audits are part of the same statement transaction.
+cat >"$TEMP/machine-audit-rollback.sql" <<'SQL'
+INSERT INTO graph_versions
+(id,project_id,version,repository_provider,provider_repository_id,repository_owner,repository_name,repository_canonical_url,source_commit_sha,graphify_version,adapter_version,profile,format_version,generator,status,attempt,queued_at,updated_at)
+VALUES
+('machine-claim-audit','p',8,'github','1','o','one','github.com/o/one','3838383838383838383838383838383838383838','0.9.58','1.0.0','code-only-clustered-v1',1,'generator','QUEUED',1,'2026-01-01','2026-01-01'),
+('machine-fail-audit','p',9,'github','1','o','one','github.com/o/one','3939393939393939393939393939393939393939','0.9.58','1.0.0','code-only-clustered-v1',1,'generator','QUEUED',1,'2026-01-01','2026-01-01'),
+('machine-publish-audit','p',10,'github','1','o','one','github.com/o/one','4040404040404040404040404040404040404040','0.9.58','1.0.0','code-only-clustered-v1',1,'generator','QUEUED',1,'2026-01-01','2026-01-01');
+INSERT INTO machine_request_nonces(credential_id,nonce_hash,operation,project_id,graph_version,expires_at)
+VALUES
+('mc2','dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd','CLAIM','p',8,'2099-01-01'),
+('mc2','eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee','CLAIM','p',9,'2099-01-01'),
+('mc2','ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff','CLAIM','p',10,'2099-01-01');
+INSERT INTO machine_audit_events(id,project_id,principal_id,credential_id,action,outcome,graph_version,attempt)
+VALUES('graph:p:8:1:claim','p','mp','mc2','GRAPH_CLAIMED','SUCCEEDED',8,1);
+SQL
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --file "$TEMP/machine-audit-rollback.sql" >/dev/null
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO graph_build_attempts(project_id,graph_version,attempt,publication_id,storage_key,status,lease_id,lease_expires_at,claimed_by,claimed_at) VALUES('p',8,1,'pppppppppppppppppppppppppppppppp','projects/p/graphs/v/8/attempts/1/pppppppppppppppppppppppppppppppp/graph.json','BUILDING','qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq','2099-01-01','mp','2026-01-01')" >/dev/null 2>&1; then
+  echo "expected claim audit failure to roll back attempt" >&2
+  exit 1
+fi
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO graph_build_attempts(project_id,graph_version,attempt,publication_id,storage_key,status,lease_id,lease_expires_at,claimed_by,claimed_at) VALUES('p',9,1,'rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr','projects/p/graphs/v/9/attempts/1/rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr/graph.json','BUILDING','ssssssssssssssssssssssssssssssss','2099-01-01','mp','2026-01-01'); INSERT INTO machine_audit_events(id,project_id,principal_id,credential_id,action,outcome,graph_version,attempt) VALUES('graph:p:9:1:fail','p','mp','mc2','GRAPH_FAILED','SUCCEEDED',9,1);" >/dev/null
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "UPDATE graph_build_attempts SET status='FAILED',failure_category='RUNNER_FAILED',failed_at='2026-01-02',orphan_observed_at='2026-01-02',cleanup_not_before='2026-01-03' WHERE project_id='p' AND graph_version=9 AND attempt=1" >/dev/null 2>&1; then
+  echo "expected failure audit error to roll back lifecycle" >&2
+  exit 1
+fi
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO graph_build_attempts(project_id,graph_version,attempt,publication_id,storage_key,status,lease_id,lease_expires_at,claimed_by,claimed_at) VALUES('p',10,1,'tttttttttttttttttttttttttttttttt','projects/p/graphs/v/10/attempts/1/tttttttttttttttttttttttttttttttt/graph.json','BUILDING','uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu','2099-01-01','mp','2026-01-01'); UPDATE graph_build_attempts SET checksum='dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',byte_size=100,content_type='application/json',node_count=1,link_count=0,hyperedge_count=0,generated_by=claimed_by WHERE project_id='p' AND graph_version=10; INSERT INTO machine_audit_events(id,project_id,principal_id,credential_id,action,outcome,graph_version,attempt) VALUES('graph:p:10:1:publish','p','mp','mc2','GRAPH_PUBLISHED','SUCCEEDED',10,1);" >/dev/null
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "UPDATE graph_build_attempts SET status='PUBLISHED',published_at='2026-01-02' WHERE project_id='p' AND graph_version=10 AND attempt=1" >/dev/null 2>&1; then
+  echo "expected publication audit error to roll back lifecycle" >&2
+  exit 1
+fi
+machine_audit_rollback_check=$("$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "SELECT COUNT(*) AS claim_rolled_back FROM graph_versions WHERE version=8 AND status='QUEUED' AND NOT EXISTS(SELECT 1 FROM graph_build_attempts WHERE project_id='p' AND graph_version=8); SELECT COUNT(*) AS fail_rolled_back FROM graph_versions gv JOIN graph_build_attempts gba ON gba.project_id=gv.project_id AND gba.graph_version=gv.version WHERE gv.version=9 AND gv.status='BUILDING' AND gba.status='BUILDING'; SELECT COUNT(*) AS publish_rolled_back FROM graph_versions gv JOIN graph_build_attempts gba ON gba.project_id=gv.project_id AND gba.graph_version=gv.version WHERE gv.version=10 AND gv.status='BUILDING' AND gba.status='BUILDING';")
+grep -Eq '"claim_rolled_back": 1' <<<"$machine_audit_rollback_check"
+grep -Eq '"fail_rolled_back": 1' <<<"$machine_audit_rollback_check"
+grep -Eq '"publish_rolled_back": 1' <<<"$machine_audit_rollback_check"
+
 cp "$SOURCE_CONFIG" "$upgrade_project/wrangler.toml"
 cp "$ROOT"/apps/api/migrations/000[1-4]_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
@@ -342,14 +410,17 @@ cp "$ROOT"/apps/api/migrations/0012_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
 cp "$ROOT"/apps/api/migrations/0013_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
-v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql');")
+cp "$ROOT"/apps/api/migrations/0014_*.sql "$upgrade_project/migrations/"
+"$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
+v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql');")
 grep -Eq '"legacy_rows": 2' <<<"$v2_upgrade_check"
 grep -Eq '"attempt_table": 1' <<<"$v2_upgrade_check"
 grep -Eq '"retry_rows": 1' <<<"$v2_upgrade_check"
 grep -Eq '"retry_events": 1' <<<"$v2_upgrade_check"
-grep -Eq '"applied": 4' <<<"$v2_upgrade_check"
+grep -Eq '"machine_tables": 4' <<<"$v2_upgrade_check"
+grep -Eq '"applied": 5' <<<"$v2_upgrade_check"
 "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE graph_versions SET status='QUEUED',attempt=attempt+1,failure_category=NULL,failed_at=NULL,build_started_at=NULL,updated_at='2099-01-02' WHERE id='legacy-building'" >/dev/null
 migration_retry_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS queued_retry FROM graph_versions WHERE id='legacy-building' AND status='QUEUED' AND attempt=2")
 grep -Eq '"queued_retry": 1' <<<"$migration_retry_check"
 
-echo "fresh and staged-through-0013 upgrade migrations, exact graph lifecycle evidence, restored graph bounds/status/provenance constraints, migration-event consistency, attempt/event immutability, reconciliation, uniqueness, foreign keys, and transactional rollback passed"
+echo "fresh and staged-through-0014 upgrade migrations, machine credential/nonce/audit constraints, exact graph lifecycle evidence, restored graph bounds/status/provenance constraints, migration-event consistency, immutability, reconciliation, uniqueness, foreign keys, and transactional rollback passed"

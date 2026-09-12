@@ -7,10 +7,13 @@ Durable implementation ledger for the PRD, technical architecture, implementatio
 - `[x]` implemented and locally verified in the current repository.
 - `[ ]` not implemented, not verified, or still requires work.
 - Phase status is `COMPLETE`, `PARTIAL`, or `PENDING`; a phase is complete only when all required items and its gate pass.
-- Implement one ordered phase at a time. Read the relevant requirements, architecture, code, and tests; implement; run the gate; review the diff; then checkpoint.
+- Implement one ordered phase at a time using the bounded workflow: read the relevant requirements/code/tests -> implement with targeted checks -> run exactly one independent review of the phase diff -> fix all reported P0/P1 blockers in one batch -> run one full stop gate -> checkpoint.
 - **Architecture-decision gate:** before implementing any significant architecture decision, record and approve an ADR covering context, decision, alternatives, consequences, security, operations, and rollback. This applies explicitly to provider contracts, Git credential storage/access, Graphify integration, MCP authentication/transport, local sync/cache behavior, and cross-project retrieval; phase gates must cite the accepted ADR rather than silently choosing an architecture.
 - **Provider-contract gate:** each owning phase must define only the approved minimal contract, ship exactly one current adapter, add contract tests for its boundary/failure behavior, and cite the accepted ADR or narrow decision record. Do not add speculative providers, factories, registries, or fallback selection. The owners are Current provider seams (`AuthProvider`, `ObjectStorage`), Git (`GitProvider`), Graphify adapter (`GraphProvider`), Context Engine (`ContextProvider`), and universal MCP (`McpTransport`).
-- **Mandatory stop gate after every phase:** `npm test` -> `npm run typecheck` -> `npm run lint` -> `npm run build`. Stop on any failure; do not begin the next phase.
+- **One-review rule:** each phase gets exactly one bounded independent review after implementation and targeted tests. The reviewer covers the phase diff and adjacent security/correctness boundaries and reports every P0/P1 blocker in one pass. P2 findings go to the existing backlog. If blocked, the implementation owner fixes the complete finding set, adds regression evidence, and verifies it with the phase gate; no second broad or layer-specific review is allowed.
+- **Execution budget rule:** keep one writer per phase; use parallel read-only lanes only when their scopes are independent and nonduplicative; resume existing context rather than spawning fresh rereads; do not perform repository-wide review except in the dedicated final architecture/product QA phases.
+- **Mandatory stop gate after every phase:** after the one review and any consolidated fixes, run `npm test` -> `npm run typecheck` -> `npm run lint` -> `npm run build` once. Stop on any failure; do not begin the next phase. Targeted checks may run during implementation.
+- **Checkpoint rule:** after the full gate passes, commit one phase checkpoint so the next phase and its reviewer operate on a focused Git diff.
 - Every new project route must authenticate, resolve the project, verify direct project membership, check `ADMIN | EDITOR | VIEWER`, and only then read or mutate data. Add denial, isolation, bounds, integrity, replay/conflict, and audit tests as applicable.
 
 ## Non-negotiable invariants
@@ -144,17 +147,17 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Backend/frontend and migration tests cover attempt key uniqueness, exact attempt-backed v2 lifecycle transitions, current-ADMIN mutation checks, cross-attempt isolation, exact replay, legacy coexistence, contradictory READY normalization, query cancellation, and immutable event/attempt constraints.
 - [x] Independent bounded acceptance review confirmed all Phase 9 P0/P1 blockers resolved after migration 0013; the local gate passes 140 tests, typecheck, lint, and all builds. Browser/live Cloudflare verification remains an external release gate.
 
-### 10. CI graph generation (Prompt 10) — `PENDING`
+### 10. CI graph generation (Prompt 10) — `COMPLETE LOCALLY; LIVE RUNNER RELEASE GATE PENDING`
 
-- [ ] Do not begin machine publication until the accepted ADR 0004 implementation passes independent Phase 9 review; no external machine credential, route, or workflow is part of Phase 9.
-- [ ] Before enabling canonical execution, add a complete hash lock for every resolved Python dependency, pin Action references by commit, configure and attest real host-enforced memory/disk sandbox limits, and benchmark representative repositories. The Phase 8 Node adapter deliberately does not claim to enforce host memory/disk limits.
-- [ ] Add documented GitHub Actions flow: checkout -> Graphify -> validate -> checksum -> publish -> register graph version.
-- [ ] Model a CI publication principal and high-entropy credential whose secret is stored only as a hash; scope it to upload/finalize publication operations and bind it to the exact project and repository. ADMIN alone manages credentials and triggers/retries builds; interactive cancellation is deferred beyond MVP. Only the exact lease/attempt-bound machine principal publishes; human browser sessions never upload/finalize.
-- [ ] Enforce credential expiry, rotation, immediate revocation, commit binding, nonce/idempotency replay protection, least CI permissions/secrets, and duplicate-build/upload prevention for unchanged commits/content.
-- [ ] Keep heavy graph generation outside Worker request/webhook lifecycles; webhooks, if added, verify raw-body signature/delivery replay and only schedule work.
-- [ ] Test issuance, valid publication, wrong project/repository/commit, expired/rotated/revoked credential, replay, success/failure, and idempotency against a safe integration environment.
-- [ ] Acceptance requires the CI principal/hashed-credential and bounded nonce/idempotency data models, project/repository/commit enforcement at the publication endpoint, rotation/revocation operations, and passing tests.
-- [ ] Run the phase stop gate.
+- [x] Phase 9 passed its single independent review and stop gate; no external machine credential, route, or workflow was included in Phase 9.
+- [x] Added the complete CPython 3.12 Linux x86-64 wheel hash lock and full Action commit pins. The canonical self-hosted workflow fails closed unless it attests cgroup memory and dedicated-filesystem disk limits; representative benchmarks and live-runner evidence remain external release blockers.
+- [x] Added the documented GitHub Actions flow: exact checkout -> GraphifyAdapter -> validate/checksum -> machine publish/register or bounded failure report.
+- [x] Added a separate CI machine principal and one-time high-entropy bearer credential stored only as SHA-256, fixed graph lifecycle scope, exact project/provider-repository binding, and ADMIN-only bounded issue/list/rotate/revoke routes. Human sessions cannot call machine publication routes.
+- [x] Enforced D1-clock credential expiry, atomic rotation/immediate revocation, commit/build/attempt/lease/publication binding, bounded hashed nonce replay protection, least workflow permissions/secrets, and complete-identity duplicate prevention.
+- [x] Heavy graph generation remains outside Worker request/webhook lifecycles; Phase 10 adds no webhook.
+- [x] Local migration, route, lock, runner, and workflow-assumption tests cover auth/isolation/replay, publish/fail transport, exact replay, expiry recovery, atomic lifecycle audit, immutable evidence, and credential exhaustion recovery. Live self-hosted Actions plus remote D1/R2 rotation/revocation/publication evidence remains an external release gate.
+- [x] The additive CI principal/hashed-credential, bounded nonce, immutable audit data models and project/repository/commit-enforcing machine transport are implemented through migration 0014.
+- [x] Completed the single independent phase review, fixed its full P0/P1 set in one consolidated pass without a second review, and passed the 154-test phase stop gate. Phase 11 may begin.
 
 ### 11. Local sync and offline cache (Prompt 11) — `PENDING`
 
@@ -416,11 +419,11 @@ All project endpoints inherit authenticate -> resolve -> direct membership -> ro
 
 These do not justify marking implementation complete and must remain separate from code status.
 
-- [ ] Git history/checkpoints and remote CI: repository is on `main` with no commits and all files are currently untracked; CI has never run remotely.
+- [~] Git history/checkpoints and remote CI: repository is on `main` with Phase 9 baseline checkpoint `cad3dce`; Phase 10 changes are unstaged and remote CI has never run.
 - [ ] Cloudflare production resources: real D1 ID, private R2 bucket, Pages origin, Worker origin/routes, bindings, migrations, backups, and deployment access.
 - [ ] GitHub integration: OAuth app/callback credentials, repository access model/permissions, Actions secrets/permissions, and any webhook secret.
 - [x] Graphify research acceptance: corrected source/docs/fixture evidence, output/preflight/schema contract, hosting rejection, and the accepted profile are recorded in [`graphify-integration.md`](graphify-integration.md) and ADR 0003; independent final review reported no P0 or P1 findings and ACCEPT on 2026-09-12. This documentation evidence does not satisfy later implementation or live gates.
-- [~] Graphify implementation/live evidence: the isolated adapter implementation has independent review acceptance with no findings, and accepted ADR 0004 plus the attempt-scoped Phase 9 refactor are implemented locally. Independent Phase 9 implementation review is still required before acceptance; resource sizing, cross-environment determinism, upstream schema compatibility, any future symlink/submodule/LFS support, hash-locked adapter/Actions, machine publication, and a safe live Actions/D1/R2 environment remain unverified.
+- [~] Graphify implementation/live evidence: the isolated adapter and accepted ADR 0004 attempt-scoped Phase 9 implementation passed their independent phase reviews and local gates. Resource sizing, cross-environment determinism, upstream schema compatibility, any future symlink/submodule/LFS support, hash-locked adapter/Actions, machine publication, and a safe live Actions/D1/R2 environment remain unverified.
 - [ ] Live test identities/repositories and an approved private-data-safe staging environment for OAuth, D1/R2, CI, MCP, Pi, sync, and E2E verification.
 - [ ] Current Cloudflare/GitHub free-tier limits and production observability/rate-limit configuration must be verified at audit time.
 

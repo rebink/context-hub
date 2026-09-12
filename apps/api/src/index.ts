@@ -10,6 +10,7 @@ import {
 import { GithubAuthProvider } from "./github-auth-provider.js";
 import { GithubGitProvider } from "./github-git-provider.js";
 import { handleGraphRoute } from "./graphs.js";
+import { handleCredentialRoute, handleMachineGraphRoute } from "./machine-graphs.js";
 import type { ObjectStorage } from "./object-storage.js";
 import { R2ObjectStorage } from "./r2-object-storage.js";
 import {
@@ -80,7 +81,7 @@ function corsHeaders(request: Request, env: Env): Headers {
 function json(
   request: Request,
   env: Env,
-  body: object,
+  body: Record<string, unknown>,
   status = 200,
   extraHeaders?: HeadersInit,
 ): Response {
@@ -91,6 +92,14 @@ function json(
     });
   }
   return Response.json(body, { status, headers });
+}
+
+function requestUrl(request: Request): URL | null {
+  try {
+    return new URL(request.url);
+  } catch {
+    return null;
+  }
 }
 
 function redirect(location: string, cookieValue?: string): Response {
@@ -209,7 +218,8 @@ async function githubCallback(
   ) {
     return error(request, env, "AUTH_UNAVAILABLE", 503);
   }
-  const url = new URL(request.url);
+  const url = requestUrl(request);
+  if (!url) return error(request, env, "INVALID_REQUEST_URL", 400);
   const state = url.searchParams.get("state");
   const code = url.searchParams.get("code");
   const stateCookie = readCookie(request, STATE_COOKIE);
@@ -277,7 +287,7 @@ async function githubCallback(
     maxAge: SESSION_TTL_SECONDS,
     secure: secureCookies(env),
   });
-  const destination = env.WEB_ORIGIN ?? new URL(request.url).origin;
+  const destination = env.WEB_ORIGIN ?? url.origin;
   const headers = new Headers({ location: destination });
   headers.append("set-cookie", clearState);
   headers.append("set-cookie", sessionCookie);
@@ -439,7 +449,9 @@ export function normalizeGithubRepository(value: string): string | null {
 }
 
 async function resolveProject(request: Request, env: Env, user: User): Promise<Response> {
-  const repository = new URL(request.url).searchParams.get("repository");
+  const url = requestUrl(request);
+  if (!url) return error(request, env, "INVALID_REQUEST_URL", 400);
+  const repository = url.searchParams.get("repository");
   const canonical = repository && normalizeGithubRepository(repository);
   if (!canonical) return error(request, env, "INVALID_REPOSITORY", 400);
   const result = await env.DB.prepare(
@@ -522,6 +534,40 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
         const { pathname } = new URL(request.url);
         const storage = new R2ObjectStorage(env.OBJECTS);
         if (request.method === "OPTIONS") return options(request, env);
+
+        const machineGraph =
+          /^\/machine\/projects\/([^/]+)\/graphs\/([^/]+)\/(claim|publish|fail)$/.exec(pathname);
+        if (machineGraph) {
+          return handleMachineGraphRoute(
+            request,
+            env,
+            storage,
+            machineGraph[1] ?? "",
+            machineGraph[2] ?? "",
+            machineGraph[3] as "claim" | "publish" | "fail",
+          );
+        }
+
+        const credentialCollection = /^\/projects\/([^/]+)\/machine-credentials$/.exec(pathname);
+        const credentialRotate = /^\/projects\/([^/]+)\/machine-credentials\/([^/]+)\/rotate$/.exec(
+          pathname,
+        );
+        const credentialDetail = /^\/projects\/([^/]+)\/machine-credentials\/([^/]+)$/.exec(
+          pathname,
+        );
+        const credentialRoute = credentialRotate ?? credentialDetail ?? credentialCollection;
+        if (credentialRoute) {
+          const user = await authenticate(request, env);
+          if (!user) return error(request, env, "UNAUTHENTICATED", 401);
+          return handleCredentialRoute(
+            request,
+            env,
+            user,
+            credentialRoute[1] ?? "",
+            credentialRoute[2],
+            Boolean(credentialRotate),
+          );
+        }
 
         const graphCollection = /^\/projects\/([^/]+)\/graphs$/.exec(pathname);
         const graphSegment = /^\/projects\/([^/]+)\/graphs\/([^/]+)$/.exec(pathname);

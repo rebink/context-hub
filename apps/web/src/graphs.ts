@@ -49,7 +49,7 @@ function detail(label: string, value: string, code = false): HTMLDivElement {
 
 function statusCopy(graph: GraphVersion): string {
   if (graph.status === "QUEUED")
-    return "Awaiting CI publication infrastructure. The build is reserved, but Phase 10 dispatch is not available.";
+    return "Build reserved. Dispatch the protected Context Hub Graphify workflow to start this attempt.";
   if (graph.status === "BUILDING")
     return "A CI publisher has claimed this attempt and is building the immutable graph.";
   if (graph.status === "FAILED")
@@ -232,7 +232,7 @@ export function mountGraphs(
           "p",
           undefined,
           capability.canBuild
-            ? "Generate reserves an immutable version for the verified repository commit. Publication awaits Phase 10 CI infrastructure."
+            ? "Generate reserves an immutable version for the verified repository commit. Then dispatch the protected Graphify workflow."
             : "A project administrator can reserve generation after connecting a verified repository.",
         ),
       );
@@ -687,7 +687,7 @@ export function mountGraphs(
       live.textContent =
         response.dispatch === "ORPHAN_RECONCILIATION_PENDING"
           ? "A prior unpublished object is in its safety grace period. Retry after status refresh."
-          : "Generation reserved. Awaiting Phase 10 CI publication infrastructure.";
+          : "Generation reserved. Dispatch the protected Context Hub Graphify workflow.";
     } catch (error) {
       if (request.signal.aborted || !mounted || !operations.isCurrent("build", request.token))
         return;

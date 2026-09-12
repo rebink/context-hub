@@ -1,0 +1,32 @@
+# Complete runtime resolution for CPython 3.12 on GitHub-hosted Ubuntu x86_64.
+# Install only with: python -m pip install --only-binary=:all: --require-hashes -r <this file>
+graphifyy==0.9.58 --hash=sha256:e239803288e91c723d6e30540860bd6d5a1dc3f0914b9fc1104b0233e98aaeb8
+networkx==3.6.1 --hash=sha256:d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762
+numpy==2.2.6 --hash=sha256:fd83c01228a688733f1ded5201c678f0c53ecc1006ffbc404db9f7a899ac6249
+rapidfuzz==3.13.0 --hash=sha256:2d18228a2390375cf45726ce1af9d36ff3dc1f11dce9775eae1f1b13ac6ec50f
+tree-sitter==0.25.2 --hash=sha256:b43a9e4c89d4d0839de27cd4d6902d33396de700e9ff4c5ab7631f277a85ead9
+tree-sitter-bash==0.25.1 --hash=sha256:3f484c4bb8796cde7a87ca351e6116f09653edac0eb3c6d238566359dd28b117
+tree-sitter-c==0.24.1 --hash=sha256:a6a807705a3978911dc7ee26a7ad36dcfacb6adfc13c190d496660ec9bd66707
+tree-sitter-c-sharp==0.23.1 --hash=sha256:035d259e64c41d02cc45afc3b8b46388b232e7d16d84734d851cca7334761da5
+tree-sitter-cpp==0.23.4 --hash=sha256:773d2cafc08bbc0f998687fa33f42f378c1a371cdb582870c4d13abb06092706
+tree-sitter-elixir==0.3.5 --hash=sha256:ebfe3491a3d00ac50b12a3bfcabb1c564f3809ed8a095099fe87f49d6b3987e6
+tree-sitter-fortran==0.6.0 --hash=sha256:ac4800b4abc1b25e6e7ab4a3f2eae274c5b19107beb18d3a473c0f67509c7486
+tree-sitter-go==0.23.4 --hash=sha256:dd14d23056ae980debfccc0db67d0a168da03792ca2968b1b5dd58ce288084e7
+tree-sitter-groovy==0.1.2 --hash=sha256:9e938e9c2cd5fdb08fd1b28d7d621d15ea959a17a4bc0b77833e07a94fe7d263
+tree-sitter-java==0.23.5 --hash=sha256:370b204b9500b847f6d0c5ad584045831cee69e9a3e4d878535d39e4a7e4c4f1
+tree-sitter-javascript==0.23.1 --hash=sha256:056dc04fb6b24293f8c5fec43c14e7e16ba2075b3009c643abf8c85edc4c7c3c
+tree-sitter-json==0.24.8 --hash=sha256:85cca779872f7278f3a74eb38533d34b9c4de4fd548615e3361fa64fe350ad0a
+tree-sitter-julia==0.23.1 --hash=sha256:7d4f6ae938198fc0be9b6ea76313ade24fcdb89be01a791e0cc90c88fae5743d
+tree-sitter-kotlin==1.1.0 --hash=sha256:9a92afe24b634cf914c5812af0f5c53184b1c18bdf6ee5505c83afac81f6bf6c
+tree-sitter-lua==0.5.0 --hash=sha256:5ec448c854fea32414a0449147d648bc5baddf7a0357008c4abe3269db35370a
+tree-sitter-objc==3.0.2 --hash=sha256:e71282ac9c096a966bf2fa6a4ecdbea4bd037d3e01ea4aa9bbc64d9a4c0022f6
+tree-sitter-php==0.24.1 --hash=sha256:7a1404a30f2972498ace040b0029738b8dac45d0a12932ccb8b605eb94bafbe4
+tree-sitter-powershell==0.26.4 --hash=sha256:56508e4ac7aad1e3b26f2ef96b8d2b60b149c4efa0c23742e91e809a11db73ee
+tree-sitter-python==0.23.6 --hash=sha256:29dacdc0cd2f64e55e61d96c6906533ebb2791972bec988450c46cce60092f5d
+tree-sitter-ruby==0.23.1 --hash=sha256:f7bcd93972b4ca2803856d4fe0fbd04123ff29c4592bbb9f12a27528bd252341
+tree-sitter-rust==0.24.0 --hash=sha256:bf2c1f4b87df568352a9e523600af7cb32c5748dc75275f4794d6f811ab13dfe
+tree-sitter-scala==0.26.2 --hash=sha256:0e68e55c50fa7e7f2866ce7ca590df8df6407dd7a85e484e9f20e974cbc6d8f2
+tree-sitter-swift==0.7.3 --hash=sha256:f38feeb4f7350c8b30d567a0dc08bf1eeaa67c241b6888d72a45a8b1a4aa7187
+tree-sitter-typescript==0.23.2 --hash=sha256:e96d36b85bcacdeb8ff5c2618d75593ef12ebaf1b4eace3477e2bdb2abb1752c
+tree-sitter-verilog==1.0.3 --hash=sha256:747dd7d4bc95fb389bc37225f82d16f0c40549856e9a244be3ff9d7bfe62b730
+tree-sitter-zig==1.1.2 --hash=sha256:e924509dcac5a6054da357e3d6bcf37ea82984ee1d2a376569753d32f61ea8bb

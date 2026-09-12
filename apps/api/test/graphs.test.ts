@@ -949,7 +949,7 @@ describe("graph reservation and lifecycle", () => {
       "build",
     );
     assert.equal(first.status, 202);
-    assert.equal(((await first.json()) as any).dispatch, "UNAVAILABLE_UNTIL_PHASE_10");
+    assert.equal(((await first.json()) as any).dispatch, "MANUAL_ACTIONS_DISPATCH_REQUIRED");
     const duplicate = await handleGraphRoute(
       request("/projects/p/graphs/build", "POST"),
       env(),

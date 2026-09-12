@@ -574,7 +574,7 @@ export async function handleGraphRoute(
       env,
       {
         graph: mapGraph(row),
-        dispatch: "UNAVAILABLE_UNTIL_PHASE_10",
+        dispatch: "MANUAL_ACTIONS_DISPATCH_REQUIRED",
       },
       row.status === "QUEUED" ? 202 : 200,
     );
@@ -685,6 +685,24 @@ export async function claimGraphBuild(
     publicationId,
     storageKey: attempt.storage_key,
   };
+}
+
+export async function claimOrReclaimExpiredGraphBuild(
+  env: GraphEnv,
+  projectId: string,
+  version: number,
+  claimedBy: string,
+): Promise<GraphClaim> {
+  await expireGraphBuild(env, projectId, version);
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `UPDATE graph_versions SET status='QUEUED',attempt=attempt+1,failure_category=NULL,
+       failed_at=NULL,build_started_at=NULL,updated_at=?
+     WHERE project_id=? AND version=? AND status='FAILED' AND failure_category='LEASE_EXPIRED'`,
+  )
+    .bind(now, projectId, version)
+    .run();
+  return claimGraphBuild(env, projectId, version, claimedBy);
 }
 
 export async function failGraphBuild(

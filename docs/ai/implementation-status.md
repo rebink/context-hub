@@ -7,7 +7,7 @@ The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`
 ## Current State
 
 - [x] Phase 9 immutable graph versions, attempt-scoped publication, bounded explorer, and role-aware UI are implemented through additive migration 0013. The full local gate passes 140 tests (78 API, 26 web, 36 adapter), migration integrity, typecheck, Biome lint, and Worker/Vite/adapter builds; final bounded review returned ACCEPT. Browser/live Cloudflare verification remains an external release gate.
-- [!] Git repository is on `main` with no commits; every project file is untracked. CI has therefore never run remotely and there are no phase checkpoints.
+- [x] Git repository is on `main` with the Phase 9 baseline checkpoint `cad3dce`; Phase 10 changes remain unstaged for their checkpoint. Remote CI has not run.
 - [!] Production D1 ID, R2 bucket, Pages origin, and Worker origin remain placeholders. GitHub OAuth credentials and live Cloudflare resources are not configured.
 - [!] No browser, live OAuth, remote D1/R2, or deployment end-to-end test has run.
 
@@ -24,6 +24,7 @@ The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`
 - [x] Master-plan Phase 7 / Prompt 7 Graphify research: corrected 0.9.58 evidence, reject-all symlink/submodule/LFS preflight, exact shared-`GRAPHIFY_OUT` recipe, repository-bound identity, fail-closed format-v1 schema/bounds, lifecycle, security, and rejected alternatives are documented in [`graphify-integration.md`](graphify-integration.md) and accepted ADR 0003. Independent final review reported no P0 or P1 findings and ACCEPT on 2026-09-12.
 - [x] Master-plan Phase 8 / Prompt 8 Graphify adapter: the isolated Node-only workspace implements the single `GraphProvider`/`GraphifyAdapter`, POSIX-only fail-closed runtime gate, exact-commit Git preflight/postflight, two-command environment, exact-byte output/integrity, strict Python validation, retained fixture, and contract/security tests. Independent final review returned ACCEPT with no findings after the complete implementation and 86-test gate.
 - [x] Master-plan Phase 9 / Prompt 9 graph versions: ATTEMPT_V2 immutable physical keys, D1-clock lease fencing, exact attempt evidence, private R2 publication/replay, retry-safe orphan cleanup, bounded human explorer routes, and the role-aware frontend pass 140 local tests and final bounded P0/P1 review.
+- [x] Master-plan Phase 10 / Prompt 10 CI graph generation: ADR 0005, migration 0014 machine principals/hashed credentials/nonces/atomic lifecycle audits, exact machine claim/publish/fail transport, independently pinned tooling checkout, complete Python hash lock, host resource attestation, bounded ambiguous-publish replay, and expiry recovery pass the single phase review plus 154-test local gate. Live runner and remote Cloudflare evidence remain release gates.
 
 ## Partial
 
@@ -32,15 +33,15 @@ The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`
 - [~] Audit history: artifact and redacted Git lifecycle events exist, but generalized project/member/graph/snapshot auditing and audit UI do not.
 - [~] Artifact UI freshness is pending: only current-version source-commit provenance is complete; the shared `CURRENT | STALE | UNKNOWN` classifier and Context Engine exposure belong to Phase 12, with artifact UI and sync-state persistence integration in Phase 19.
 - [~] Artifact formats: Markdown, text, JSON, and YAML work; PDF, diagrams, binary, and multipart uploads are intentionally deferred.
-- [~] Git/D1/R2 source-of-truth separation is implemented for artifacts and attempt-scoped graphs. Migration 0010 preserves selected legacy version-only rows, migration 0011 restores strict graph constraints and migration event evidence, migration 0012 requires exact attempt evidence for every v2 lifecycle transition, and migration 0013 adds database-time publication fencing plus cleanup-independent retry; new graph claims use immutable attempt/publication keys. Snapshot, sync-state, machine-credential, and generalized audit schemas remain pending.
+- [~] Git/D1/R2 source-of-truth separation is implemented for artifacts and attempt-scoped graphs. Migrations 0010-0013 preserve legacy graphs and enforce exact attempt-scoped lifecycle/publication; migration 0014 adds machine principals, hash-only credentials, replay nonces, and immutable machine audits. Snapshot, sync-state, and generalized audit schemas remain pending.
 
 ## Remaining Work — Required Order
 
 Every significant architecture choice first needs an approved ADR. The mandatory gates include Git credentials, Graphify integration, MCP authentication/transport, local sync/cache behavior, and cross-project retrieval.
 
 1. [~] Obtain independent Phase 6 final-review acceptance for the locally passing backend/UI fixes and operational ADR. Then complete live browser/GitHub App/Cloudflare verification as an external release gate; neither review nor live evidence is claimed complete here.
-2. [x] Phase 9 is locally complete through migration 0013 and final bounded review ACCEPT. Browser/live Cloudflare verification remains part of the external release gate; no Phase 10 machine transport is claimed. Dependency hash locking, Action pins, host-enforced memory/disk sandboxing, resource benchmarks, cross-environment determinism evidence, machine credentials/publication transport, workflow, and live Actions execution remain explicit Phase 10 blockers.
-3. [ ] Add CI graph generation with hashed, scoped, expiring, revocable project/repository-bound publication principals, rotation, replay protection, and tests.
+2. [x] Phase 9 is locally complete through migration 0013 and final bounded review ACCEPT. Browser/live Cloudflare verification remains part of the external release gate.
+3. [x] Phase 10 CI graph generation is locally complete through migration 0014 after its single review and 154-test gate. Live bounded-runner benchmarks and remote D1/R2 publication remain external release gates; Phase 11 has not started.
 4. [ ] Approve the local-sync ADR; implement safe local graph synchronization, offline cache behavior, and failure-preserving atomic updates.
 5. [ ] Implement minimal `ContextProvider` with exactly one Context Engine implementation and contract tests, including bounded retrieval and the shared `CURRENT | STALE | UNKNOWN` classifier/result exposure; only then run Prompt 13 scenarios.
 6. [ ] Approve the MCP auth/transport ADR; implement minimal `McpTransport` with exactly one Worker transport and contract tests, hashed/scoped/expiring/revocable MCP/local-client principals, replay controls, and the stable universal six-tool surface.
