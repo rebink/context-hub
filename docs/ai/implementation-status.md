@@ -11,6 +11,7 @@ The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`
 - [x] Phase 12 Context Engine is complete locally from checkpoint `9c0702a`: one minimal `ContextProvider`/`ContextEngine`, query-aware bounded single-project retrieval, complete-evidence token accounting, current-repository graph selection, exact provenance, private artifact HEAD/byte verification, and the shared freshness classifier pass the single review and 192-test full gate.
 - [x] Phase 13 Context Engine executable acceptance scenarios are complete locally from checkpoint `de8a832`: overlap-heavy relevance/exclusion/capped-graph/exact-provenance/calibrated-deduplication/freshness coverage, independently measured token/byte budgets, valid legacy/current and malformed storage-key matrices, strict SQL and HEAD-before-get fakes, and repeated uncached isolation pass the single review and 200-test full gate.
 - [x] Phase 14/B universal MCP is complete locally from checkpoint `8f128d1`: accepted ADR 0007, additive migration 0015, separate sealed-scope/hash-only MCP credentials, one bounded Worker transport, standards-compatible initialize/notification handling, exact six-tool universal endpoint, all-or-nothing caller-bounded cross-project authorization, pre-decode replay/rate/audit controls, exact lifecycle auditing, and SQL-sensitive tests pass the single review and 219-test root gate.
+- [x] Phase 15 MCP token audit is complete locally from Phase 14 checkpoint `cef956a`: the executable audit measures the actual exported six-tool schemas, production limits, and transport encoding; proves the 4,082-byte schema is identical for 1, 10, and 100 authorized projects; measures required success/denial fixtures; and locks the 135,154-byte conservative schema-plus-response bound in [`mcp-token-budget.md`](mcp-token-budget.md). The single review, consolidated two-item P1 fix pass, and 222-test root gate are complete.
 - [!] Production D1 ID, R2 bucket, Pages origin, and Worker origin remain placeholders. GitHub OAuth credentials and live Cloudflare resources are not configured.
 - [!] No browser, live OAuth, remote D1/R2, or deployment end-to-end test has run.
 
@@ -50,7 +51,7 @@ Every significant architecture choice first needs an approved ADR. The mandatory
 5. [x] Phase 12 `ContextProvider` and Context Engine are complete locally after one review, one consolidated five-item P1 fix pass, and the 192-test full gate.
 6. [x] Phase 13 Context Engine scenarios are complete locally after one review, one consolidated P1 fix pass, and the 200-test full gate.
 7. [x] Phase 14/B universal MCP is complete locally after one review, one consolidated seven-item P1 fix pass, fresh/staged migration integrity, and the 219-test root gate.
-8. [ ] Complete the separate Phase 15 MCP schema/response token audits for 1, 10, and 100 projects.
+8. [x] Phase 15 MCP schema/response token audits are complete locally after one review, one consolidated two-item P1 fix pass, and the 222-test root gate.
 9. [ ] Add Pi integration using the local-client principal, automatic repository resolution, explicit project switching, and Pi token audit.
 10. [ ] Add immutable snapshots, then integrate the shared freshness classifier into artifact UI and persist/index sync state.
 11. [ ] Add team invitations, acceptance, removal, and role changes.

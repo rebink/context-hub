@@ -24,7 +24,7 @@ Durable implementation ledger for the PRD, technical architecture, implementatio
 - [x] Graphify remains a derived build output; implemented graph versions are immutable and checksum-backed; graph JSON is never edited, merged, or overwritten.
 - [x] Context results are relevance-first, deduplicated, explicitly budgeted, bounded, and carry project/source/path/version/commit/checksum provenance where applicable.
 - [x] Sync writes through a temporary path, verifies checksum and source commit, atomically replaces the cache, and preserves the last valid graph on failure.
-- [ ] One authenticated provider-neutral MCP endpoint exposes a stable six-tool, read-oriented surface regardless of project count.
+- [x] One authenticated provider-neutral MCP endpoint exposes a stable six-tool, read-oriented surface regardless of project count; Phase 15 measures the complete schema as byte-identical for 1, 10, and 100 authorized projects.
 - [ ] Pi and other clients add approximately zero permanent model context, never inject the repository/full graph/all artifacts, and do not duplicate Context Engine or Graphify logic.
 - [ ] Local-first use continues from Git, manifest, graph cache, artifact cache, and offline cache when Context Hub is unavailable.
 - [x] The MVP uses minimal dependencies and free/open-source-compatible Pages, Workers, D1, R2, GitHub OAuth, and GitHub Actions architecture; no mandatory paid service.
@@ -231,12 +231,14 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Passed the root phase stop gate: fresh/staged-through-0015 migration integrity plus 219 tests (133 API, 26 web, 19 CLI, 41 adapter), typecheck, Biome lint, and all builds.
 - **P2 backlog (non-blocking):** add explicit UTF-8-boundary-safe artifact excerpt truncation rather than relying on replacement decoding at a byte cutoff.
 
-### 15. MCP token audit (Prompt 15) — `PENDING`
+### 15. MCP token audit (Prompt 15) — `COMPLETE LOCALLY`
 
-- [ ] Record tool count, schema bytes/tokens, average response, largest response, and worst-case bounded context in `docs/ai/mcp-token-budget.md`.
-- [ ] Measure schema footprint with 1, 10, and 100 projects; it must remain effectively constant and must not duplicate tools/schemas.
-- [ ] Measure single-project, two-project, and rejected unauthorized response sizes; trim verbosity without reducing correctness/provenance.
-- [ ] Run the phase stop gate.
+- [x] Record the reproducible method, exact six-tool schema bytes/estimated tokens, representative average, largest response, transport/context limits, and worst-case bounded model-visible footprint in [`mcp-token-budget.md`](mcp-token-budget.md).
+- [x] Measure 1, 10, and 100 authorized projects against the exported transport: the complete 4,082-byte schema and SHA-256 remain exactly identical, with no duplicated tool/schema or embedded project enumeration.
+- [x] Measure actual JSON-RPC encoding for representative single-project, explicit two-project, and partially unauthorized responses; the rejection has no model-visible tool text or project/provenance leakage. Measurements fit accepted bounds, so no transport verbosity was trimmed.
+- [x] Add a deterministic dependency-free audit script and regression tests for schema constancy, six unique tools, response accounting, nonleaking rejection, production-sourced immutable limits, and the calculated bound.
+- [x] Complete the one independent Phase 15 review and fix its complete two-item P1 set in one consolidated pass without a second review: one production limits source across runtime/schema/audit plus exact envelope/limits/ceiling regression locks.
+- [x] Passed the root phase stop gate: fresh/staged-through-0015 migration integrity plus 222 tests (136 API, 26 web, 19 CLI, 41 adapter), typecheck, Biome lint, and all builds.
 
 ### 16/C. Pi integration and project resolution (Prompt 16 + Task C) — `PENDING`
 

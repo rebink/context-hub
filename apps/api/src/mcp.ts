@@ -1,6 +1,8 @@
 import { ContextEngine } from "./context-engine.js";
 import { type GraphRow, loadVerifiedReadyGraph, queryGraph } from "./graphs.js";
 import {
+  MCP_LIMITS,
+  MCP_TOOL_NAMES,
   type McpDispatchRequest,
   type McpDispatchResult,
   type McpToolName,
@@ -15,20 +17,11 @@ export type McpHuman = { id: string };
 
 const ID = /^[A-Za-z0-9_-]+$/;
 const NONCE = /^[A-Za-z0-9_-]{16,128}$/;
-const ALL_TOOLS = new Set<McpToolName>([
-  "project_info",
-  "search_context",
-  "get_artifact",
-  "query_graph",
-  "get_sources",
-  "sync_status",
-]);
-const MAX_PROJECTS = 20;
+const ALL_TOOLS = new Set<McpToolName>(MCP_TOOL_NAMES);
 const MAX_CREDENTIAL_DAYS = 90;
 const MAX_ACTIVE_PRINCIPALS = 20;
 const MAX_REQUESTS_PER_MINUTE = 120;
 const MAX_ACTIVE_NONCES = 1_000;
-const ARTIFACT_RESULT_BYTES = 48 * 1024;
 
 type CredentialIdentity = {
   credential_id: string;
@@ -194,8 +187,7 @@ export function callerWideLimit(requested: number, projectCount: number): number
   if (
     !Number.isSafeInteger(requested) ||
     !Number.isSafeInteger(projectCount) ||
-    requested < 1 ||
-    projectCount < 1 ||
+    projectCount < MCP_LIMITS.scope.minProjects ||
     requested < projectCount
   )
     return null;
@@ -229,8 +221,8 @@ async function resolveScope(
   } else {
     if (
       !Array.isArray(projectsValue) ||
-      projectsValue.length < 1 ||
-      projectsValue.length > MAX_PROJECTS ||
+      projectsValue.length < MCP_LIMITS.scope.minProjects ||
+      projectsValue.length > MCP_LIMITS.scope.maxProjects ||
       projectsValue.some((value) => typeof value !== "string" || !ID.test(value)) ||
       new Set(projectsValue).size !== projectsValue.length
     )
@@ -273,7 +265,7 @@ async function resolveScope(
     sql += ` AND p.id IN (${requested.map(() => "?").join(",")})`;
     bindings.push(...requested);
   }
-  sql += " ORDER BY p.id LIMIT 21";
+  sql += ` ORDER BY p.id LIMIT ${MCP_LIMITS.scope.maxProjects + 1}`;
   const result = await env.DB.prepare(sql)
     .bind(...bindings)
     .all<AuthorizedProject>();
@@ -582,14 +574,29 @@ export async function executeMcpTool(
   }
   if (name === "search_context") {
     const query = stringArg(args, "query", 2, 500);
-    const maxTokens = integerArg(args, "maxTokens", 2_000, 32, 8_000);
-    const maxBytes = integerArg(args, "maxBytes", 32 * 1024, 512, 64 * 1024);
+    const maxTokens = integerArg(
+      args,
+      "maxTokens",
+      MCP_LIMITS.searchContext.defaultTokens,
+      MCP_LIMITS.searchContext.minTokens,
+      MCP_LIMITS.searchContext.maxTokens,
+    );
+    const maxBytes = integerArg(
+      args,
+      "maxBytes",
+      MCP_LIMITS.searchContext.defaultBytes,
+      MCP_LIMITS.searchContext.minBytes,
+      MCP_LIMITS.searchContext.maxBytes,
+    );
     if (!query || maxTokens === null || maxBytes === null) failure("INVALID_ARGUMENTS", 400);
     const domain = args.domain === undefined ? undefined : stringArg(args, "domain", 1, 100);
     const packageName = args.package === undefined ? undefined : stringArg(args, "package", 1, 160);
     if ((args.domain !== undefined && !domain) || (args.package !== undefined && !packageName))
       failure("INVALID_ARGUMENTS", 400);
-    if (maxTokens < 32 * projects.length || maxBytes < 512 * projects.length)
+    if (
+      maxTokens < MCP_LIMITS.searchContext.minTokens * projects.length ||
+      maxBytes < MCP_LIMITS.searchContext.minBytes * projects.length
+    )
       failure("INVALID_ARGUMENTS", 400);
     const engine = new ContextEngine(env.DB, storage);
     const perTokens = Math.floor(maxTokens / projects.length);
@@ -623,14 +630,20 @@ export async function executeMcpTool(
             storage,
             project.id,
             args,
-            Math.floor(ARTIFACT_RESULT_BYTES / projects.length),
+            Math.floor(MCP_LIMITS.artifact.contentBytes / projects.length),
           ),
         ),
       ),
     };
   }
   if (name === "query_graph") {
-    const requestedLimit = integerArg(args, "limit", 25, 1, 25);
+    const requestedLimit = integerArg(
+      args,
+      "limit",
+      MCP_LIMITS.graph.defaultRecords,
+      MCP_LIMITS.graph.minRecords,
+      MCP_LIMITS.graph.maxRecords,
+    );
     const perProjectLimit =
       requestedLimit === null ? null : callerWideLimit(requestedLimit, projects.length);
     if (perProjectLimit === null) failure("INVALID_ARGUMENTS", 400);
@@ -652,7 +665,13 @@ export async function executeMcpTool(
     return { projects: results };
   }
   if (name === "get_sources") {
-    const limit = integerArg(args, "limit", 25, 1, 50);
+    const limit = integerArg(
+      args,
+      "limit",
+      MCP_LIMITS.sources.defaultRecords,
+      MCP_LIMITS.sources.minRecords,
+      MCP_LIMITS.sources.maxRecords,
+    );
     const perProjectLimit = limit === null ? null : callerWideLimit(limit, projects.length);
     if (perProjectLimit === null) failure("INVALID_ARGUMENTS", 400);
     const results = [];
@@ -869,8 +888,8 @@ async function issueMcpCredential(request: Request, env: McpEnv, user: McpHuman)
     name.length < 1 ||
     new TextEncoder().encode(name).byteLength > 80 ||
     !Array.isArray(projectIds) ||
-    projectIds.length < 1 ||
-    projectIds.length > MAX_PROJECTS ||
+    projectIds.length < MCP_LIMITS.scope.minProjects ||
+    projectIds.length > MCP_LIMITS.scope.maxProjects ||
     projectIds.some((id) => typeof id !== "string" || !ID.test(id)) ||
     new Set(projectIds).size !== projectIds.length ||
     !validTools(operations) ||

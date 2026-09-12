@@ -7,6 +7,7 @@
     "dev": "wrangler dev --port 8787",
     "test": "tsx --test test/**/*.test.ts",
     "test:migrations": "bash test/migration-integrity.sh",
+    "audit:mcp-tokens": "tsx scripts/mcp-token-audit.ts",
     "typecheck": "tsc -p tsconfig.json",
     "build": "wrangler deploy --dry-run --outdir dist --env=\"\"",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",

@@ -28,8 +28,21 @@ export interface McpTransport {
   handle(request: Request, dispatch: McpDispatch): Promise<Response>;
 }
 
-const MAX_REQUEST_BYTES = 16 * 1024;
-const MAX_RESPONSE_BYTES = 128 * 1024;
+export const MCP_LIMITS = Object.freeze({
+  transport: Object.freeze({ requestBytes: 16 * 1024, responseBytes: 128 * 1024 }),
+  scope: Object.freeze({ minProjects: 1, maxProjects: 20 }),
+  searchContext: Object.freeze({
+    minTokens: 32,
+    maxTokens: 8_000,
+    defaultTokens: 2_000,
+    minBytes: 512,
+    maxBytes: 64 * 1024,
+    defaultBytes: 32 * 1024,
+  }),
+  artifact: Object.freeze({ contentBytes: 48 * 1024 }),
+  graph: Object.freeze({ minRecords: 1, maxRecords: 25, defaultRecords: 25 }),
+  sources: Object.freeze({ minRecords: 1, maxRecords: 50, defaultRecords: 25 }),
+});
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "cache-control": "private, no-store",
@@ -56,8 +69,8 @@ function scopeSchema(
       projectId: { type: "string", minLength: 1, maxLength: 100 },
       projectIds: {
         type: "array",
-        minItems: 1,
-        maxItems: 20,
+        minItems: MCP_LIMITS.scope.minProjects,
+        maxItems: MCP_LIMITS.scope.maxProjects,
         uniqueItems: true,
         items: { type: "string", minLength: 1, maxLength: 100 },
       },
@@ -79,8 +92,16 @@ const inputSchemas: Record<McpToolName, Record<string, unknown>> = {
       query: { type: "string", minLength: 2, maxLength: 500 },
       domain: { type: "string", minLength: 1, maxLength: 100 },
       package: { type: "string", minLength: 1, maxLength: 160 },
-      maxTokens: { type: "integer", minimum: 32, maximum: 8000 },
-      maxBytes: { type: "integer", minimum: 512, maximum: 65536 },
+      maxTokens: {
+        type: "integer",
+        minimum: MCP_LIMITS.searchContext.minTokens,
+        maximum: MCP_LIMITS.searchContext.maxTokens,
+      },
+      maxBytes: {
+        type: "integer",
+        minimum: MCP_LIMITS.searchContext.minBytes,
+        maximum: MCP_LIMITS.searchContext.maxBytes,
+      },
     },
     ["query"],
   ),
@@ -102,11 +123,21 @@ const inputSchemas: Record<McpToolName, Record<string, unknown>> = {
       source: { type: "string", minLength: 1, maxLength: 512 },
       target: { type: "string", minLength: 1, maxLength: 512 },
       maxDepth: { type: "integer", minimum: 1, maximum: 8 },
-      limit: { type: "integer", minimum: 1, maximum: 25 },
+      limit: {
+        type: "integer",
+        minimum: MCP_LIMITS.graph.minRecords,
+        maximum: MCP_LIMITS.graph.maxRecords,
+      },
     },
     ["operation"],
   ),
-  get_sources: scopeSchema({ limit: { type: "integer", minimum: 1, maximum: 50 } }),
+  get_sources: scopeSchema({
+    limit: {
+      type: "integer",
+      minimum: MCP_LIMITS.sources.minRecords,
+      maximum: MCP_LIMITS.sources.maxRecords,
+    },
+  }),
   sync_status: scopeSchema(),
 };
 
@@ -127,7 +158,7 @@ export const MCP_TOOLS = Object.freeze(
 
 function json(value: unknown, status = 200, extra?: HeadersInit): Response {
   const encoded = JSON.stringify(value);
-  if (new TextEncoder().encode(encoded).byteLength > MAX_RESPONSE_BYTES) {
+  if (new TextEncoder().encode(encoded).byteLength > MCP_LIMITS.transport.responseBytes) {
     return Response.json(
       { jsonrpc: "2.0", id: null, error: { code: -32603, message: "RESPONSE_TOO_LARGE" } },
       { status: 500, headers: JSON_HEADERS },
@@ -155,7 +186,8 @@ async function readJson(request: Request): Promise<unknown | null> {
   const declared = request.headers.get("content-length");
   if (
     contentType !== "application/json" ||
-    (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_REQUEST_BYTES)) ||
+    (declared &&
+      (!/^\d+$/.test(declared) || Number(declared) > MCP_LIMITS.transport.requestBytes)) ||
     !request.body
   )
     return null;
@@ -166,7 +198,7 @@ async function readJson(request: Request): Promise<unknown | null> {
     const { done, value } = await reader.read();
     if (done) break;
     total += value.byteLength;
-    if (total > MAX_REQUEST_BYTES) {
+    if (total > MCP_LIMITS.transport.requestBytes) {
       await reader.cancel();
       return null;
     }
