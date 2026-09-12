@@ -1,0 +1,33 @@
+{
+  "name": "context-hub",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c yellow,cyan \"npm run dev -w @context-hub/api\" \"npm run dev -w @context-hub/web\"",
+    "test": "npm run test:migrations -w @context-hub/api && npm run test:units",
+    "test:units": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "biome check .",
+    "build": "npm run build --workspaces --if-present",
+    "format": "biome check --write .",
+    "db:migrate:local": "npm run db:migrate:local -w @context-hub/api",
+    "db:migrate:remote": "npm run db:migrate:remote -w @context-hub/api"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.2",
+    "@cloudflare/workers-types": "^5.20260910.1",
+    "@types/node": "^22.15.0",
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0",
+    "wrangler": "^4.0.0"
+  }
+}

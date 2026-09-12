@@ -1,0 +1,59 @@
+# Context Hub Implementation Status
+
+Last updated: 2026-09-12
+
+The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`](master-plan.md). This file remains the concise current-state summary.
+
+## Current State
+
+- [x] Phase 9 immutable graph versions, attempt-scoped publication, bounded explorer, and role-aware UI are implemented through additive migration 0013. The full local gate passes 140 tests (78 API, 26 web, 36 adapter), migration integrity, typecheck, Biome lint, and Worker/Vite/adapter builds; final bounded review returned ACCEPT. Browser/live Cloudflare verification remains an external release gate.
+- [!] Git repository is on `main` with no commits; every project file is untracked. CI has therefore never run remotely and there are no phase checkpoints.
+- [!] Production D1 ID, R2 bucket, Pages origin, and Worker origin remain placeholders. GitHub OAuth credentials and live Cloudflare resources are not configured.
+- [!] No browser, live OAuth, remote D1/R2, or deployment end-to-end test has run.
+
+## Completed
+
+- [x] Discovery, architecture, and threat model: `docs/ai/project-discovery.md`, `docs/ai/architecture.md`, `docs/ai/security.md`.
+- [x] Phase 1 foundation: npm workspaces, TypeScript, Vite/Pages frontend, Worker API, D1, R2, migrations, CI, local development, tests, lint, typecheck, and build.
+- [x] Prompt 2 authentication/projects: GitHub identity OAuth behind the single `GithubAuthProvider`, hashed one-time state, opaque hashed sessions, logout, workspaces, projects, direct project membership, ADMIN/EDITOR/VIEWER checks, and nonleaking project authorization.
+- [x] Project dashboard: real project/member/artifact counts, active Git status, Graphify status/explorer navigation, and an honest sync placeholder.
+- [x] Phase 4 artifacts and current artifact UI: 13 canonical types, immutable R2 objects behind the single `R2ObjectStorage`, D1 metadata, SHA-256 verification, bounded text uploads, pagination, version history, optimistic conflicts, audit events, role enforcement, verified content, and source-commit provenance.
+- [x] Phase 5A current provider seams: minimal `AuthProvider` and `ObjectStorage` contracts, exactly one GitHub/R2 implementation each, focused contract tests, and accepted [`adr/0001-provider-boundaries.md`](adr/0001-provider-boundaries.md).
+- [x] Multi-project foundation core: tenant hierarchy, multiple workspaces/projects, normalized GitHub remotes, authorized none/unique/ambiguous resolution, and isolation tests.
+- [x] Phase 6 backend: accepted GitHub App credential ADR, minimal `GitProvider` and one GitHub adapter, exact-session-bound two-state PKCE flow, specific-installation proof, exact-repository short-lived tokens, mutation-time ADMIN checks, stale-flow suppression, atomic sync metadata/audit, verified unique project links/resolution, strict callback origin configuration, D1 metadata/audit, and local migration integrity evidence.
+- [x] Master-plan Phase 7 / Prompt 7 Graphify research: corrected 0.9.58 evidence, reject-all symlink/submodule/LFS preflight, exact shared-`GRAPHIFY_OUT` recipe, repository-bound identity, fail-closed format-v1 schema/bounds, lifecycle, security, and rejected alternatives are documented in [`graphify-integration.md`](graphify-integration.md) and accepted ADR 0003. Independent final review reported no P0 or P1 findings and ACCEPT on 2026-09-12.
+- [x] Master-plan Phase 8 / Prompt 8 Graphify adapter: the isolated Node-only workspace implements the single `GraphProvider`/`GraphifyAdapter`, POSIX-only fail-closed runtime gate, exact-commit Git preflight/postflight, two-command environment, exact-byte output/integrity, strict Python validation, retained fixture, and contract/security tests. Independent final review returned ACCEPT with no findings after the complete implementation and 86-test gate.
+- [x] Master-plan Phase 9 / Prompt 9 graph versions: ATTEMPT_V2 immutable physical keys, D1-clock lease fencing, exact attempt evidence, private R2 publication/replay, retry-safe orphan cleanup, bounded human explorer routes, and the role-aware frontend pass 140 local tests and final bounded P0/P1 review.
+
+## Partial
+
+- [~] Authentication/projects scope beyond Prompt 2: member invitation, removal, and role-management APIs/UI are deferred.
+- [~] Phase 6 / remaining task #2: the backend and project repository UI fixes pass locally, including demotion/removal race rejection, every-request sync audit rollback, callback-to-authorized-project binding, verified-GET success announcements, recovery states, focus restoration, and narrow mobile styling. The overall phase remains partial pending independent final-review acceptance. Live browser/GitHub App/Cloudflare verification remains a separate external release blocker.
+- [~] Audit history: artifact and redacted Git lifecycle events exist, but generalized project/member/graph/snapshot auditing and audit UI do not.
+- [~] Artifact UI freshness is pending: only current-version source-commit provenance is complete; the shared `CURRENT | STALE | UNKNOWN` classifier and Context Engine exposure belong to Phase 12, with artifact UI and sync-state persistence integration in Phase 19.
+- [~] Artifact formats: Markdown, text, JSON, and YAML work; PDF, diagrams, binary, and multipart uploads are intentionally deferred.
+- [~] Git/D1/R2 source-of-truth separation is implemented for artifacts and attempt-scoped graphs. Migration 0010 preserves selected legacy version-only rows, migration 0011 restores strict graph constraints and migration event evidence, migration 0012 requires exact attempt evidence for every v2 lifecycle transition, and migration 0013 adds database-time publication fencing plus cleanup-independent retry; new graph claims use immutable attempt/publication keys. Snapshot, sync-state, machine-credential, and generalized audit schemas remain pending.
+
+## Remaining Work — Required Order
+
+Every significant architecture choice first needs an approved ADR. The mandatory gates include Git credentials, Graphify integration, MCP authentication/transport, local sync/cache behavior, and cross-project retrieval.
+
+1. [~] Obtain independent Phase 6 final-review acceptance for the locally passing backend/UI fixes and operational ADR. Then complete live browser/GitHub App/Cloudflare verification as an external release gate; neither review nor live evidence is claimed complete here.
+2. [x] Phase 9 is locally complete through migration 0013 and final bounded review ACCEPT. Browser/live Cloudflare verification remains part of the external release gate; no Phase 10 machine transport is claimed. Dependency hash locking, Action pins, host-enforced memory/disk sandboxing, resource benchmarks, cross-environment determinism evidence, machine credentials/publication transport, workflow, and live Actions execution remain explicit Phase 10 blockers.
+3. [ ] Add CI graph generation with hashed, scoped, expiring, revocable project/repository-bound publication principals, rotation, replay protection, and tests.
+4. [ ] Approve the local-sync ADR; implement safe local graph synchronization, offline cache behavior, and failure-preserving atomic updates.
+5. [ ] Implement minimal `ContextProvider` with exactly one Context Engine implementation and contract tests, including bounded retrieval and the shared `CURRENT | STALE | UNKNOWN` classifier/result exposure; only then run Prompt 13 scenarios.
+6. [ ] Approve the MCP auth/transport ADR; implement minimal `McpTransport` with exactly one Worker transport and contract tests, hashed/scoped/expiring/revocable MCP/local-client principals, replay controls, and the stable universal six-tool surface.
+7. [ ] Complete MCP schema/response token audits for 1, 10, and 100 projects.
+8. [ ] Add Pi integration using the local-client principal, automatic repository resolution, explicit project switching, and Pi token audit.
+9. [ ] Add immutable snapshots, then integrate the shared freshness classifier into artifact UI and persist/index sync state.
+10. [ ] Add team invitations, acceptance, removal, and role changes.
+11. [ ] Add ADMIN-only project update/settings and logical artifact archive/delete, including immutable-history preservation, expected-version conflicts, audit, UI, endpoint/data-model acceptance, and role/isolation tests.
+12. [ ] Complete generalized audit-event coverage and project audit history UI.
+13. [ ] Approve the cross-project retrieval ADR; implement explicit all-project-authorized, bounded cross-project context retrieval.
+14. [ ] Complete remaining management UI: global Activity aggregated only across directly authorized projects via a bounded API; minimal real-data account/session and connection/configuration Settings; and remaining project Git, Graphify, Team, Snapshot, Activity, and Settings surfaces. No fake data.
+15. [ ] Run security, free-tier, single-project E2E, multi-project E2E, final architecture, and product QA reviews.
+16. [ ] Configure production resources, deploy, and complete live OAuth, D1/R2, browser, Graphify, sync, MCP, and Pi verification.
+17. [ ] Establish, collect, and review the required context-efficiency, reliability, developer-experience, infrastructure, and performance success metrics.
+
+Every step must stop unless tests, typecheck, lint, and build pass. Detailed dependencies and acceptance checks are maintained in [`docs/ai/master-plan.md`](master-plan.md).

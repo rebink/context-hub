@@ -1,0 +1,41 @@
+name = "context-hub-api"
+main = "src/index.ts"
+compatibility_date = "2025-02-14"
+
+[vars]
+APP_ENV = "development"
+WEB_ORIGIN = "http://localhost:5173"
+API_ORIGIN = "http://localhost:8787"
+GITHUB_APP_ID = "replace-with-github-app-id"
+GITHUB_APP_SLUG = "replace-with-github-app-slug"
+GITHUB_APP_CLIENT_ID = "replace-with-github-app-client-id"
+# Secret bindings (set with `wrangler secret put`):
+# GITHUB_CLIENT_SECRET, GITHUB_APP_CLIENT_SECRET, GITHUB_APP_PRIVATE_KEY
+
+[[d1_databases]]
+binding = "DB"
+database_name = "context-hub"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "OBJECTS"
+bucket_name = "context-hub-objects"
+
+[env.production.vars]
+APP_ENV = "production"
+WEB_ORIGIN = "https://replace-me.pages.dev"
+API_ORIGIN = "https://replace-me.workers.dev"
+GITHUB_APP_ID = "replace-with-github-app-id"
+GITHUB_APP_SLUG = "replace-with-github-app-slug"
+GITHUB_APP_CLIENT_ID = "replace-with-github-app-client-id"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "context-hub-production"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[env.production.r2_buckets]]
+binding = "OBJECTS"
+bucket_name = "context-hub-production-objects"

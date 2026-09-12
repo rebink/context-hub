@@ -1,0 +1,54 @@
+{
+  "classification": "captured clean canonical-profile fixture",
+  "captureMethod": "Fresh --no-local clone from the retained research repository, detached at the recorded commit, verified clean with no ignored/untracked files or symlinks, then generated into a new absolute external GRAPHIFY_OUT. The temporary regeneration path is not provenance authority.",
+  "source": {
+    "commit": "9ebc249f02b2a66257816378f73683566aded0ed",
+    "tree": "1a19b33ffe05726edd03adfff4920e0cfd7ce6f0",
+    "checkoutState": "detached, clean, no tracked or worktree symlinks",
+    "files": [
+      {
+        "path": "main.py",
+        "mode": "100644",
+        "gitBlob": "82573f149034222c382e2b4d2345a62f255e2168",
+        "sha256": "7a01013e2787cdd5335be493a28010b72b56df1c9207c5946f5e00be4f443a42"
+      },
+      {
+        "path": "pkg/__init__.py",
+        "mode": "100644",
+        "gitBlob": "cf6e1c4c5a8bcc8a1750b03e3112019608d11e7b",
+        "sha256": "7e749ec015725f0f35d4522fbf2d09e00f7486a57ed778b923fcdd223f200b62"
+      },
+      {
+        "path": "pkg/core.py",
+        "mode": "100644",
+        "gitBlob": "edebf08f09448d526e43793c52bc2b65863b5640",
+        "sha256": "28345227d4b6a0b2cdf1bc0902516efac8fe2370d5df58d61ae85e10ca5d08d3"
+      }
+    ]
+  },
+  "runtime": {
+    "pythonImplementation": "CPython",
+    "pythonVersion": "3.11.15",
+    "graphifyDistribution": "graphifyy==0.9.58",
+    "graphifyCliVersion": "graphify 0.9.58",
+    "graphifyWheelSha256": "e239803288e91c723d6e30540860bd6d5a1dc3f0914b9fc1104b0233e98aaeb8"
+  },
+  "commands": [
+    ["graphify", "extract", "<absolute-fresh-detached-checkout>", "--code-only", "--no-cluster"],
+    ["graphify", "cluster-only", "<absolute-fresh-detached-checkout>", "--no-label", "--no-viz"]
+  ],
+  "environment": {
+    "GRAPHIFY_OUT": "<new-absolute-external-output-directory>",
+    "profile": "code-only-clustered-v1",
+    "locale": "C.UTF-8"
+  },
+  "output": {
+    "path": "graph.json",
+    "byteSize": 5242,
+    "sha256": "25a9311a26ea28bf3d87a1cf186e4f1d10e962381bc39fdc815687dea57f085c",
+    "nodeCount": 7,
+    "linkCount": 10,
+    "hyperedgeCount": 0,
+    "sourcePaths": ["main.py", "pkg/__init__.py", "pkg/core.py"]
+  }
+}

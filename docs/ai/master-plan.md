@@ -1,0 +1,441 @@
+# Context Hub Master Implementation Plan
+
+Durable implementation ledger for the PRD, technical architecture, implementation playbook, security architecture, and current repository state.
+
+## Legend and operating rule
+
+- `[x]` implemented and locally verified in the current repository.
+- `[ ]` not implemented, not verified, or still requires work.
+- Phase status is `COMPLETE`, `PARTIAL`, or `PENDING`; a phase is complete only when all required items and its gate pass.
+- Implement one ordered phase at a time. Read the relevant requirements, architecture, code, and tests; implement; run the gate; review the diff; then checkpoint.
+- **Architecture-decision gate:** before implementing any significant architecture decision, record and approve an ADR covering context, decision, alternatives, consequences, security, operations, and rollback. This applies explicitly to provider contracts, Git credential storage/access, Graphify integration, MCP authentication/transport, local sync/cache behavior, and cross-project retrieval; phase gates must cite the accepted ADR rather than silently choosing an architecture.
+- **Provider-contract gate:** each owning phase must define only the approved minimal contract, ship exactly one current adapter, add contract tests for its boundary/failure behavior, and cite the accepted ADR or narrow decision record. Do not add speculative providers, factories, registries, or fallback selection. The owners are Current provider seams (`AuthProvider`, `ObjectStorage`), Git (`GitProvider`), Graphify adapter (`GraphProvider`), Context Engine (`ContextProvider`), and universal MCP (`McpTransport`).
+- **Mandatory stop gate after every phase:** `npm test` -> `npm run typecheck` -> `npm run lint` -> `npm run build`. Stop on any failure; do not begin the next phase.
+- Every new project route must authenticate, resolve the project, verify direct project membership, check `ADMIN | EDITOR | VIEWER`, and only then read or mutate data. Add denial, isolation, bounds, integrity, replay/conflict, and audit tests as applicable.
+
+## Non-negotiable invariants
+
+- **Architectural rule, not completion status:** Git is source-code truth; D1 is tenancy, authorization, version, sync, snapshot, and audit metadata truth; R2 holds immutable payloads. Each phase must preserve this split; pending graph, snapshot, sync, and generalized audit schemas mean end-to-end conformance is not yet complete.
+- [x] Workspace membership alone never grants project data access; inaccessible project, repository, artifact, graph, source-path, snapshot, and member metadata must not leak.
+- [x] Published artifact objects are immutable, versioned, checksum-backed, and project-scoped.
+- [x] Graphify remains a derived build output; implemented graph versions are immutable and checksum-backed; graph JSON is never edited, merged, or overwritten.
+- [ ] Context results are relevance-first, deduplicated, explicitly budgeted, bounded, and carry project/source/path/version/commit/checksum provenance where applicable.
+- [ ] Sync writes through a temporary path, verifies checksum and source commit, atomically replaces the cache, and preserves the last valid graph on failure.
+- [ ] One authenticated provider-neutral MCP endpoint exposes a stable six-tool, read-oriented surface regardless of project count.
+- [ ] Pi and other clients add approximately zero permanent model context, never inject the repository/full graph/all artifacts, and do not duplicate Context Engine or Graphify logic.
+- [ ] Local-first use continues from Git, manifest, graph cache, artifact cache, and offline cache when Context Hub is unavailable.
+- [x] The MVP uses minimal dependencies and free/open-source-compatible Pages, Workers, D1, R2, GitHub OAuth, and GitHub Actions architecture; no mandatory paid service.
+
+## Ordered phase ledger
+
+The order below is binding. Multi-project Task A must finish before MCP; Task B is implemented with Prompt 14; Task C is implemented with Prompt 16; Task D requires the Context Engine and MCP authorization model. A phase may not advance until its stop gate passes.
+
+### 0A. Repository discovery — `COMPLETE`
+
+- [x] Record structure, language/framework, package manager, frontend, backend, database, deployment, authentication, tests, lint, typecheck, CI/CD, reusable pieces, infrastructure, environment, risks, unknowns, and extension points in `docs/ai/project-discovery.md`.
+- [x] Do not invent architecture or implement application code during discovery.
+- [x] Run the phase stop gate.
+
+### 0B. Technical architecture — `COMPLETE`
+
+- [x] Record system/frontend/Worker architecture, schema, R2 layout, GitHub, Graphify, Context Engine, MCP, Pi, auth, authorization, graph sync, artifact versions, snapshots, audit, security, free-tier, and local/offline strategy in `docs/ai/architecture.md`.
+- [x] Preserve Git/D1/R2 truth, immutable derived graphs/artifacts, no graph merge, bounded context, provider neutrality, local-first behavior, and free infrastructure.
+- [x] Run the phase stop gate.
+
+### 0C. Security architecture — `COMPLETE`
+
+- [x] Threat-model authentication, authorization, isolation, Git credentials, MCP, private artifacts, R2, webhooks, SSRF, path traversal, uploads, replay, role escalation, and cross-project access in `docs/ai/security.md`.
+- [x] Define nonleaking denials, least privilege, integrity, rate/bounds, redaction, and live-provider verification controls.
+- [x] Run the phase stop gate.
+
+### 1. Foundation (Prompt 1) — `COMPLETE`
+
+- [x] Create npm/TypeScript workspaces, Vite/Pages web app, Fetch API Worker, D1, R2 bindings, ordered migrations, environment configuration, local development, CI, tests, typecheck, lint, and builds.
+- [x] Keep OAuth/provider secrets server-only and deployment values outside browser bundles/source-controlled vars.
+- [x] Use minimal dependencies; defer Git, Graphify, MCP, Pi, and Context Engine.
+- [x] Run the phase stop gate.
+
+### 2. Authentication and projects (Prompt 2) — `COMPLETE`
+
+- [x] Implement GitHub identity OAuth with exact callback/origin rules, hashed expiring one-time state, opaque hashed sessions, expiry, and logout.
+- [x] Implement users, sessions, workspace creation/listing, project creation/listing/detail, direct project membership, and `ADMIN | EDITOR | VIEWER` server authorization.
+- [x] Test unauthenticated/authenticated access, hostile or missing mutation origins, expired/replayed state, logout, cross-project access, role enforcement, workspace-only denial, and nonleaking `404` behavior.
+- [x] Close the approved provider-neutrality requirement for authentication through Phase 5A's minimal `AuthProvider` contract and its one current GitHub identity implementation.
+- [x] Re-run the phase stop gate after Phase 5A.
+
+### 3. Project dashboard (Prompt 3) — `COMPLETE`
+
+- [x] Render real project, artifact count, member count, and honest Git/Graphify/sync placeholders from API data.
+- [x] Do not fabricate Git or Graphify behavior.
+- [x] Run the phase stop gate.
+
+### 4. Artifacts (Prompt 4) — `COMPLETE`
+
+- [x] Model artifact metadata and immutable versions with project/type/name/description/status/current version, storage key, SHA-256, content type, byte size, source commit, author, timestamp, and change note.
+- [x] Support `architecture`, `adr`, `api-contract`, `coding-convention`, `domain-knowledge`, `glossary`, `database-schema`, `runbook`, `deployment-guide`, `ownership`, `security-rule`, `product-requirement`, and `custom`.
+- [x] Implement bounded Markdown/text/JSON/YAML create, upload, retrieve, pagination, version creation/list/detail, R2 storage, checksum verification, permissions, and optimistic expected-version conflicts.
+- [x] Preserve history, prevent silent overwrite, deny viewer mutations, keep R2 private, use server-generated project keys, and safely compensate failed publication.
+- [x] Test bounds, validation, authorization/isolation, immutable recovery, checksum failures, version conflicts, pagination, and audit events.
+- [x] Run the phase stop gate.
+
+### 5. Context/artifact UI (Prompt 5) — `COMPLETE`
+
+- [x] Provide category navigation, artifact list/create, detail, verified content, version history/publication, source-commit provenance for the current artifact version, viewer read-only behavior, and editor/admin controls using real data.
+- **Deferred boundary:** freshness classification and warnings are not part of Phase 5 completion; implement the shared classifier in Phase 12 and artifact UI integration in Phase 19.
+- [x] Escape/render uploads as inert content; do not offer Graphify editing.
+- [x] Run the phase stop gate.
+
+### 5A. Current provider seams — `COMPLETE`
+
+- [x] Pass the provider-contract/ADR gate for the minimal current `AuthProvider` and `ObjectStorage` boundaries; [`adr/0001-provider-boundaries.md`](adr/0001-provider-boundaries.md) records ownership, failure semantics, and retained domain logic.
+- [x] Extract `AuthProvider` only around provider authorization URL/code exchange/validated identity behavior; keep application sessions, cookies, D1 user records, and roles outside it. Ship exactly one GitHub identity implementation.
+- [x] Extract `ObjectStorage` only around create-only put, head/get, and narrowly controlled compensation delete with object metadata; keep server-generated keys, checksums, D1 publication, authorization, and compensation decisions outside it. Ship exactly one Cloudflare R2 implementation.
+- [x] Preserve current OAuth, artifact immutability, recovery, integrity, and nonleaking behavior without adding providers, factories, registries, dynamic selection, or unrelated refactors.
+- [x] Add contract tests covering success, malformed/provider failure for `AuthProvider`, and create-only collision, metadata/head/get, failure, and compensation-delete behavior for `ObjectStorage`; retain existing route-level tests.
+- [x] Acceptance includes the two named minimal contracts, exactly one current implementation each, the accepted ADR, passing contract and regression tests, and the phase stop gate.
+
+### 6. GitHub repository connection (Prompt 6) — `PARTIAL`
+
+- [x] Pass the architecture-decision and provider-contract gates with accepted [`adr/0002-github-app-repository-credentials.md`](adr/0002-github-app-repository-credentials.md) for the minimal `GitProvider`, GitHub App access, project/repository binding, revocation, and failure handling.
+- [x] Define `GitProvider` only for GitHub App authorization/proof and live normalized repository/default-branch/current-commit inspection; ship exactly one GitHub implementation and keep project authorization, D1 references, and publication in domain code.
+- [x] Add focused contract tests for URL/PKCE construction, JWT claims/signing flow, exact calls, ownership proof, valid/malformed responses, HTTP/network mapping, identity mismatch, branch/SHA validation, bounds, redirects, and token redaction.
+- [x] Implement least-privilege GitHub App handling with short-lived exact-repository installation tokens; persist only installation/reference metadata and exact-session-bound hashed one-time state/verifier data.
+- [x] Implement `POST /projects/:id/git`, `GET /projects/:id/git`, `POST /projects/:id/git/sync`, `DELETE /projects/:id/git`, the two GitHub App callback routes, and authorized `GET /projects/resolve`; verify provider user, installation, and exact repository identity.
+- [x] Implement the `github_connection_states`, `git_connections`, and `git_audit_events` models plus normalized `repository_identities`/unique `project_repositories` links, storing provider, canonical URL, owner/name, default branch, current/last-known commit SHA, installation reference, status, and timestamps without a repository copy or persisted token.
+- [x] Recheck the same actor's direct ADMIN membership inside callback publication, sync, and disconnect mutation batches; reject demotion/removal and exact-connection races without connection/link/audit mutation.
+- [x] Update known commit SHA optimistically against the exact connection identity and provider tuple, atomically audit every successful sync (including unchanged verification) with bounded before/after metadata, suppress stale callback publication, preserve the prior verified row on provider or audit failure, and redact all provider credentials/bodies from responses and audit.
+- [x] Constrain outbound provider hosts, redirects, time/size/content type, ports, protocols, credentials, and fixed API paths.
+- [x] Replace seed-only project-repository trust with one active link per project backed by a consistent verified connection; preserve one repository mapping to many projects and none/unique/ambiguous authorized resolution.
+- [x] Add focused provider and route tests for cross-session state rejection, two-state callback/PKCE replay, stale callback/disconnect interleavings, optimistic replacement races, strict callback origins, specific-installation proof beyond one-page listing, verified repository resolution, provider mechanics, and secret exposure while preserving existing tests.
+- [x] Implement the repository connection UI with role-aware controls, bounded callback handling, project stale-response protection, accessible confirmation/form behavior, and responsive system-theme styling.
+- [ ] Complete the required final review acceptance before marking Phase 6 complete.
+- [ ] Complete live browser/GitHub App/Cloudflare verification as an external release blocker; local Phase 6 completion does not claim this deployment evidence.
+- [x] Run the full local phase stop gate, including fresh/upgrade Wrangler D1 migrations, uniqueness, foreign-key and transactional rollback checks, tests, typecheck, lint, and builds.
+
+### 7. Graphify research (Prompt 7) — `COMPLETE`
+
+The implementation playbook labels Prompt 7 as source "Phase 5"; this master plan's operational Phase 7 numbering and order are authoritative.
+
+- [x] Inspect canonical Graphify source/docs and isolated 0.9.58 fixtures for CLI, exact external-output behavior, output shape, watch/incremental and MCP/HTTP modes, version/checksum, authentication, source inclusion, symlink variation, and determinism limits.
+- [x] Correct [`graphify-integration.md`](graphify-integration.md) and [`adr/0003-graphify-canonical-build-profile.md`](adr/0003-graphify-canonical-build-profile.md) with an official-tag-sourced 0.9.58 capability matrix, reject-all tracked-symlink/submodule/LFS preflight, exact `GRAPHIFY_OUT` recipe, immutable repository identity, implementable format-v1 rules/bounds, fixture evidence, failures, security, and rejected scope.
+- [x] Record independent final-review acceptance of ADR 0003 and the corrected research contract on 2026-09-12 with no P0 or P1 findings.
+- [x] Complete local documentation/link/fence/diff checks and run the full local phase stop gate. This phase is complete as documentation only and does not claim an adapter, graph schema/storage/routes, CI publication, explorer, deployment, or live Actions verification.
+
+### 8. Graphify adapter (Prompt 8) — `COMPLETE`
+
+- [x] Pass the provider-contract gate for a minimal public `GraphProvider` based only on the accepted Graphify research/ADR; ship exactly one `GraphifyAdapter` in an isolated Node-only workspace with no factory, registry, fallback, or application import.
+- [x] Return exact graph bytes; repository provider/ID and immutable normalized identity snapshot; project/source commit; fixed Graphify/adapter/profile/format/generator metadata; derived node/link/hyperedge counts; byte size; and independently handshaken exact-byte SHA-256. Keep project/version/R2/D1/auth/publication/state transitions outside it.
+- [x] Before any subprocess or temporary output, require the POSIX-only v1 process-group and safe-output capabilities or fail with redacted `UNSUPPORTED_PLATFORM`; Windows remains unsupported pending a tested Job Object/equivalent. Then reject dirty/untracked/ignored-present content, unsupported index modes/nonregular files, every tracked symlink, submodules/gitlinks/`.gitmodules`, and LFS pointers. Use the exact shared-`GRAPHIFY_OUT` two-process recipe and accept only direct regular `graph.json`; enforce the complete format-v1 contract with a stdlib-only duplicate-aware validator and always clean up.
+- [x] Add retained captured Graphify 0.9.58 fixture/provenance, comprehensive adapter/validator/preflight/redaction/scope tests, and a real temporary detached Git fixture. Unit tests require neither Graphify nor network access.
+- [x] Record required independent final-review acceptance with no findings after the complete implementation and 86-test gate.
+- [x] Run the full local phase stop gate for the implementation (86 tests, typecheck, lint, and builds), including the Phase 8 review fixes.
+
+### 9. Immutable graph versions and UI (Prompt 9) — `COMPLETE`
+
+- [x] Reserve graph row/version at queue with repository provider, stable provider repository ID, immutable normalized repository identity snapshot, project ID, source commit, Graphify/adapter/profile/format identity, status/attempt, generator/generated-by; keep output/storage/checksum/node/link/hyperedge/byte/generated fields nullable until READY, where `generated_at` means publication.
+- [x] Preserve `QUEUED -> BUILDING -> READY -> SUPERSEDED`, `BUILDING -> FAILED`, and `FAILED -> QUEUED` retry on the same logical version with an incremented attempt, with physical identity isolated per attempt.
+- [x] Accept ADR 0004 and add `graph_build_attempts` keyed by project/version/attempt with unique random server-generated publication ID/key, immutable attempt identity, and attempt-owned lease/cleanup state. Reservation/retry atomically recheck current direct `ADMIN` membership; claim atomically creates the attempt/publication identity.
+- [x] Publish to `projects/{projectId}/graphs/v/{version}/attempts/{attempt}/{publicationId}/graph.json`, fence finalize by full attempt/object/build identity, forbid cross-attempt adoption, supersede only lower READY versions, and support exact READY/SUPERSEDED replay.
+- [x] Clean only exact failed/expired unpublished attempt keys after grace, serialized D1 cleanup ownership, fresh no-reference proof, and exact HEAD metadata checks. Legacy READY/SUPERSEDED objects remain immutable/queryable via `LEGACY_V1`; legacy orphan deletion is not automated.
+- [x] Deduplicate logical versions only by the complete repository/project/build identity. A replacement provider repository cannot reuse old output even with the same normalized name and commit; an approved tool/profile/format change may build the same commit as a new immutable version.
+- [x] Revalidate exact bytes at Worker publication/read boundaries with a dependency-free duplicate-aware full format-v1 validator. The Worker enforces schema-safe source paths; the Node adapter remains tracked-checkout authority.
+- [x] Build the Graphify status UI with separate newest-attempt/current-READY state, complete version/commit/build/repository provenance, role-aware generation reservation, honest Phase 10/local-sync boundaries, and accessible lifecycle/error states.
+- [x] The bounded Graph Explorer implements node search/inspection, neighbors, callers/callees, directed paths, and source locations through one bounded backend query at a time without returning or rendering a whole graph.
+- [x] Backend/frontend and migration tests cover attempt key uniqueness, exact attempt-backed v2 lifecycle transitions, current-ADMIN mutation checks, cross-attempt isolation, exact replay, legacy coexistence, contradictory READY normalization, query cancellation, and immutable event/attempt constraints.
+- [x] Independent bounded acceptance review confirmed all Phase 9 P0/P1 blockers resolved after migration 0013; the local gate passes 140 tests, typecheck, lint, and all builds. Browser/live Cloudflare verification remains an external release gate.
+
+### 10. CI graph generation (Prompt 10) — `PENDING`
+
+- [ ] Do not begin machine publication until the accepted ADR 0004 implementation passes independent Phase 9 review; no external machine credential, route, or workflow is part of Phase 9.
+- [ ] Before enabling canonical execution, add a complete hash lock for every resolved Python dependency, pin Action references by commit, configure and attest real host-enforced memory/disk sandbox limits, and benchmark representative repositories. The Phase 8 Node adapter deliberately does not claim to enforce host memory/disk limits.
+- [ ] Add documented GitHub Actions flow: checkout -> Graphify -> validate -> checksum -> publish -> register graph version.
+- [ ] Model a CI publication principal and high-entropy credential whose secret is stored only as a hash; scope it to upload/finalize publication operations and bind it to the exact project and repository. ADMIN alone manages credentials and triggers/retries builds; interactive cancellation is deferred beyond MVP. Only the exact lease/attempt-bound machine principal publishes; human browser sessions never upload/finalize.
+- [ ] Enforce credential expiry, rotation, immediate revocation, commit binding, nonce/idempotency replay protection, least CI permissions/secrets, and duplicate-build/upload prevention for unchanged commits/content.
+- [ ] Keep heavy graph generation outside Worker request/webhook lifecycles; webhooks, if added, verify raw-body signature/delivery replay and only schedule work.
+- [ ] Test issuance, valid publication, wrong project/repository/commit, expired/rotated/revoked credential, replay, success/failure, and idempotency against a safe integration environment.
+- [ ] Acceptance requires the CI principal/hashed-credential and bounded nonce/idempotency data models, project/repository/commit enforcement at the publication endpoint, rotation/revocation operations, and passing tests.
+- [ ] Run the phase stop gate.
+
+### 11. Local sync and offline cache (Prompt 11) — `PENDING`
+
+- [ ] Pass the architecture-decision gate with an accepted ADR for local sync transport, atomic cache layout, offline behavior, credential storage, and recovery.
+- [ ] Implement `.ai-context/manifest.json`, `graph/graph.json`, `graph/meta.json`, `artifacts/`, and `cache/`; keep credentials outside the repository in secure OS storage where possible.
+- [ ] Implement `context connect`, `context status`, and `context sync`.
+- [ ] Derive `CURRENT`, `GRAPH_STALE`, `LOCAL_REPOSITORY_AHEAD`, `REMOTE_GRAPH_AHEAD`, `NO_LOCAL_GRAPH`, `GRAPH_BUILDING`, `GRAPH_FAILED`, and `COMMIT_MISMATCH` from local/server Git and graph versions.
+- [ ] Download -> verify response/checksum/metadata/source commit -> write/fsync temporary -> atomically rename -> update manifest.
+- [ ] Preserve the previous valid cache on every failure; reject absolute paths, `..`, symlink escapes, unsafe archives, and replayed/mismatched sync operations.
+- [ ] Support offline status, local graph queries, and cached immutable artifact reads without blocking normal Pi use.
+- [ ] Test every state, corruption/mismatch, interrupted update, atomic replacement, prior-cache preservation, traversal/symlink cases, and offline behavior.
+- [ ] Run the phase stop gate.
+
+### 12. Context Engine (Prompt 12) — `PENDING`
+
+- [ ] Pass the provider-contract gate for minimal `ContextProvider`; ship exactly one Context Engine implementation, with no provider factory or alternative retrieval backend.
+- [ ] Define the contract around project-scoped query/domain/package/budget input and bounded ranked evidence/provenance/freshness output; authentication, project authorization, and transport stay outside it.
+- [ ] Add contract tests for bounds, deduplication, provenance, freshness, source failures, and project/cache isolation in addition to Phase 13 scenarios.
+- [ ] Accept project, query, optional domain/package, and explicit token/size budget.
+- [ ] Retrieve candidates from artifact metadata/content, Graphify, Git metadata, architecture maps, and small global reference context (`AGENTS.md` and linked architecture knowledge).
+- [ ] Rank direct task, package/domain, architecture, currency, and source-backed relevance; deduplicate before applying one budget.
+- [ ] Return concise artifact excerpts, graph evidence, source locations, relevance reason, token estimate, and project/source/path/section/version/commit/checksum provenance.
+- [ ] Implement the shared artifact freshness classifier as `CURRENT`, `STALE`, or `UNKNOWN` from artifact source commit and current known repository commit, including missing/invalid provenance behavior.
+- [ ] Expose that shared classifier in every applicable Context Engine result; never return the full repository, full graph, all artifacts/ADRs, or an unbounded permanent prompt.
+- [ ] Namespace indexes/caches by principal and project; use bounded, indexed, non-vector retrieval for MVP.
+- [ ] Run the phase stop gate.
+
+### 13. Context Engine scenarios (Prompt 13) — `PENDING`
+
+- [ ] **Prerequisite:** Phase 12's shared `CURRENT | STALE | UNKNOWN` classifier and Context Engine exposure are implemented and have passed the stop gate; Prompt 13 must not define a separate classifier.
+- [ ] Relevant architecture is found.
+- [ ] Unrelated artifacts are excluded.
+- [ ] Relevant graph evidence is included.
+- [ ] Output obeys token/size budget.
+- [ ] Every important result has provenance.
+- [ ] Duplicate context is removed.
+- [ ] `CURRENT`, `STALE`, and `UNKNOWN` artifacts are classified consistently by the shared Phase 12 classifier.
+- [ ] Private project data never crosses projects.
+- [ ] Run the phase stop gate.
+
+### A. Workspace and multi-project foundation (Task A) — `PARTIAL`
+
+- [x] Add users, workspaces, workspace members, projects, project members, normalized repository identities, and project-repository join models/migrations/helpers.
+- [x] Support users in multiple workspaces/projects and different direct project roles; keep workspace membership separate from project authorization.
+- [x] Normalize GitHub SSH/HTTPS remotes and return none/unique/ambiguous authorized project resolution without guessing.
+- [x] Test user in two workspaces, user in multiple projects, workspace-only denial, unauthorized query denial, correct remote resolution, and ambiguous explicit-selection requirement.
+- [x] Create repository identities/links through the real Git connection flow rather than seeds.
+- [x] Re-run migration, authorization, isolation, and phase stop gates after completing the backend real-link flow.
+- [x] Complete the Task A real-link flow locally through the Phase 6 UI; final Phase 6 review acceptance remains pending and live provider/browser verification remains an external release blocker.
+
+### 14/B. Universal multi-project MCP (Prompt 14 + Task B) — `PENDING`
+
+- [ ] Pass the architecture-decision and provider-contract gates with an accepted ADR for MCP authentication, principal lifecycle, credential transport/storage, and minimal `McpTransport` boundary.
+- [ ] Define `McpTransport` only for bounded protocol decode/encode and stable tool dispatch; ship exactly one Worker `GET/POST /mcp` implementation while authentication, authorization, project resolution, and Context Engine behavior remain domain services.
+- [ ] Add transport contract tests for GET/POST negotiation, malformed/oversized requests, stable error mapping, response bounds, and exact six-tool dispatch; do not add alternate transports, per-project servers, or a factory.
+- [ ] Expose one authenticated `GET/POST /mcp` endpoint, not one server/configuration per project.
+- [ ] Expose exactly the stable initial tools: `project_info`, `search_context`, `get_artifact`, `query_graph`, `get_sources`, and `sync_status`.
+- [ ] Keep schemas small, read-only by default, provider-neutral, role-aware, bounded, and provenance-bearing; do not expose all Graphify or administrative operations.
+- [ ] Resolve scope by normalized local repository identity, then explicit project selection, then explicit cross-project scope; never infer access from selection/workspace.
+- [ ] Authenticate, identify workspace, resolve project, verify direct membership/role, then retrieve; independently authorize all cross-project IDs before any read.
+- [ ] Model MCP/local-client principals and high-entropy credentials stored only as hashes, scoped to allowed operations and directly authorized projects, optionally bound to a repository, and carrying issued/expiry/last-used/revoked metadata.
+- [ ] Implement credential issuance, secure one-time display, expiry, rotation, immediate revocation, nonce/request replay protection, request/result/token/rate bounds, non-sensitive audit outcomes, and nonleaking errors.
+- [ ] Test one user/many projects, one workspace/many projects, auto-selection, explicit switch, unauthorized access, authorized cross-project request, partially unauthorized all-or-nothing failure, unchanged tool count with many projects, and valid/expired/rotated/revoked/replayed/wrong-project/wrong-repository credentials.
+- [ ] Acceptance requires the MCP/local-client principal and hashed-credential data models, bounded replay records, secure lifecycle operations, enforced project/repository scope at `/mcp`, and passing authorization/isolation tests.
+- [ ] Run the phase stop gate.
+
+### 15. MCP token audit (Prompt 15) — `PENDING`
+
+- [ ] Record tool count, schema bytes/tokens, average response, largest response, and worst-case bounded context in `docs/ai/mcp-token-budget.md`.
+- [ ] Measure schema footprint with 1, 10, and 100 projects; it must remain effectively constant and must not duplicate tools/schemas.
+- [ ] Measure single-project, two-project, and rejected unauthorized response sizes; trim verbosity without reducing correctness/provenance.
+- [ ] Run the phase stop gate.
+
+### 16/C. Pi integration and project resolution (Prompt 16 + Task C) — `PENDING`
+
+- [ ] Implement lightweight native commands: `/context connect`, `/context status`, `/context sync`, `/context search <query>`, `/context graph <node>`, and `/context snapshot`.
+- [ ] Call Context Hub/MCP rather than reimplementing retrieval or Graphify.
+- [ ] Read/normalize the local Git remote, resolve the project, cache explicit selection locally, expose status, report zero matches, and require selection for multiple matches.
+- [ ] Support explicit project switching, provision/use the scoped MCP/local-client principal credential from Phase 14, and keep credentials out of repository files/prompts.
+- [ ] Add no provider-specific model behavior, new agent architecture, unnecessary LLM tools, bulk injection, or blocking cloud dependency for cached use.
+- [ ] Test automatic resolution, zero/one/many matches, cache/switch behavior, authorization failure, offline behavior, and bounded command output.
+- [ ] Run the phase stop gate.
+
+### 17. Pi token audit (Prompt 17) — `PENDING`
+
+- [ ] Verify no unnecessary system-prompt growth, tools, all-artifact/full-graph injection, Graphify duplication, or provider behavior modification.
+- [ ] Record estimated model-visible overhead; target approximately zero permanent additional context.
+- [ ] Run the phase stop gate.
+
+### 18. Immutable snapshots (Prompt 18) — `PENDING`
+
+- [ ] Add snapshot and snapshot-artifact references for project, name, Git SHA, graph version, exact artifact versions, creator, and timestamp.
+- [ ] Implement create, list, inspect, and retrieve without duplicating entire files; store any manifest as an immutable R2 object.
+- [ ] Preserve checksums/provenance and ensure referenced versions belong to the authorized project and remain immutable.
+- [ ] Test authorization, exact reproducibility, missing/mismatched versions, immutable retrieval, and audit creation.
+- [ ] Run the phase stop gate.
+
+### 19. Freshness UI and sync-state persistence (Prompt 19) — `PENDING`
+
+- [ ] Reuse Phase 12's shared `CURRENT | STALE | UNKNOWN` classifier without redefining its semantics.
+- [ ] Integrate classifier results and warnings into artifact UI while retaining the existing source-commit provenance and without rewriting artifacts; confirm Context Engine presentation remains consistent.
+- [ ] Persist/index per-project/client sync state including local Git, local graph, remote graph, status, and last sync time.
+- [ ] Test UI and persisted-sync behavior for each freshness state, provenance edge case, authorization boundary, and state transition.
+- [ ] Run the phase stop gate.
+
+### 20. Team management (Prompt 20) — `PENDING`
+
+- [ ] Add invitation lifecycle/data: project, invitee identity/address as approved, role, inviter, expiry/status, acceptance, and timestamps.
+- [ ] Implement invite, accept, list, role change, and removal; require project `ADMIN`, except scoped acceptance by the invitee.
+- [ ] Prevent self-escalation and removal/demotion of the final admin; invalidate affected authorization/session caches and audit every mutation.
+- [ ] Test every mutation for admin/editor/viewer/outsider, replay/expired invite, cross-project isolation, final-admin safety, and immediate revocation.
+- [ ] Run the phase stop gate.
+
+### 20A. Project administration and artifact lifecycle — `PENDING`
+
+- [ ] Add ADMIN-only project update/settings endpoints and real-data UI for the approved mutable project fields; reject mass assignment and preserve repository/authorization boundaries.
+- [ ] Add ADMIN-only logical artifact archive/delete with status/tombstone metadata; hide archived artifacts from default active lists while preserving every immutable version, checksum, provenance field, and audit reference.
+- [ ] Require client `expectedVersion` (or an equivalent explicit revision precondition) for concurrent project settings and artifact lifecycle mutations where stale writes can conflict; return a deterministic conflict without silently retrying.
+- [ ] Audit each project update/settings and artifact archive/delete attempt according to the audit policy, with actor/project/target and bounded redacted before/after metadata but no payloads or secrets.
+- [ ] Add endpoint and data-model acceptance tests plus ADMIN/EDITOR/VIEWER/outsider, cross-project isolation, history preservation, expected-version/conflict, audit, and UI state tests.
+- [ ] Acceptance requires `PATCH /projects/:id` (or a documented settings subroute), logical `DELETE /projects/:id/artifacts/:artifactId` (or a documented archive action), persisted project settings revision, artifact archive metadata, role-safe UI, and the phase stop gate.
+
+### 21. Audit coverage (Prompt 21) — `PARTIAL`
+
+- [x] Record artifact creation and artifact-version creation without payloads/secrets.
+- [ ] Record project creation/update/settings, artifact archive/delete, Git connect/disconnect, member invite/accept, role change, member removal, graph build/publish/failure, snapshot creation, and sync.
+- [ ] Store project, actor, action/event, target type/ID, bounded redacted metadata, and timestamp; index project/time.
+- [ ] Test event presence, actor/project/target correctness, immutable history, denial/failure policy, and secret/content redaction.
+- [ ] Run the phase stop gate.
+
+### D. Explicit cross-project context (Task D) — `PENDING`
+
+- [ ] Pass the architecture-decision gate with an accepted ADR for explicit scope semantics, all-or-nothing authorization, ranking/deduplication, cache separation, and nonleaking failure behavior.
+- [ ] Accept explicit authorized project IDs, query, and one overall token/size budget.
+- [ ] Authenticate and independently authorize every project before reading any source; fail all when one is unauthorized without identifying the inaccessible project.
+- [ ] Query each project's artifacts/graphs/Git/maps, preserve project provenance, deduplicate, rank, and apply one overall budget.
+- [ ] Test Payments-only and Identity-only isolation, authorized Payments+Identity, denied Payments+Mobile with zero Mobile leakage, cache namespace separation, and stable MCP tools.
+- [ ] Run the phase stop gate.
+
+### Management UI completion — `PENDING`
+
+- [ ] Global navigation: Projects, Activity, Settings.
+- [ ] Global Activity is only a bounded, paginated/time-limited aggregate of audit events from projects where the caller has direct current membership; its route/API must apply per-project authorization before aggregation, return no inaccessible project identifiers/counts, and have mixed-access isolation and pagination/bound tests.
+- [ ] Global Settings minimally shows real account/session data and a real connection/configuration overview for directly authorized projects; it must not invent provider, connection, or preference data. Its route/API needs unauthenticated-denial and mixed-access isolation tests. Project settings mutation remains the separate ADMIN-only Phase 20A seam.
+- [ ] Project navigation: Overview, Context, Graphify, Git, Team, Snapshots, Activity, Settings.
+- [ ] Git management: repository, branch, current commit, connection/verification/error state, connect/disconnect/sync controls by role.
+- [ ] Graphify management and focused Graph Explorer surfaces from Phase 9; never expose graph editing.
+- [ ] Team management: pending invites, acceptance, member list, role changes/removal, and final-admin-safe controls.
+- [ ] Snapshot list/create/inspect, freshness and sync warnings, project activity/audit history, and the Phase 20A project settings/lifecycle UI.
+- [ ] Enforce read-only viewer presentation while retaining server authorization; include loading, empty, error, conflict, stale, offline, and nonleaking denial states.
+- [ ] Add UI validation/role/isolation tests and browser E2E coverage; run the phase stop gate.
+
+### 22. Security audit (Prompt 22) — `PENDING`
+
+- [ ] Audit authentication, authorization, project isolation, D1 predicates, R2 privacy/integrity, OAuth/Git credentials, webhooks, MCP, downloads, sync, traversal, SSRF, uploads, replay, rate limits, headers, logging, CI, backups, and secret handling.
+- [ ] Create `docs/ai/security-audit.md`; fix critical/high findings only without unrelated refactors.
+- [ ] Verify role revocation, compromised credential, webhook replay, corrupted object, partial cross-project failure, account removal, and restore behavior in safe environments.
+- [ ] Run the phase stop gate.
+
+### 23. Free-tier audit (Prompt 23) — `PENDING`
+
+- [ ] Audit current limits/usage for Workers, Pages, D1, R2, and GitHub Actions in `docs/ai/free-tier-audit.md`.
+- [ ] Measure/limit polling, requests, D1 scans/reads/writes, duplicate writes/uploads, R2 storage, graph builds, Actions minutes, cache misses, and orphan growth.
+- [ ] Verify batching, indexes, caching, event-driven sync, commit/content deduplication, immutable object reuse, quotas, and no mandatory paid infrastructure.
+- [ ] Optimize without reducing correctness, isolation, integrity, provenance, or local-first operation.
+- [ ] Run the phase stop gate.
+
+### 24. End-to-end verification (Prompt 24) — `PENDING`
+
+- [ ] Admin signs in and creates Payments Platform.
+- [ ] Admin connects GitHub, uploads architecture, and uploads the refund ADR.
+- [ ] Graph v1 is generated from commit A, validated, published, and shown as current.
+- [ ] Admin invites developer; developer accepts with the intended role.
+- [ ] Developer syncs local context and connects Pi.
+- [ ] Refund retry question returns only targeted, bounded, source-backed context.
+- [ ] Developer implements the feature and creates commit B.
+- [ ] Graph v2 is generated/published; stale v1 is detected and v2 syncs safely.
+- [ ] Graph v1 remains intact and retrievable.
+- [ ] Snapshot records the exact Git, graph, and artifact versions.
+- [ ] Write an automated E2E test/report with every step `PASS`, `FAIL`, or `BLOCKED`.
+- [ ] Run multi-project E2E: Acme has Payments/Identity/Mobile; Alice accesses only Payments/Identity; remotes auto-resolve; explicit switch works; authorized combined query is bounded; Payments+Mobile fails without leakage; tool count is unchanged.
+- [ ] Run browser, live OAuth, remote D1/R2, CI graph publication, local/offline sync, MCP, and Pi integration checks in safe environments.
+- [ ] Run the phase stop gate.
+
+### 25. Final architecture and product QA (Prompt 25) — `PENDING`
+
+- [ ] Verify Git truth, derived Graphify, immutable/no-merge graphs, immutable artifact versions, server permissions, provider-neutral MCP, lightweight Pi, bounded context, provenance, safe sync, and free-tier architecture against PRD/architecture/security.
+- [ ] Identify deviations without speculative redesign.
+- [ ] Product QA: create project, connect Git, upload architecture/ADR, invite teammate, assign roles, generate/inspect graph, sync, search/query, connect Pi, create snapshot, and inspect audit.
+- [ ] Report product QA as `PASS`, `FAIL`, `BLOCKED`, or `NICE TO HAVE`, focusing on clarity, reliability, token efficiency, security, and developer experience.
+- [ ] Run the phase stop gate.
+
+### 26. Production deployment and live verification — `PENDING`
+
+- [ ] Create real production D1 and private R2 resources; apply fresh ordered migrations and verify indexes/backups/restore procedure.
+- [ ] Configure Pages/Worker origins, routes, bindings, production IDs/bucket, exact credentialed CORS, secure cookies, CSP/security headers, caching, rate limits, and redacted observability.
+- [ ] Configure GitHub OAuth callback/credentials, GitHub Actions/machine publication secrets, deployment environment protection, least CI permissions, and credential rotation/revocation.
+- [ ] Deploy Pages and Worker; verify health, browser flows, live OAuth, remote D1/R2 integrity, private object denial, Graphify CI, sync, MCP, Pi, and E2E.
+- [ ] Verify no secrets in source, Pages config, browser bundles, logs, or public buckets; rotate test credentials before launch.
+- [ ] Record live URLs/resource identifiers in secure operational configuration, deployment evidence, rollback, incident, and recovery procedures.
+- [ ] Run the phase stop gate against the production candidate and stop launch on any failed security/E2E check.
+
+### 27. Success metrics and launch acceptance — `PENDING`
+
+- [ ] Context efficiency: average context tokens/task, irrelevant-context ratio, Graphify response size, and artifact retrieval size.
+- [ ] Reliability: graph build success, sync success, failed-update preservation, artifact conflict rate, API errors, graph/sync failures, and graph duration.
+- [ ] Developer experience: time to connect a project, time to onboard a developer, and manual context-paste actions avoided.
+- [ ] Infrastructure: Worker requests/project, D1 reads/writes/project, R2 storage/project, and GitHub Actions minutes/project.
+- [ ] Performance: normal cached dashboard under 2 seconds, near-instant artifact metadata, bounded/predictable retrieval, fast local graph queries, asynchronous graph updates, and nonblocking sync/Pi use.
+- [ ] Define collection method, privacy-safe dimensions, baseline/target, review cadence, owner, and alert/action threshold without logging secrets or unnecessary private content.
+- [ ] Confirm MVP acceptance: sign-in/project/Git/artifacts/team/graphs/sync/search/query/Pi/snapshots/audit work; isolation holds; snapshots reproduce; context stays bounded; free services can operate the system.
+- [ ] Run the final stop gate and retain launch evidence.
+
+## Required endpoint ledger
+
+All project endpoints inherit authenticate -> resolve -> direct membership -> role -> execute, project predicates, bounded validation, nonleaking errors, and audit where applicable.
+
+- [x] `GET /api/health`.
+- [x] `GET /auth/github`, `GET /auth/github/callback`, `GET /auth/session`, `POST /auth/logout`.
+- [x] `GET/POST /workspaces`.
+- [x] `GET/POST /projects`, `GET /projects/:id`, `GET /projects/resolve?repository=...`.
+- [x] `GET/POST /projects/:id/artifacts`, `GET /projects/:id/artifacts/:artifactId`.
+- [x] `GET/POST /projects/:id/artifacts/:artifactId/versions`, `GET /projects/:id/artifacts/:artifactId/versions/:version`.
+- [x] `GET/POST/DELETE /projects/:id/git` and `POST /projects/:id/git/sync`.
+- [x] `GET /projects/:id/graphs`, `GET /projects/:id/graphs/latest`, `GET /projects/:id/graphs/:version`, `POST /projects/:id/graphs/build` (authenticated human metadata/reservation only; dispatch remains unavailable until Phase 10).
+- [x] `POST /projects/:id/graphs/:version/query` for bounded node search/detail, neighbors, callers/callees, directed path, and sources.
+- [ ] `POST /projects/:id/context/search` and bounded relevant-context retrieval (do not use unbounded query-string payloads for substantive searches).
+- [ ] `GET /projects/:id/team`, invite/accept, role `PATCH`, and member `DELETE` routes.
+- [ ] ADMIN-only `PATCH /projects/:id` (or documented settings subroute) with expected settings revision and deterministic conflict behavior.
+- [ ] ADMIN-only logical `DELETE /projects/:id/artifacts/:artifactId` (or documented archive action) with expected artifact revision and immutable version-history preservation.
+- [ ] `GET/POST /projects/:id/snapshots` and snapshot detail retrieval.
+- [ ] `GET /projects/:id/activity`.
+- [ ] Bounded `GET /activity` aggregate over directly authorized projects only, with pagination/time bounds and nonleaking isolation.
+- [ ] `GET /settings` (or documented account route) for real account/session and authorized connection/configuration overview; no fabricated values or project mutation.
+- [ ] `GET/POST /mcp` universal authenticated transport.
+- [ ] `POST /context/cross-project/search` with independent all-project authorization.
+- [ ] Local sync/graph publication machine endpoints required by the researched Graphify/CI protocol, with scoped credentials and replay protection.
+
+## Required data model and index ledger
+
+- [x] `users`, `sessions`, `oauth_states` with provider identity uniqueness, hashed tokens/state, expiry indexes.
+- [x] `workspaces`, `workspace_members`, `projects`, `project_members` with tenant foreign keys, direct roles, and membership indexes.
+- [x] `repository_identities`, `project_repositories` with canonical provider identity uniqueness and resolution index.
+- [x] `github_connection_states`, `git_connections`, and `git_audit_events` with hashed expiring connection state, project/provider/repository/default branch/installation reference/known commit/metadata/timestamps, normalized repository identity joins, and project/time audit indexes.
+- [x] `artifacts`, `artifact_versions` with immutable checksummed payload metadata and project/type/version indexes.
+- [ ] Extend `projects` with approved mutable settings and a settings revision; extend `artifacts` with logical archive status/actor/time/revision while preserving immutable `artifact_versions` and active/archive indexes.
+- [ ] Generalized `audit_events` for all required targets/actions with project/time index (current artifact-only schema is partial).
+- [~] `graph_versions` and `graph_events` exist with complete build-identity uniqueness, project/version and status/version indexes, one current READY row, lease expiry lookup, constrained lifecycle payloads, and immutable transition events; Phase 9 acceptance additionally requires ADR 0004's additive `graph_build_attempts`, storage-layout marker, selected-publication metadata, and project-first cleanup indexes.
+- [ ] `context_snapshots`, `snapshot_artifacts` with project and exact-version constraints/indexes.
+- [ ] `sync_states` with project/client uniqueness/index and local/remote Git/graph state.
+- [ ] Team invitation records with secure token hash, project/role/inviter/status/expiry and lookup/expiry indexes.
+- [ ] `machine_principals` for purpose (`MCP_LOCAL_CLIENT | CI_GRAPH_PUBLICATION`), owner, status, allowed operations, direct project scope, optional exact repository binding, and creation/revocation metadata.
+- [ ] `machine_credentials` with principal, SHA-256 (or stronger approved one-way) secret hash only, issued/expiry/last-used/revoked/rotation metadata and indexes; never store or log plaintext credentials.
+- [ ] Bounded nonce/idempotency records bound to principal, project, repository, operation, commit/version, and expiry for MCP/local requests and CI graph publication replay prevention.
+- [ ] Webhook delivery/idempotency records if webhook flows are enabled.
+- [ ] Usage/metrics records only if needed after evaluating privacy and free-tier cost; do not store sensitive payloads.
+
+## External blockers and live prerequisites
+
+These do not justify marking implementation complete and must remain separate from code status.
+
+- [ ] Git history/checkpoints and remote CI: repository is on `main` with no commits and all files are currently untracked; CI has never run remotely.
+- [ ] Cloudflare production resources: real D1 ID, private R2 bucket, Pages origin, Worker origin/routes, bindings, migrations, backups, and deployment access.
+- [ ] GitHub integration: OAuth app/callback credentials, repository access model/permissions, Actions secrets/permissions, and any webhook secret.
+- [x] Graphify research acceptance: corrected source/docs/fixture evidence, output/preflight/schema contract, hosting rejection, and the accepted profile are recorded in [`graphify-integration.md`](graphify-integration.md) and ADR 0003; independent final review reported no P0 or P1 findings and ACCEPT on 2026-09-12. This documentation evidence does not satisfy later implementation or live gates.
+- [~] Graphify implementation/live evidence: the isolated adapter implementation has independent review acceptance with no findings, and accepted ADR 0004 plus the attempt-scoped Phase 9 refactor are implemented locally. Independent Phase 9 implementation review is still required before acceptance; resource sizing, cross-environment determinism, upstream schema compatibility, any future symlink/submodule/LFS support, hash-locked adapter/Actions, machine publication, and a safe live Actions/D1/R2 environment remain unverified.
+- [ ] Live test identities/repositories and an approved private-data-safe staging environment for OAuth, D1/R2, CI, MCP, Pi, sync, and E2E verification.
+- [ ] Current Cloudflare/GitHub free-tier limits and production observability/rate-limit configuration must be verified at audit time.
+
+## Explicit MVP deferrals
+
+Do not implement these until the MVP ledger, audits, E2E, deployment, and launch metrics pass and a later scope is explicitly approved.
+
+- [ ] Advanced vector/embedding/semantic search and context quality scoring.
+- [ ] Billing or mandatory paid infrastructure.
+- [ ] SAML/enterprise SSO or additional authentication providers.
+- [ ] Giant/full-graph visualization, graph diff, or collaborative Graphify editing/merge.
+- [ ] Multiple repositories per project.
+- [ ] Extra Git providers (GitLab/Bitbucket), AI providers, agent adapters beyond Pi, or speculative provider/infrastructure adapters.
+- [ ] Workspace/global organization context; keep only the small repository `AGENTS.md` global reference and project architecture maps in MVP retrieval.
+- [ ] PDF, diagrams, archives, multipart, compressed, executable, and other binary artifact formats until format-specific validation/scanning/quotas exist.
+- [ ] Snapshot MCP tools (`create_snapshot`, `get_snapshot`); snapshots remain web/API/Pi command functionality in MVP and the MCP surface stays at six tools.
+- [ ] AI-generated documentation, full IDE replacement, complex workflow engine, and multi-cloud infrastructure.
+- [ ] Architecture drift detection, artifact approval workflows, PR-aware context, organization-wide context, and other roadmap automation.

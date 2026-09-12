@@ -1,0 +1,209 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "id": "pkg_core_greeter",
+      "label": "Greeter",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "Community 0",
+      "file_type": "code",
+      "norm_label": "greeter",
+      "source_file": "pkg/core.py",
+      "source_location": "L4"
+    },
+    {
+      "id": "main_run",
+      "label": "run()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "Community 0",
+      "file_type": "code",
+      "norm_label": "run()",
+      "source_file": "main.py",
+      "source_location": "L3"
+    },
+    {
+      "id": "pkg_core_format_message",
+      "label": "format_message()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "Community 2",
+      "file_type": "code",
+      "norm_label": "format_message()",
+      "source_file": "pkg/core.py",
+      "source_location": "L10"
+    },
+    {
+      "id": "pkg_core_greeter_greet",
+      "label": ".greet()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 2,
+      "community_name": "Community 2",
+      "file_type": "code",
+      "norm_label": ".greet()",
+      "source_file": "pkg/core.py",
+      "source_location": "L7"
+    },
+    {
+      "id": "main",
+      "label": "main.py",
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "Community 0",
+      "file_type": "code",
+      "norm_label": "main.py",
+      "source_file": "main.py",
+      "source_location": "L1"
+    },
+    {
+      "id": "pkg_core",
+      "label": "core.py",
+      "_origin": "ast",
+      "community": 1,
+      "community_name": "Community 1",
+      "file_type": "code",
+      "norm_label": "core.py",
+      "source_file": "pkg/core.py",
+      "source_location": "L1"
+    },
+    {
+      "id": "pkg_init",
+      "label": "__init__.py",
+      "_origin": "ast",
+      "community": 1,
+      "community_name": "Community 1",
+      "file_type": "code",
+      "norm_label": "__init__.py",
+      "source_file": "pkg/__init__.py",
+      "source_location": "L1"
+    }
+  ],
+  "links": [
+    {
+      "source": "main_run",
+      "target": "pkg_core_greeter",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "main.py",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "pkg_core_greeter_greet",
+      "target": "pkg_core_format_message",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "pkg/core.py",
+      "source_location": "L8",
+      "weight": 1.0
+    },
+    {
+      "source": "pkg_init",
+      "target": "pkg_core",
+      "relation": "re_exports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "export",
+      "source_file": "pkg/__init__.py",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "main",
+      "target": "pkg_core_greeter",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "main.py",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "pkg_init",
+      "target": "pkg_core_greeter",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "pkg/__init__.py",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "main",
+      "target": "pkg_core",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "main.py",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "main",
+      "target": "main_run",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "main.py",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "pkg_core",
+      "target": "pkg_core_format_message",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "pkg/core.py",
+      "source_location": "L10",
+      "weight": 1.0
+    },
+    {
+      "source": "pkg_core",
+      "target": "pkg_core_greeter",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "pkg/core.py",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "pkg_core_greeter",
+      "target": "pkg_core_greeter_greet",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "pkg/core.py",
+      "source_location": "L7",
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [],
+  "built_at_commit": "9ebc249f02b2a66257816378f73683566aded0ed"
+}

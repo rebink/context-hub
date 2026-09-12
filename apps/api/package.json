@@ -1,0 +1,15 @@
+{
+  "name": "@context-hub/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "test": "tsx --test test/**/*.test.ts",
+    "test:migrations": "bash test/migration-integrity.sh",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "wrangler deploy --dry-run --outdir dist --env=\"\"",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote --env production"
+  }
+}
