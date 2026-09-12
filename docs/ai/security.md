@@ -69,7 +69,7 @@ Mitigations:
 - Namespace caches by authenticated principal and project; never cache authorization failures as global existence facts.
 - Test users in multiple workspaces/projects plus workspace-only and outsider access.
 
-Current status: direct membership, nonleaking denials, multi-workspace/project tests, authorized repository resolution, and project-predicated Context Engine retrieval are implemented. Context Engine graph selection also requires the immutable graph repository identity to match the project's current verified Git connection, preventing mixed old/new repository evidence. The Context Engine creates no cache or persistent index, avoiding shared principal state; any future cache/index must use authenticated-principal plus project namespaces and invalidate authorization-sensitive entries.
+Current status: direct membership, nonleaking denials, multi-workspace/project tests, authorized repository resolution, and project-predicated Context Engine retrieval are implemented. Context Engine graph selection also requires the immutable graph repository identity to match the project's current verified Git connection, preventing mixed old/new repository evidence. Artifact and graph retrieval now rejects malformed bounded ID/version/attempt/layout/publication components and any D1 storage key that is not the exact server-defined legacy or current key before R2 access. Phase 13 scenarios admit valid current artifact versions plus legacy and attempt-scoped graphs, reject malformed/cross-project shapes with zero R2 calls, and exercise overlapping foreign-project metadata, status/current-version/repository/order filtering, HEAD-before-get storage isolation, source errors, stable response fields, and repeated uncached searches; the single review and 200-test full gate are complete. The Context Engine creates no cache or persistent index, avoiding shared principal state; any future cache/index must use authenticated-principal plus project namespaces and invalidate authorization-sensitive entries.
 
 ### Git credentials
 
@@ -201,7 +201,7 @@ Mitigations:
 - Do not support archives, PDF, diagrams, multipart, or binary content until format-specific validation, sandboxing/scanning, and quotas are defined.
 - Reject compressed uploads unless decompressed size can be bounded before storage.
 
-Current status: bounded Markdown/text/JSON/YAML uploads are implemented. Context Engine artifact retrieval checks D1 size/checksum/content type against private-R2 HEAD HTTP/custom metadata and the 64 KiB source ceiling before download, then verifies exact returned bytes and UTF-8 before producing bounded evidence.
+Current status: bounded Markdown/text/JSON/YAML uploads are implemented. Context Engine artifact retrieval first requires the exact project/artifact/version key, then checks D1 size/checksum/content type against private-R2 HEAD HTTP/custom metadata and the 64 KiB source ceiling before download, and finally verifies exact returned bytes and UTF-8 before producing bounded evidence.
 
 ### Replay attacks
 

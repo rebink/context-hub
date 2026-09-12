@@ -104,6 +104,37 @@ function completeEvidenceTokenEstimate(evidence: ContextEvidence): ContextEviden
   return complete;
 }
 
+const STORAGE_ID = /^[A-Za-z0-9_-]{1,128}$/;
+const PUBLICATION_ID = /^[A-Za-z0-9_-]{32,128}$/;
+const validStorageInteger = (value: number | null): value is number =>
+  Number.isSafeInteger(value) && value !== null && value >= 1 && value <= 2_147_483_647;
+
+function artifactStorageKey(projectId: string, artifact: ArtifactCandidate): string | null {
+  if (
+    !STORAGE_ID.test(projectId) ||
+    !STORAGE_ID.test(artifact.id) ||
+    !validStorageInteger(artifact.version)
+  )
+    return null;
+  return `projects/${projectId}/artifacts/${artifact.id}/v/${artifact.version}/content`;
+}
+
+function graphStorageKey(projectId: string, graph: GraphRow): string | null {
+  if (!STORAGE_ID.test(projectId) || !validStorageInteger(graph.version)) return null;
+  if (graph.storage_layout === "LEGACY_V1") {
+    if (graph.selected_publication_id !== null) return null;
+    return `projects/${projectId}/graphs/v/${graph.version}/graph.json`;
+  }
+  if (
+    graph.storage_layout !== "ATTEMPT_V2" ||
+    !validStorageInteger(graph.published_attempt) ||
+    !graph.selected_publication_id ||
+    !PUBLICATION_ID.test(graph.selected_publication_id)
+  )
+    return null;
+  return `projects/${projectId}/graphs/v/${graph.version}/attempts/${graph.published_attempt}/${graph.selected_publication_id}/graph.json`;
+}
+
 function finish(
   projectId: string,
   ranked: Ranked[],
@@ -230,6 +261,11 @@ export class ContextEngine implements ContextProvider {
         retrievalTruncated = true;
         continue;
       }
+      if (artifact.storage_key !== artifactStorageKey(input.projectId, artifact)) {
+        if (!sourceErrors.includes("ARTIFACT_SOURCE_UNAVAILABLE"))
+          sourceErrors.push("ARTIFACT_SOURCE_UNAVAILABLE");
+        continue;
+      }
       try {
         const stored = await this.storage.head(artifact.storage_key);
         if (
@@ -306,7 +342,16 @@ export class ContextEngine implements ContextProvider {
           .bind(input.projectId, git.provider, git.provider_repository_id, git.canonical_url)
           .first<GraphRow>()
       : null;
-    if (graphRow && graphRow.byte_size !== null && graphRow.byte_size > MAX_GRAPH_SOURCE_BYTES) {
+    if (
+      graphRow &&
+      (!graphRow.storage_key || graphRow.storage_key !== graphStorageKey(input.projectId, graphRow))
+    ) {
+      sourceErrors.push("GRAPH_SOURCE_UNAVAILABLE");
+    } else if (
+      graphRow &&
+      graphRow.byte_size !== null &&
+      graphRow.byte_size > MAX_GRAPH_SOURCE_BYTES
+    ) {
       sourceErrors.push("GRAPH_SOURCE_UNAVAILABLE");
     } else if (graphRow && graphRow.byte_size !== null) {
       try {

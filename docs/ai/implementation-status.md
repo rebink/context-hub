@@ -9,6 +9,7 @@ The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`
 - [x] Phase 9 immutable graph versions, attempt-scoped publication, bounded explorer, and role-aware UI are implemented through additive migration 0013. The full local gate passes 140 tests (78 API, 26 web, 36 adapter), migration integrity, typecheck, Biome lint, and Worker/Vite/adapter builds; final bounded review returned ACCEPT. Browser/live Cloudflare verification remains an external release gate.
 - [x] Phase 11 local sync is complete locally from Phase 10 checkpoint `3d15a0f`; its one independent review is complete, the complete P1 set is fixed, and the 178-test full stop gate passes. Remote CI has not run.
 - [x] Phase 12 Context Engine is complete locally from checkpoint `9c0702a`: one minimal `ContextProvider`/`ContextEngine`, query-aware bounded single-project retrieval, complete-evidence token accounting, current-repository graph selection, exact provenance, private artifact HEAD/byte verification, and the shared freshness classifier pass the single review and 192-test full gate.
+- [x] Phase 13 Context Engine executable acceptance scenarios are complete locally from checkpoint `de8a832`: overlap-heavy relevance/exclusion/capped-graph/exact-provenance/calibrated-deduplication/freshness coverage, independently measured token/byte budgets, valid legacy/current and malformed storage-key matrices, strict SQL and HEAD-before-get fakes, and repeated uncached isolation pass the single review and 200-test full gate.
 - [!] Production D1 ID, R2 bucket, Pages origin, and Worker origin remain placeholders. GitHub OAuth credentials and live Cloudflare resources are not configured.
 - [!] No browser, live OAuth, remote D1/R2, or deployment end-to-end test has run.
 
@@ -45,18 +46,19 @@ Every significant architecture choice first needs an approved ADR. The mandatory
 2. [x] Phase 9 is locally complete through migration 0013 and final bounded review ACCEPT. Browser/live Cloudflare verification remains part of the external release gate.
 3. [x] Phase 10 CI graph generation is locally complete through migration 0014 after its single review and 154-test gate. Live bounded-runner benchmarks and remote D1/R2 publication remain external release gates.
 4. [x] Phase 11 local sync is locally complete after one review, one consolidated P1 fix pass, and the 178-test full stop gate. Live Worker/D1/R2 sync, OS secret-helper handoff, and target-filesystem crash evidence remain external release gates.
-5. [x] Phase 12 `ContextProvider` and Context Engine are complete locally after one review, one consolidated five-item P1 fix pass, and the 192-test full gate. Prompt 13 remains the next separate phase.
-6. [ ] Approve the MCP auth/transport ADR; implement minimal `McpTransport` with exactly one Worker transport and contract tests, hashed/scoped/expiring/revocable MCP/local-client principals, replay controls, and the stable universal six-tool surface.
-7. [ ] Complete MCP schema/response token audits for 1, 10, and 100 projects.
-8. [ ] Add Pi integration using the local-client principal, automatic repository resolution, explicit project switching, and Pi token audit.
-9. [ ] Add immutable snapshots, then integrate the shared freshness classifier into artifact UI and persist/index sync state.
-10. [ ] Add team invitations, acceptance, removal, and role changes.
-11. [ ] Add ADMIN-only project update/settings and logical artifact archive/delete, including immutable-history preservation, expected-version conflicts, audit, UI, endpoint/data-model acceptance, and role/isolation tests.
-12. [ ] Complete generalized audit-event coverage and project audit history UI.
-13. [ ] Approve the cross-project retrieval ADR; implement explicit all-project-authorized, bounded cross-project context retrieval.
-14. [ ] Complete remaining management UI: global Activity aggregated only across directly authorized projects via a bounded API; minimal real-data account/session and connection/configuration Settings; and remaining project Git, Graphify, Team, Snapshot, Activity, and Settings surfaces. No fake data.
-15. [ ] Run security, free-tier, single-project E2E, multi-project E2E, final architecture, and product QA reviews.
-16. [ ] Configure production resources, deploy, and complete live OAuth, D1/R2, browser, Graphify, sync, MCP, and Pi verification.
-17. [ ] Establish, collect, and review the required context-efficiency, reliability, developer-experience, infrastructure, and performance success metrics.
+5. [x] Phase 12 `ContextProvider` and Context Engine are complete locally after one review, one consolidated five-item P1 fix pass, and the 192-test full gate.
+6. [x] Phase 13 Context Engine scenarios are complete locally after one review, one consolidated P1 fix pass, and the 200-test full gate.
+7. [ ] Approve the MCP auth/transport ADR; implement minimal `McpTransport` with exactly one Worker transport and contract tests, hashed/scoped/expiring/revocable MCP/local-client principals, replay controls, and the stable universal six-tool surface.
+8. [ ] Complete MCP schema/response token audits for 1, 10, and 100 projects.
+9. [ ] Add Pi integration using the local-client principal, automatic repository resolution, explicit project switching, and Pi token audit.
+10. [ ] Add immutable snapshots, then integrate the shared freshness classifier into artifact UI and persist/index sync state.
+11. [ ] Add team invitations, acceptance, removal, and role changes.
+12. [ ] Add ADMIN-only project update/settings and logical artifact archive/delete, including immutable-history preservation, expected-version conflicts, audit, UI, endpoint/data-model acceptance, and role/isolation tests.
+13. [ ] Complete generalized audit-event coverage and project audit history UI.
+14. [ ] Approve the cross-project retrieval ADR; implement explicit all-project-authorized, bounded cross-project context retrieval.
+15. [ ] Complete remaining management UI: global Activity aggregated only across directly authorized projects via a bounded API; minimal real-data account/session and connection/configuration Settings; and remaining project Git, Graphify, Team, Snapshot, Activity, and Settings surfaces. No fake data.
+16. [ ] Run security, free-tier, single-project E2E, multi-project E2E, final architecture, and product QA reviews.
+17. [ ] Configure production resources, deploy, and complete live OAuth, D1/R2, browser, Graphify, sync, MCP, and Pi verification.
+18. [ ] Establish, collect, and review the required context-efficiency, reliability, developer-experience, infrastructure, and performance success metrics.
 
 Every step must stop unless tests, typecheck, lint, and build pass. Detailed dependencies and acceptance checks are maintained in [`docs/ai/master-plan.md`](master-plan.md).

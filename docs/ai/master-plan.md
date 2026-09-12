@@ -22,8 +22,8 @@ Durable implementation ledger for the PRD, technical architecture, implementatio
 - [x] Workspace membership alone never grants project data access; inaccessible project, repository, artifact, graph, source-path, snapshot, and member metadata must not leak.
 - [x] Published artifact objects are immutable, versioned, checksum-backed, and project-scoped.
 - [x] Graphify remains a derived build output; implemented graph versions are immutable and checksum-backed; graph JSON is never edited, merged, or overwritten.
-- [ ] Context results are relevance-first, deduplicated, explicitly budgeted, bounded, and carry project/source/path/version/commit/checksum provenance where applicable.
-- [ ] Sync writes through a temporary path, verifies checksum and source commit, atomically replaces the cache, and preserves the last valid graph on failure.
+- [x] Context results are relevance-first, deduplicated, explicitly budgeted, bounded, and carry project/source/path/version/commit/checksum provenance where applicable.
+- [x] Sync writes through a temporary path, verifies checksum and source commit, atomically replaces the cache, and preserves the last valid graph on failure.
 - [ ] One authenticated provider-neutral MCP endpoint exposes a stable six-tool, read-oriented surface regardless of project count.
 - [ ] Pi and other clients add approximately zero permanent model context, never inject the repository/full graph/all artifacts, and do not duplicate Context Engine or Graphify logic.
 - [ ] Local-first use continues from Git, manifest, graph cache, artifact cache, and offline cache when Context Hub is unavailable.
@@ -189,18 +189,19 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Passed the full phase stop gate: migration integrity plus 192 tests (106 API, 26 web, 19 CLI, 41 adapter), typecheck, Biome lint, and all builds.
 - **P2 backlog (non-blocking):** make relevance reasons name only the query/domain/package dimensions that actually matched; add method, control-heavy optional-field, and exact multibyte response-boundary cases opportunistically.
 
-### 13. Context Engine scenarios (Prompt 13) — `PENDING`
+### 13. Context Engine scenarios (Prompt 13) — `COMPLETE LOCALLY`
 
-- [ ] **Prerequisite:** Phase 12's shared `CURRENT | STALE | UNKNOWN` classifier and Context Engine exposure are implemented and have passed the stop gate; Prompt 13 must not define a separate classifier.
-- [ ] Relevant architecture is found.
-- [ ] Unrelated artifacts are excluded.
-- [ ] Relevant graph evidence is included.
-- [ ] Output obeys token/size budget.
-- [ ] Every important result has provenance.
-- [ ] Duplicate context is removed.
-- [ ] `CURRENT`, `STALE`, and `UNKNOWN` artifacts are classified consistently by the shared Phase 12 classifier.
-- [ ] Private project data never crosses projects.
-- [ ] Run the phase stop gate.
+- [x] **Prerequisite:** Phase 12's shared `CURRENT | STALE | UNKNOWN` classifier and Context Engine exposure are implemented and have passed the stop gate; Prompt 13 does not define a separate classifier.
+- [x] Relevant architecture is found in an overlap scenario that also includes graph, provenance, deduplication, and freshness evidence.
+- [x] Unrelated artifacts, inactive rows, and non-current versions are excluded by scenario fakes that enforce the production SQL predicates.
+- [x] Relevant graph evidence is included only for the current verified repository and READY graph; scenarios prove the 12-node evidence cap, four-relationship cap, excerpt bound, and truncation signal.
+- [x] One explicit token/byte output budget is verified from independently encoded result/evidence measurements rather than trusting response accounting fields.
+- [x] Every important result has exact project/source/path/section/version/commit/checksum provenance with source-appropriate truthful nullability.
+- [x] Duplicate excerpts are removed before the one global budget is applied; a calibrated scenario proves a later unique result fits only because duplicate cost is removed first.
+- [x] `CURRENT`, `STALE`, and `UNKNOWN` artifacts, including missing and invalid commits, are classified by the shared Phase 12 classifier.
+- [x] Private project data does not cross projects through metadata rows, repository/status/current-version selection, storage calls/keys, source errors, response fields, or repeated uncached searches. Context retrieval validates bounded base64url IDs, positive bounded versions/attempts, exact `LEGACY_V1`/`ATTEMPT_V2` semantics, and exact derived artifact/graph keys before R2 HEAD/get.
+- [x] Completed the one independent review and fixed its complete P1 set in one consolidated pass without a second review: fail-closed storage-key component validation plus valid legacy/current matrices, pre-budget dedup proof, graph bounds, uncached re-read proof, exact provenance matrices, and stricter HEAD/SQL fakes.
+- [x] Passed the root phase stop gate: migration integrity plus 200 tests (114 API, 26 web, 19 CLI, 41 adapter), typecheck, Biome lint, and all builds.
 
 ### A. Workspace and multi-project foundation (Task A) — `PARTIAL`
 
