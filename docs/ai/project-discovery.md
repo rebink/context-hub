@@ -4,7 +4,7 @@ Repository discovery for Prompt 0A. This document describes the checked-in worki
 
 ## Product and current boundary
 
-Context Hub is a provider-neutral control plane for giving coding agents bounded, source-backed project context. The repository currently implements the foundation, GitHub identity authentication behind a minimal `AuthProvider` seam, workspace/project authorization and resolution, a real-data dashboard, immutable text artifacts behind a minimal `ObjectStorage` seam, the GitHub App repository connection backend and project UI behind a minimal `GitProvider` seam, the independently reviewed isolated Node-only Graphify adapter, and Phase 9 internal graph publication/storage, authenticated human graph routes, and Graphify status/focused-explorer frontend. Phase 10 machine publication transport and the fail-closed canonical workflow are locally complete through migration 0014 after the single phase review and 154-test gate; live bounded-runner execution and remote D1/R2 evidence remain pending release gates. Local sync, Context Engine, MCP, Pi, snapshots, team administration, and generalized audit are not implemented.
+Context Hub is a provider-neutral control plane for giving coding agents bounded, source-backed project context. The repository currently implements the foundation, GitHub identity authentication behind a minimal `AuthProvider` seam, workspace/project authorization and resolution, a real-data dashboard, immutable text artifacts behind a minimal `ObjectStorage` seam, the GitHub App repository connection backend and project UI behind a minimal `GitProvider` seam, the independently reviewed isolated Node-only Graphify adapter, Phase 9 graph publication/query/UI, and reviewed Phase 10 machine publication. Phase 11 now has an implemented Node local-sync CLI, bounded authenticated Worker sync routes, atomic verified graph cache, and offline status/read seam under accepted ADR 0006; its independent review and full gate remain pending. Live runner, remote D1/R2/sync, and OS secret-helper evidence remain release gates. Context Engine, MCP, Pi, snapshots, team administration, and generalized audit are not implemented.
 
 The source-of-truth split is an architectural invariant:
 
@@ -39,11 +39,12 @@ The source-of-truth split is an architectural invariant:
 |-- biome.json                     Root formatting/lint policy
 |-- package.json                   npm workspace scripts and tool versions
 |-- package-lock.json              Locked npm dependency graph
+|-- packages/context-cli/          Node local sync CLI, atomic cache, offline status, tests
 |-- packages/graphify-adapter/     Isolated Node GraphProvider, validator, fixtures, tests
 `-- tsconfig.base.json             Shared strict TypeScript options
 ```
 
-There is no ORM, application framework, component framework, generated API client, local CLI, MCP package, or provider registry/factory. `packages/graphify-adapter` is the only Node-only package and is not imported by either application.
+There is no ORM, application framework, component framework, generated API client, MCP package, or provider registry/factory. `packages/graphify-adapter` remains isolated from both applications; `packages/context-cli` is the dependency-light Node-only local sync client.
 
 ## Language, runtime, and package management
 
@@ -119,7 +120,7 @@ There is no ORM, application framework, component framework, generated API clien
 | Git | GitHub remote normalization, GitHub App connect/read/sync/disconnect backend and project UI, real identity links, commit tracking, and authorized resolution | Live-provider/browser deployment verification |
 | Artifacts | Bounded text formats, immutable R2 versions, checksums, conflicts, UI | Binary/multipart formats, archive lifecycle, freshness UI |
 | Graph | Independently reviewed isolated `GraphProvider`; constrained graph versions/events; internal immutable publication/storage; authenticated human metadata/build reservation and bounded explorer routes; status/focused-explorer frontend | Machine credentials/publication transport; CI workflow |
-| Context/clients | None | Context Engine, universal MCP, Pi, local/offline sync, cross-project retrieval |
+| Context/clients | Node local sync CLI, verified graph cache/read seam, offline status | Context Engine, universal MCP, Pi, artifact sync, cross-project retrieval |
 | Operations | Local scripts, migrations, GitHub Actions definition | Remote CI evidence, production resources/deploy, rate limits/observability/backups |
 | Audit/snapshots | Artifact publication events only | General audit model/UI and immutable context snapshots |
 

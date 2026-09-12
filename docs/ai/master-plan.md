@@ -159,17 +159,19 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] The additive CI principal/hashed-credential, bounded nonce, immutable audit data models and project/repository/commit-enforcing machine transport are implemented through migration 0014.
 - [x] Completed the single independent phase review, fixed its full P0/P1 set in one consolidated pass without a second review, and passed the 154-test phase stop gate. Phase 11 may begin.
 
-### 11. Local sync and offline cache (Prompt 11) — `PENDING`
+### 11. Local sync and offline cache (Prompt 11) — `COMPLETE LOCALLY`
 
-- [ ] Pass the architecture-decision gate with an accepted ADR for local sync transport, atomic cache layout, offline behavior, credential storage, and recovery.
-- [ ] Implement `.ai-context/manifest.json`, `graph/graph.json`, `graph/meta.json`, `artifacts/`, and `cache/`; keep credentials outside the repository in secure OS storage where possible.
-- [ ] Implement `context connect`, `context status`, and `context sync`.
-- [ ] Derive `CURRENT`, `GRAPH_STALE`, `LOCAL_REPOSITORY_AHEAD`, `REMOTE_GRAPH_AHEAD`, `NO_LOCAL_GRAPH`, `GRAPH_BUILDING`, `GRAPH_FAILED`, and `COMMIT_MISMATCH` from local/server Git and graph versions.
-- [ ] Download -> verify response/checksum/metadata/source commit -> write/fsync temporary -> atomically rename -> update manifest.
-- [ ] Preserve the previous valid cache on every failure; reject absolute paths, `..`, symlink escapes, unsafe archives, and replayed/mismatched sync operations.
-- [ ] Support offline status, local graph queries, and cached immutable artifact reads without blocking normal Pi use.
-- [ ] Test every state, corruption/mismatch, interrupted update, atomic replacement, prior-cache preservation, traversal/symlink cases, and offline behavior.
-- [ ] Run the phase stop gate.
+- [x] Pass the architecture-decision gate with accepted ADR 0006 for local sync transport, atomic cache layout, offline behavior, credential storage, path defense, crash recovery, and rollback.
+- [x] Implement `.ai-context/manifest.json`, `graph/graph.json`, `graph/meta.json`, `artifacts/`, and `cache/`; keep credentials outside the repository behind the environment/OS-secret integration boundary.
+- [x] Implement `context connect`, `context status`, and `context sync` in the dependency-light Node CLI workspace.
+- [x] Derive `CURRENT`, `GRAPH_STALE`, `LOCAL_REPOSITORY_AHEAD`, `REMOTE_GRAPH_AHEAD`, `NO_LOCAL_GRAPH`, `GRAPH_BUILDING`, `GRAPH_FAILED`, and `COMMIT_MISMATCH` with deterministic precedence from local/server Git and graph versions.
+- [x] Download -> verify bounded response/checksum/metadata/source commit -> write/fsync no-follow temporary -> atomically rename graph/meta -> update manifest last.
+- [x] Preserve the previous valid cache on failures through persisted rollback evidence; fixed contained paths and no-follow checks reject unsafe existing layouts, traversal inputs, symlink escapes, and mismatched sync operations. No archives are accepted.
+- [x] Support offline status and verified local graph reads without network access. Artifact synchronization/reads remain deliberately unimplemented beyond the required empty directory.
+- [x] Focused API/CLI tests cover every state, auth/isolation, current-repository graph selection, changed/copied remotes, full format-v1 corruption, interrupted update, rename/preparation failure, concurrent locking, dead-lock recovery, atomic replacement, prior-cache preservation, bounds, replaced-parent/symlink cases, and network/HTTP offline behavior.
+- [x] Completed the one independent phase review and resolved its full P1 set in one consolidated pass without a second review.
+- [x] Passed the full phase stop gate: migration integrity plus 178 tests (92 API, 26 web, 19 CLI, 41 adapter), typecheck, Biome lint, and all builds.
+- **P2 backlog (non-blocking):** expand overlap-heavy state precedence cases and exhaustive crash injection across every marker/backup/rename/fsync boundary on representative target filesystems; keep live Worker/D1/R2 and OS-secret-helper checks in the external evidence ledger.
 
 ### 12. Context Engine (Prompt 12) — `PENDING`
 
@@ -419,7 +421,7 @@ All project endpoints inherit authenticate -> resolve -> direct membership -> ro
 
 These do not justify marking implementation complete and must remain separate from code status.
 
-- [~] Git history/checkpoints and remote CI: repository is on `main` with Phase 9 baseline checkpoint `cad3dce`; Phase 10 changes are unstaged and remote CI has never run.
+- [~] Git history/checkpoints and remote CI: repository is on `main` with Phase 9 checkpoint `cad3dce` and Phase 10 checkpoint `3d15a0f`; the locally gated Phase 11 change is awaiting its checkpoint and remote CI has never run.
 - [ ] Cloudflare production resources: real D1 ID, private R2 bucket, Pages origin, Worker origin/routes, bindings, migrations, backups, and deployment access.
 - [ ] GitHub integration: OAuth app/callback credentials, repository access model/permissions, Actions secrets/permissions, and any webhook secret.
 - [x] Graphify research acceptance: corrected source/docs/fixture evidence, output/preflight/schema contract, hosting rejection, and the accepted profile are recorded in [`graphify-integration.md`](graphify-integration.md) and ADR 0003; independent final review reported no P0 or P1 findings and ACCEPT on 2026-09-12. This documentation evidence does not satisfy later implementation or live gates.

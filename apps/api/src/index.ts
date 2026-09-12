@@ -22,6 +22,7 @@ import {
   STATE_COOKIE,
   sha256,
 } from "./security.js";
+import { handleSyncRoute } from "./sync.js";
 
 export interface Env {
   DB: D1Database;
@@ -566,6 +567,22 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
             credentialRoute[1] ?? "",
             credentialRoute[2],
             Boolean(credentialRotate),
+          );
+        }
+
+        const syncMetadata = /^\/projects\/([^/]+)\/sync$/.exec(pathname);
+        const syncDownload = /^\/projects\/([^/]+)\/sync\/graph\/([^/]+)$/.exec(pathname);
+        const syncRoute = syncDownload ?? syncMetadata;
+        if (syncRoute) {
+          const user = await authenticate(request, env);
+          if (!user) return error(request, env, "UNAUTHENTICATED", 401);
+          return handleSyncRoute(
+            request,
+            env,
+            storage,
+            user,
+            syncRoute[1] ?? "",
+            syncDownload?.[2],
           );
         }
 

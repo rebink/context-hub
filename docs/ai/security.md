@@ -187,7 +187,7 @@ Mitigations:
 - Validate archive entries before extraction and write to temporary directories before atomic replacement.
 - Treat display names as metadata only, never as paths.
 
-Current status: server-generated immutable R2 keys do not use display names or client paths. Local sync, archive extraction, and filesystem writes are not implemented and must add containment and symlink checks.
+Current status: server-generated immutable R2 keys do not use display names or client paths. Phase 11 local sync uses only fixed paths beneath the canonical project root, validates every existing layout component and retained directory device/inode identity around operations, rejects symlinks and replaced parents, uses exclusive no-follow temporary files, and accepts no archives. An exclusive process-owned lock serializes cache recovery/read/mutation, and persisted rollback evidence recovers interrupted graph/meta/manifest replacement.
 
 ### Malicious uploads
 
@@ -215,7 +215,7 @@ Mitigations:
 - Use optimistic expected versions for artifact mutation; never silently retry against a newer version.
 - Make graph publication idempotent only for the same published attempt when full D1 identity and exact R2 checksum, size, content type, key, and `uploadId=publicationId` match; never adopt across attempts.
 
-Current status: one-time OAuth state, session-bound one-time Git connection state with post-provider publication checks, optimistic artifact versions, and exact immutable-object recovery checks are implemented. Phase 9 graph replay is fenced to the exact attempt/publication key and remains valid after SUPERSEDED under accepted ADR 0004. Phase 10 external machine publication transport, hashed credentials, and bounded nonce records are implemented locally through migration 0014. Graph/local sync commands and webhook delivery replay controls remain unimplemented; live remote replay evidence remains pending.
+Current status: one-time OAuth state, session-bound one-time Git connection state with post-provider publication checks, optimistic artifact versions, and exact immutable-object recovery checks are implemented. Phase 9 graph replay is fenced to the exact attempt/publication key and remains valid after SUPERSEDED under accepted ADR 0004. Phase 10 external machine publication transport, hashed credentials, and bounded nonce records are implemented locally through migration 0014. Phase 11 local sync predicates server graph selection on the current repository, revalidates the live checkout remote before requests, accepts only the authorized server-selected immutable graph tuple with exact repository provenance and duplicate-aware full format-v1 validation, uploads nothing, and preserves prior cache state. Webhook delivery replay controls remain unimplemented; live remote evidence remains pending.
 
 ### Role escalation
 

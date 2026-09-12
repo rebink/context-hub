@@ -32,8 +32,8 @@ const ORPHAN_GRACE_MS = 5 * 60 * 1000;
 const ORPHAN_CLEANUP_LEASE_MS = 60 * 1000;
 
 type Role = "ADMIN" | "EDITOR" | "VIEWER";
-type GraphStatus = "QUEUED" | "BUILDING" | "FAILED" | "READY" | "SUPERSEDED";
-type GraphRow = {
+export type GraphStatus = "QUEUED" | "BUILDING" | "FAILED" | "READY" | "SUPERSEDED";
+export type GraphRow = {
   id: string;
   project_id: string;
   version: number;
@@ -506,7 +506,7 @@ function queryGraph(graph: ParsedGraph, body: Record<string, unknown>) {
   return null;
 }
 
-async function loadReadyGraph(storage: ObjectStorage, row: GraphRow) {
+export async function loadVerifiedReadyGraph(storage: ObjectStorage, row: GraphRow) {
   if (
     !row.storage_key ||
     !row.checksum ||
@@ -540,7 +540,7 @@ async function loadReadyGraph(storage: ObjectStorage, row: GraphRow) {
     return null;
   const graph = validateGraphFormatV1(bytes, row.source_commit_sha);
   return graph && graph.nodes.length === row.node_count && graph.links.length === row.link_count
-    ? graph
+    ? { graph, bytes }
     : null;
 }
 
@@ -590,9 +590,9 @@ export async function handleGraphRoute(
       return fail(request, env, "NOT_FOUND", 404);
     const body = await readBody(request);
     if (!body) return fail(request, env, "INVALID_INPUT", 400);
-    const graph = await loadReadyGraph(storage, row);
-    if (!graph) return fail(request, env, "STORAGE_INTEGRITY_ERROR", 500);
-    const result = queryGraph(graph, body);
+    const loaded = await loadVerifiedReadyGraph(storage, row);
+    if (!loaded) return fail(request, env, "STORAGE_INTEGRITY_ERROR", 500);
+    const result = queryGraph(loaded.graph, body);
     if (!result) return fail(request, env, "INVALID_INPUT", 400);
     return reply(request, env, { graph: mapGraph(row), result });
   }
