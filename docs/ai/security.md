@@ -54,7 +54,7 @@ Mitigations:
 - Re-authorize every request; never cache browser-provided roles or trust hidden UI controls.
 - Keep authorization denial tests for every route family and mutation role.
 
-Current status: enforced for current workspace, project, repository-resolution, Git, artifact, authenticated human graph, sync, and Context Engine routes. The context search route authenticates before project resolution, verifies current direct membership for every role, applies exact Origin validation, and returns the same nonleaking `404` for outsiders and workspace-only users. Member/role administration and later MCP and snapshot routes must add the same checks before release.
+Current status: enforced for current workspace, project, repository-resolution, Git, artifact, authenticated human graph, sync, Context Engine, and MCP routes. Context search and MCP authenticate before project resolution, verify current direct membership/current role, and return nonleaking denials; MCP independently verifies the complete selected project/repository set before any domain read. Member/role administration and later snapshot routes must add the same checks before release.
 
 ### Project isolation
 
@@ -97,7 +97,7 @@ Mitigations:
 - Keep the MCP surface read-oriented and stable; do not expose administrative tools to normal agents.
 - Apply request, result, rate, and token-size budgets; record auditable principal/project/tool outcomes without sensitive content.
 
-Status: MCP is not implemented.
+Current status: accepted ADR 0007 and additive migration 0015 implement a separate MCP/local-client principal model, SHA-256-only 256-bit credentials, immutable exact project/tool scopes, optional exact repository binding, D1-clock expiry/last-use/rotation/revocation with exact-transition revoke auditing, pre-decode atomic one-hour nonce consumption, D1 request/live-nonce limits, immutable redacted outcomes, and one bounded Worker `GET/POST /mcp` transport. Human cookies are not accepted at MCP. The complete selected set is checked against current workspace membership, direct project membership/role, credential scope, and repository binding before any domain read; partial cross-project authorization fails without project detail. Targeted protocol/lifecycle/replay/isolation tests, fresh/staged migration integrity, the single independent review, and the 219-test root gate pass; live client/remote D1, OS secret-store handoff, edge rate tuning, and production log-redaction evidence remain pending.
 
 ### Private artifact access
 
@@ -215,7 +215,7 @@ Mitigations:
 - Use optimistic expected versions for artifact mutation; never silently retry against a newer version.
 - Make graph publication idempotent only for the same published attempt when full D1 identity and exact R2 checksum, size, content type, key, and `uploadId=publicationId` match; never adopt across attempts.
 
-Current status: one-time OAuth state, session-bound one-time Git connection state with post-provider publication checks, optimistic artifact versions, and exact immutable-object recovery checks are implemented. Phase 9 graph replay is fenced to the exact attempt/publication key and remains valid after SUPERSEDED under accepted ADR 0004. Phase 10 external machine publication transport, hashed credentials, and bounded nonce records are implemented locally through migration 0014. Phase 11 local sync predicates server graph selection on the current repository, revalidates the live checkout remote before requests, accepts only the authorized server-selected immutable graph tuple with exact repository provenance and duplicate-aware full format-v1 validation, uploads nothing, and preserves prior cache state. Webhook delivery replay controls remain unimplemented; live remote evidence remains pending.
+Current status: one-time OAuth state, session-bound one-time Git connection state with post-provider publication checks, optimistic artifact versions, and exact immutable-object recovery checks are implemented. Phase 9 graph replay is fenced to the exact attempt/publication key and remains valid after SUPERSEDED under accepted ADR 0004. Phase 10 external machine publication transport, hashed credentials, and bounded nonce records are implemented locally through migration 0014. Phase 14/B adds a distinct MCP/local-client credential family and atomically consumed unique nonce plus D1 rate/live-record checks through migration 0015; rotation/revocation and D1 expiry are rechecked on every request. Phase 11 local sync predicates server graph selection on the current repository, revalidates the live checkout remote before requests, accepts only the authorized server-selected immutable graph tuple with exact repository provenance and duplicate-aware full format-v1 validation, uploads nothing, and preserves prior cache state. Webhook delivery replay controls remain unimplemented; live remote evidence remains pending.
 
 ### Role escalation
 
@@ -243,7 +243,7 @@ Mitigations:
 - Never infer additional project scope from workspace membership or repository similarity.
 - Namespace retrieval indexes/caches and test partially unauthorized project sets.
 
-Status: single-project Context Engine retrieval, direct-membership isolation, bounded private-payload verification, and authorized repository resolution are implemented. Explicit cross-project retrieval is not implemented.
+Current status: single-project Context Engine retrieval, direct-membership isolation, bounded private-payload verification, and authorized repository resolution are implemented. Phase 14/B MCP supports only explicit credential-scoped cross-project tool requests: it verifies the entire current membership/role/workspace/repository set before any domain read, then preserves project provenance and one caller budget. Generalized cross-project `ContextProvider` retrieval, ranking/deduplication, and cache semantics remain deferred to their later ADR/phase.
 
 ## Additional platform controls
 

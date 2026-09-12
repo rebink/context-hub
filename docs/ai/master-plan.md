@@ -213,21 +213,23 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Re-run migration, authorization, isolation, and phase stop gates after completing the backend real-link flow.
 - [x] Complete the Task A real-link flow locally through the Phase 6 UI; final Phase 6 review acceptance remains pending and live provider/browser verification remains an external release blocker.
 
-### 14/B. Universal multi-project MCP (Prompt 14 + Task B) — `PENDING`
+### 14/B. Universal multi-project MCP (Prompt 14 + Task B) — `COMPLETE LOCALLY`
 
-- [ ] Pass the architecture-decision and provider-contract gates with an accepted ADR for MCP authentication, principal lifecycle, credential transport/storage, and minimal `McpTransport` boundary.
-- [ ] Define `McpTransport` only for bounded protocol decode/encode and stable tool dispatch; ship exactly one Worker `GET/POST /mcp` implementation while authentication, authorization, project resolution, and Context Engine behavior remain domain services.
-- [ ] Add transport contract tests for GET/POST negotiation, malformed/oversized requests, stable error mapping, response bounds, and exact six-tool dispatch; do not add alternate transports, per-project servers, or a factory.
-- [ ] Expose one authenticated `GET/POST /mcp` endpoint, not one server/configuration per project.
-- [ ] Expose exactly the stable initial tools: `project_info`, `search_context`, `get_artifact`, `query_graph`, `get_sources`, and `sync_status`.
-- [ ] Keep schemas small, read-only by default, provider-neutral, role-aware, bounded, and provenance-bearing; do not expose all Graphify or administrative operations.
-- [ ] Resolve scope by normalized local repository identity, then explicit project selection, then explicit cross-project scope; never infer access from selection/workspace.
-- [ ] Authenticate, identify workspace, resolve project, verify direct membership/role, then retrieve; independently authorize all cross-project IDs before any read.
-- [ ] Model MCP/local-client principals and high-entropy credentials stored only as hashes, scoped to allowed operations and directly authorized projects, optionally bound to a repository, and carrying issued/expiry/last-used/revoked metadata.
-- [ ] Implement credential issuance, secure one-time display, expiry, rotation, immediate revocation, nonce/request replay protection, request/result/token/rate bounds, non-sensitive audit outcomes, and nonleaking errors.
-- [ ] Test one user/many projects, one workspace/many projects, auto-selection, explicit switch, unauthorized access, authorized cross-project request, partially unauthorized all-or-nothing failure, unchanged tool count with many projects, and valid/expired/rotated/revoked/replayed/wrong-project/wrong-repository credentials.
-- [ ] Acceptance requires the MCP/local-client principal and hashed-credential data models, bounded replay records, secure lifecycle operations, enforced project/repository scope at `/mcp`, and passing authorization/isolation tests.
-- [ ] Run the phase stop gate.
+- [x] Accept ADR 0007 for MCP authentication, principal lifecycle, Authorization-only credential transport, hash-only D1 storage, replay/rate controls, project/repository scope, GET/POST behavior, cross-project all-or-nothing authorization, and the minimal `McpTransport` boundary.
+- [x] Define `McpTransport` only for bounded protocol decode/encode and stable tool dispatch; ship exactly one Worker `GET/POST /mcp` implementation while authentication, authorization, project resolution, and Context Engine behavior remain domain services.
+- [x] Add transport contract tests for GET/POST negotiation, malformed/oversized requests, stable error mapping, response bounds, and exact six-tool dispatch; no alternate transport, per-project server, factory, or provider is present.
+- [x] Expose one authenticated `GET/POST /mcp` endpoint, not one server/configuration per project.
+- [x] Expose exactly the stable initial tools: `project_info`, `search_context`, `get_artifact`, `query_graph`, `get_sources`, and `sync_status`.
+- [x] Keep schemas small, read-only, provider-neutral, role-aware, bounded, and provenance-bearing; do not expose all Graphify or administrative operations.
+- [x] Resolve one mutually exclusive scope by normalized local repository identity, explicit project selection, or explicit cross-project scope; never infer access from selection/workspace.
+- [x] Authenticate, verify current workspace access plus direct project membership/current role, and only then retrieve; independently authorize the complete cross-project set before any domain read.
+- [x] Model MCP/local-client principals separately from Phase 10 CI identities, with 256-bit credentials stored only as SHA-256, exact operation and project sets, optional repository binding, and issue/expiry/last-used/revocation/rotation metadata.
+- [x] Implement ADMIN human-cookie lifecycle routes with exact mutation Origin, secure one-time display, D1-clock expiry/rotation/revocation, atomic nonce consumption, D1 request-rate/live-nonce limits, request/result/context budgets, immutable redacted audit outcomes, and nonleaking errors.
+- [x] Test multi-workspace/project selection, normalized auto-selection and ambiguity, explicit switch, authorized and partially unauthorized cross-project scope with zero domain reads, constant six-tool dispatch, valid/inactive/rotated/revoked/replayed/wrong-project/wrong-repository credentials, no human-cookie MCP access, lifecycle Origin/role races, protocol failures, and migration integrity.
+- [x] Add additive migration 0015 and verify fresh plus staged-through-0015 upgrades, separate CI/MCP tables, hash-only credentials, replacement integrity, immutable nonce/audit records, and scope guards.
+- [x] Completed the one independent phase review and fixed its complete seven-item P1 set in one consolidated writer pass without another review: exact-one selector schemas, MCP initialize/notification negotiation, pre-decode auth/replay/rate/audit, database-sealed scopes/expiry bounds, exact-transition revoke audit, caller-wide cross-project limits, and SQL-sensitive six-tool/lifecycle/isolation coverage.
+- [x] Passed the root phase stop gate: fresh/staged-through-0015 migration integrity plus 219 tests (133 API, 26 web, 19 CLI, 41 adapter), typecheck, Biome lint, and all builds.
+- **P2 backlog (non-blocking):** add explicit UTF-8-boundary-safe artifact excerpt truncation rather than relying on replacement decoding at a byte cutoff.
 
 ### 15. MCP token audit (Prompt 15) — `PENDING`
 

@@ -12,8 +12,13 @@ import { GithubAuthProvider } from "./github-auth-provider.js";
 import { GithubGitProvider } from "./github-git-provider.js";
 import { handleGraphRoute } from "./graphs.js";
 import { handleCredentialRoute, handleMachineGraphRoute } from "./machine-graphs.js";
+import { handleMcpCredentialRoute, handleMcpRoute } from "./mcp.js";
 import type { ObjectStorage } from "./object-storage.js";
 import { R2ObjectStorage } from "./r2-object-storage.js";
+import { normalizeGithubRepository } from "./repository-identity.js";
+
+export { normalizeGithubRepository } from "./repository-identity.js";
+
 import {
   clearCookie,
   cookie,
@@ -414,42 +419,6 @@ async function projects(request: Request, env: Env, user: User): Promise<Respons
   );
 }
 
-export function normalizeGithubRepository(value: string): string | null {
-  const input = value.trim();
-  let owner: string | undefined;
-  let repository: string | undefined;
-  const scp = /^git@github\.com:([^/]+)\/([^/]+?)\/?$/i.exec(input);
-  if (scp) {
-    [, owner, repository] = scp;
-  } else {
-    try {
-      const url = new URL(input);
-      if (
-        !["https:", "ssh:"].includes(url.protocol) ||
-        url.hostname.toLowerCase() !== "github.com" ||
-        url.port
-      )
-        return null;
-      if (url.search || url.hash || (url.username && url.username !== "git") || url.password)
-        return null;
-      const parts = url.pathname.split("/").filter(Boolean);
-      if (parts.length !== 2) return null;
-      [owner, repository] = parts;
-    } catch {
-      return null;
-    }
-  }
-  repository = repository?.replace(/\.git$/i, "");
-  if (
-    !owner ||
-    !repository ||
-    !/^[A-Za-z0-9_.-]+$/.test(owner) ||
-    !/^[A-Za-z0-9_.-]+$/.test(repository)
-  )
-    return null;
-  return `github.com/${owner.toLowerCase()}/${repository.toLowerCase()}`;
-}
-
 async function resolveProject(request: Request, env: Env, user: User): Promise<Response> {
   const url = requestUrl(request);
   if (!url) return error(request, env, "INVALID_REQUEST_URL", 400);
@@ -536,6 +505,23 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
         const { pathname } = new URL(request.url);
         const storage = new R2ObjectStorage(env.OBJECTS);
         if (request.method === "OPTIONS") return options(request, env);
+
+        if (pathname === "/mcp") return handleMcpRoute(request, env, storage);
+
+        const mcpCredentialCollection = pathname === "/mcp-credentials";
+        const mcpCredentialRotate = /^\/mcp-credentials\/([^/]+)\/rotate$/.exec(pathname);
+        const mcpCredentialDetail = /^\/mcp-credentials\/([^/]+)$/.exec(pathname);
+        if (mcpCredentialCollection || mcpCredentialRotate || mcpCredentialDetail) {
+          const user = await authenticate(request, env);
+          if (!user) return error(request, env, "UNAUTHENTICATED", 401);
+          return handleMcpCredentialRoute(
+            request,
+            env,
+            user,
+            mcpCredentialRotate?.[1] ?? mcpCredentialDetail?.[1],
+            Boolean(mcpCredentialRotate),
+          );
+        }
 
         const machineGraph =
           /^\/machine\/projects\/([^/]+)\/graphs\/([^/]+)\/(claim|publish|fail)$/.exec(pathname);

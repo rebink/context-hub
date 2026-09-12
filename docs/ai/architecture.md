@@ -67,8 +67,8 @@ The browser and future local/MCP clients are untrusted input boundaries. Only th
 ### Planned
 
 - Organize later route families into narrow modules without introducing a framework prematurely. Every route keeps authenticate -> resolve -> direct membership -> role -> execute and project predicates.
-- Add bounded context, team, snapshot, activity, sync, and universal `/mcp` APIs in their owning phases only. Human graph metadata/build-reservation and focused explorer routes plus Phase 10 machine credential/publication routes are current.
-- Machine publication and local/MCP calls use separate scoped principals and hashed credentials, expiry, rotation/revocation, exact project/repository/operation binding, and bounded replay records. Graph publication accepts uploads/finalization only from the exact machine principal; human browser sessions, including ADMIN, cannot publish bytes.
+- Add team, snapshot, activity, and generalized audit APIs in their owning phases only. Bounded context/sync, universal MCP, human graph metadata/build reservation, and Phase 10 machine publication routes are current.
+- Graph publication continues to accept uploads/finalization only from the exact CI machine principal; human browser sessions, MCP/local-client principals, including their ADMIN owner, cannot publish bytes.
 - Webhooks are optional; if enabled they verify the signature over raw bytes, deduplicate delivery IDs, bind the exact repository, and only schedule work.
 
 ## Provider contracts and ownership
@@ -82,7 +82,7 @@ Provider neutrality is enforced with the smallest useful contract at the real in
 | `GitProvider` | Git connection phase; GitHub App repository adapter | Build installation/user-PKCE URLs, prove user/installation, mint transient exact-repository tokens, and read validated repository/default-branch/current-commit metadata | Current backend; accepted in [`adr/0002-github-app-repository-credentials.md`](adr/0002-github-app-repository-credentials.md) |
 | `GraphProvider` | Graphify adapter phase; one `GraphifyAdapter` | Run/validate the accepted `code-only-clustered-v1` profile and expose exact bytes, complete repository/project/build provenance, derived counts, size, generator, and SHA-256; never own project/version/R2/D1/auth | Current in isolated Node-only `packages/graphify-adapter`; ADR 0003 accepted and Phase 8 independently reviewed with final ACCEPT and no findings |
 | `ContextProvider` | Context Engine phase; one `ContextEngine` | Execute bounded project-scoped retrieval and return deduplicated evidence with budget/provenance/freshness; never own auth or transport | Current; narrow decision recorded in this document |
-| `McpTransport` | Universal MCP phase; Worker MCP transport | Decode/encode authenticated MCP requests for the stable six tools and enforce transport/request/result bounds | Planned after MCP ADR |
+| `McpTransport` | Universal MCP phase; one `WorkerMcpTransport` | Decode/encode bounded MCP requests for the stable six tools and dispatch into caller-owned auth/domain logic | Current through accepted [`adr/0007-universal-mcp-authentication-transport.md`](adr/0007-universal-mcp-authentication-transport.md); single review and 219-test root gate complete |
 
 Provider adapters do not bypass domain authorization, choose project scope, or redefine immutable publication. `AuthProvider` does not persist Git credentials; Git identity login and repository access are separate concerns. `ObjectStorage` does not decide keys or metadata truth.
 
@@ -97,7 +97,8 @@ Ordered SQL migrations in `apps/api/migrations` are authoritative. Applied migra
 - **Repository identity and Git:** `repository_identities` has unique canonical/provider-owner-name identity; `project_repositories` allows one active link per project while one identity may serve many projects. Resolution requires a consistent verified connection. `github_connection_states` stores session-bound hashed, expiring installation/authorization state, consumption metadata, and PKCE verifier hashes; `git_connections` stores the current verified GitHub App installation reference, connection identity, and repository metadata.
 - **Artifacts:** `artifacts` stores current pointer/status and project metadata; `artifact_versions` stores immutable object metadata and provenance. Indexes support project/type cursor listing and version history.
 - **Graphs:** `graph_versions` stores logical build identity/lifecycle and the selected immutable payload, `graph_build_attempts` stores exact lease/publication/object/cleanup ownership keyed by project/version/attempt, and immutable `graph_events` records logical transitions. Migration 0010 preserves selected legacy version-only rows under `LEGACY_V1`; migration 0011 forward-restores bounded constraints and missing migration transition evidence; migration 0012 requires every `ATTEMPT_V2` logical transition to have exact matching attempt state and identity; migration 0013 adds database-time publication fencing and makes retry independent of old-attempt cleanup ownership. All new claims use `ATTEMPT_V2`. Project-first lifecycle and cleanup indexes plus one current READY row are enforced.
-- **Audit:** `audit_events` is artifact-specific and `git_audit_events` records bounded Git connect/sync/disconnect metadata. Both are indexed by project/time; neither is the generalized planned audit schema.
+- **MCP/local clients:** migration 0015 adds MCP-specific principals, immutable exact project/operation scopes, optional exact repository binding, SHA-256-only expiring/rotatable/revocable credentials, bounded one-hour nonce/rate records, and immutable redacted outcomes. These identities are separate from Phase 10 CI principals.
+- **Audit:** `audit_events` is artifact-specific, `git_audit_events` records bounded Git connect/sync/disconnect metadata, and MCP has narrow immutable lifecycle/request outcomes. These are indexed by project/principal/time as applicable; none is the generalized planned audit schema.
 
 ### Planned owner tables/indexes
 
@@ -105,7 +106,6 @@ Ordered SQL migrations in `apps/api/migrations` are authoritative. Applied migra
 - **Snapshots phase:** `context_snapshots` and `snapshot_artifacts` own exact Git SHA, graph version, and artifact-version references; index project/time and enforce same-project references.
 - **Sync/freshness phase:** `sync_states` owns project+client local/remote Git/graph state and last sync; unique/index project+client.
 - **Team phase:** invitations own token hash, project, invitee, role, inviter, status, expiry, and indexed lookup/expiry.
-- **CI/MCP phases:** `machine_principals`, hashed `machine_credentials`, direct project scope, optional exact repository binding, and bounded nonce/idempotency records indexed for validation and expiry.
 - **Audit phase:** generalized immutable `audit_events` owns project, actor/principal, action, target type/ID, bounded redacted metadata, outcome, and time with project/time index.
 - Webhook delivery records exist only if webhooks are enabled; usage records exist only after privacy/free-tier evaluation.
 
@@ -184,11 +184,13 @@ The implementation uses query-aware metadata ordering before reading at most 24 
 
 ## Universal MCP and Pi
 
-### MCP (planned)
+### MCP (current; complete locally)
 
-One authenticated `GET/POST /mcp` endpoint serves all authorized projects. The stable initial read-oriented tools are exactly `project_info`, `search_context`, `get_artifact`, `query_graph`, `get_sources`, and `sync_status`. Tool schemas do not embed project lists or grow with project count. Scope preference is normalized local repository identity, explicit project selection, then explicit cross-project scope; selection never grants access. Every result is role-aware, bounded, nonleaking, and provenance-bearing.
+Accepted [`adr/0007-universal-mcp-authentication-transport.md`](adr/0007-universal-mcp-authentication-transport.md) defines one authenticated `GET/POST /mcp` endpoint for all authorized projects. Its stable read-only tools are exactly `project_info`, `search_context`, `get_artifact`, `query_graph`, `get_sources`, and `sync_status`; schemas contain bounded selectors rather than project enumerations and remain constant with project count. One mutually exclusive selector supplies a normalized local repository identity, explicit project, or explicit cross-project set. Selection never grants access. The Worker authenticates a separate MCP/local-client principal, verifies credential scope, current workspace membership, current direct project membership/role, and optional exact current repository binding for the complete set before any domain read. Partial authorization fails all-or-nothing without project detail.
 
-`McpTransport` handles protocol transport only; authorization and retrieval remain shared domain services. MCP/local credentials are high entropy, displayed once, stored only as hashes server-side and secure OS storage client-side where possible, expiring, rotatable, immediately revocable, operation/project scoped, optionally repository bound, replay-protected, rate-limited, and audited without payloads/secrets.
+The minimal `McpTransport` handles only 16 KiB JSON-RPC decode, stable dispatch, error encoding, and a 128 KiB response ceiling. Exactly one `WorkerMcpTransport` implements POST `initialize`, initialized notification, `ping`, `tools/list`, and `tools/call`; authenticated GET explicitly reports that server notifications are unsupported. Authentication/resolution/audit and tool behavior remain domain logic. Search reuses `ContextEngine`; graph tools reuse current-repository selection, private-R2 verification, the full graph validator, and bounded explorer query; artifact bytes use exact derived keys, HEAD/byte/checksum/UTF-8 verification and bounded excerpts.
+
+MCP credentials contain 256 random bits, are displayed once, accepted only in Authorization, and stored only as SHA-256. Immutable principal scopes carry exact tool/project sets and optional provider/stable-ID/canonical repository binding. D1-clock issue/expiry/last-use/revocation/rotation metadata, one-hour unique nonces, 120-request/minute and 1,000-live-nonce limits, exact-Origin ADMIN lifecycle mutations, and non-sensitive immutable outcomes are implemented in migration 0015. OS credential-store integration belongs to the later client phase. Live client/remote D1/log-redaction/rate tuning remains release evidence; Phase 15 token measurement remains deferred.
 
 ### Pi (planned)
 
@@ -220,7 +222,7 @@ Update order is bounded authenticated download -> exact repository provenance/me
 
 ## Authentication and authorization
 
-Human browser sessions are opaque cookie credentials; future machine/local principals are separate from human sessions. Authentication establishes an identity, never a role or project grant. Authorization always derives current membership from D1. Inaccessible resource responses expose no project/repository/artifact/graph/path/member existence; known members lacking mutation capability receive `403` where appropriate. Cross-project operations authorize all scope before any retrieval. Role changes/removal later invalidate affected credentials/caches as required and protect the final admin.
+Human browser sessions are opaque cookie credentials; current CI machine and MCP/local-client principals are separate from human sessions and from each other. Authentication establishes an identity, never a role or project grant. Authorization always derives current membership from D1. Inaccessible resource responses expose no project/repository/artifact/graph/path/member existence; known members lacking mutation capability receive `403` where appropriate. Cross-project operations authorize all scope before any retrieval. Role changes/removal later invalidate affected credentials/caches as required and protect the final admin.
 
 ## Audit and observability
 

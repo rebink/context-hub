@@ -383,7 +383,7 @@ function boundedLimit(value: unknown): number | null {
     : null;
 }
 
-function queryGraph(graph: ParsedGraph, body: Record<string, unknown>) {
+export function queryGraph(graph: ParsedGraph, body: Record<string, unknown>) {
   const operation = body.operation;
   const limit = boundedLimit(body.limit);
   if (typeof operation !== "string" || limit === null) return null;

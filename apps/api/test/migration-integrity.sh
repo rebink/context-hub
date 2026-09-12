@@ -20,6 +20,7 @@ INSERT INTO users (id, provider, provider_user_id, username) VALUES ('u','github
 INSERT INTO sessions (id,user_id,token_hash,expires_at) VALUES ('s','u','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','2099-01-01T00:00:00.000Z');
 INSERT INTO workspaces (id,name,slug,created_by) VALUES ('w','W','w','u');
 INSERT INTO projects (id,workspace_id,name,slug,created_by) VALUES ('p','w','P','p','u');
+INSERT INTO workspace_members (workspace_id,user_id,role) VALUES ('w','u','ADMIN');
 INSERT INTO project_members (project_id,user_id,role) VALUES ('p','u','ADMIN');
 INSERT INTO repository_identities (id,provider,canonical_url,owner,repository_name) VALUES ('r1','github','github.com/o/one','o','one'),('r2','github','github.com/o/two','o','two');
 INSERT INTO git_connections (connection_id,project_id,repository_identity_id,provider,installation_id,provider_repository_id,default_branch,last_known_commit_sha,status,verified_at) VALUES ('c','p','r1','github','1','1','main','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','VERIFIED','2026-01-01T00:00:00.000Z');
@@ -300,6 +301,85 @@ grep -Eq '"machine_tables": 4' <<<"$machine_check"
 grep -Eq '"plaintext_columns": 0' <<<"$machine_check"
 grep -Eq '"rotated_pair": 1' <<<"$machine_check"
 
+cat >"$TEMP/mcp.sql" <<'SQL'
+INSERT INTO mcp_principals(id,owner_user_id,name,repository_provider,provider_repository_id,repository_canonical_url,created_by)
+VALUES('mcp','u','Local MCP','github','1','github.com/o/one','u');
+INSERT INTO mcp_principal_projects(principal_id,project_id) VALUES('mcp','p');
+INSERT INTO mcp_principal_operations(principal_id,operation) VALUES('mcp','project_info'),('mcp','search_context');
+INSERT INTO mcp_credentials(id,principal_id,secret_hash,expires_at,created_by)
+VALUES('mcp-old','mcp','1111111111111111111111111111111111111111111111111111111111111111',strftime('%Y-%m-%dT%H:%M:%fZ','now','+30 days'),'u');
+INSERT INTO mcp_request_nonces(credential_id,nonce_hash,operation,scope_hash,project_count,expires_at)
+VALUES('mcp-old','2222222222222222222222222222222222222222222222222222222222222222','project_info','3333333333333333333333333333333333333333333333333333333333333333',1,strftime('%Y-%m-%dT%H:%M:%fZ','now','+1 hour'));
+INSERT INTO mcp_audit_events(id,principal_id,credential_id,project_id,action,operation,outcome)
+VALUES('mcp-audit','mcp','mcp-old','p','MCP_REQUEST','project_info','SUCCEEDED');
+UPDATE mcp_credentials SET revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),revoked_by_user_id='u',replaced_by_credential_id='mcp-new' WHERE id='mcp-old';
+INSERT INTO mcp_credentials(id,principal_id,secret_hash,expires_at,created_by)
+VALUES('mcp-new','mcp','4444444444444444444444444444444444444444444444444444444444444444',strftime('%Y-%m-%dT%H:%M:%fZ','now','+30 days'),'u');
+SQL
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --file "$TEMP/mcp.sql" >/dev/null
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "DELETE FROM mcp_request_nonces WHERE credential_id='mcp-old'" >/dev/null 2>&1; then
+  echo "expected unexpired mcp nonce immutability failure" >&2
+  exit 1
+fi
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "UPDATE mcp_audit_events SET outcome='FAILED' WHERE id='mcp-audit'" >/dev/null 2>&1; then
+  echo "expected mcp audit immutability failure" >&2
+  exit 1
+fi
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "UPDATE mcp_credentials SET last_used_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id='mcp-new'" >/dev/null
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "UPDATE mcp_credentials SET last_used_at=NULL WHERE id='mcp-new'" >/dev/null 2>&1; then
+  echo "expected monotonic mcp last-used metadata" >&2
+  exit 1
+fi
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO projects(id,workspace_id,name,slug,created_by) VALUES('p-extra','w','Extra','extra','u'); INSERT INTO project_members(project_id,user_id,role) VALUES('p-extra','u','ADMIN');" >/dev/null
+for sealed_scope_sql in \
+  "INSERT INTO mcp_principal_projects(principal_id,project_id) VALUES('mcp','p-extra')" \
+  "INSERT INTO mcp_principal_operations(principal_id,operation) VALUES('mcp','sync_status')" \
+  "UPDATE mcp_principal_projects SET project_id='p-extra' WHERE principal_id='mcp'" \
+  "DELETE FROM mcp_principal_operations WHERE principal_id='mcp' AND operation='search_context'"; do
+  if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "$sealed_scope_sql" >/dev/null 2>&1; then
+    echo "expected sealed mcp scope failure: $sealed_scope_sql" >&2
+    exit 1
+  fi
+done
+cat >"$TEMP/mcp-negative-scopes.sql" <<'SQL'
+INSERT INTO mcp_principals(id,owner_user_id,name,created_by) VALUES('mcp-empty','u','Empty','u');
+INSERT INTO mcp_principals(id,owner_user_id,name,created_by) VALUES('mcp-expiry','u','Expiry','u');
+INSERT INTO mcp_principal_projects(principal_id,project_id) VALUES('mcp-expiry','p');
+INSERT INTO mcp_principal_operations(principal_id,operation) VALUES('mcp-expiry','project_info');
+SQL
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --file "$TEMP/mcp-negative-scopes.sql" >/dev/null
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO mcp_credentials(id,principal_id,secret_hash,expires_at,created_by) VALUES('empty','mcp-empty','5555555555555555555555555555555555555555555555555555555555555555',strftime('%Y-%m-%dT%H:%M:%fZ','now','+1 day'),'u')" >/dev/null 2>&1; then
+  echo "expected empty mcp scope rejection" >&2
+  exit 1
+fi
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO mcp_credentials(id,principal_id,secret_hash,expires_at,created_by) VALUES('too-long','mcp-expiry','6666666666666666666666666666666666666666666666666666666666666666',strftime('%Y-%m-%dT%H:%M:%fZ','now','+91 days'),'u')" >/dev/null 2>&1; then
+  echo "expected over-90-day mcp credential rejection" >&2
+  exit 1
+fi
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO mcp_request_nonces(credential_id,nonce_hash,operation,scope_hash,project_count,expires_at) VALUES('mcp-new','7777777777777777777777777777777777777777777777777777777777777777','PROTOCOL','8888888888888888888888888888888888888888888888888888888888888888',0,strftime('%Y-%m-%dT%H:%M:%fZ','now','+61 minutes'))" >/dev/null 2>&1; then
+  echo "expected over-one-hour mcp nonce rejection" >&2
+  exit 1
+fi
+cat >"$TEMP/mcp-large-scope.sql" <<'SQL'
+INSERT INTO mcp_principals(id,owner_user_id,name,created_by) VALUES('mcp-large','u','Large','u');
+WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<21)
+INSERT INTO projects(id,workspace_id,name,slug,created_by) SELECT 'large-'||x,'w','Large '||x,'large-'||x,'u' FROM n;
+INSERT INTO project_members(project_id,user_id,role) SELECT id,'u','ADMIN' FROM projects WHERE id LIKE 'large-%';
+INSERT INTO mcp_principal_projects(principal_id,project_id) SELECT 'mcp-large',id FROM projects WHERE id LIKE 'large-%';
+INSERT INTO mcp_principal_operations(principal_id,operation) VALUES('mcp-large','project_info');
+SQL
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --file "$TEMP/mcp-large-scope.sql" >/dev/null
+if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO mcp_credentials(id,principal_id,secret_hash,expires_at,created_by) VALUES('too-wide','mcp-large','9999999999999999999999999999999999999999999999999999999999999999',strftime('%Y-%m-%dT%H:%M:%fZ','now','+1 day'),'u')" >/dev/null 2>&1; then
+  echo "expected oversized mcp project scope rejection" >&2
+  exit 1
+fi
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "UPDATE mcp_credentials SET revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),revoked_by_user_id='u' WHERE id='mcp-new' AND revoked_at IS NULL; UPDATE mcp_credentials SET revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),revoked_by_user_id='u' WHERE id='mcp-new' AND revoked_at IS NULL;" >/dev/null
+mcp_check=$("$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "SELECT COUNT(*) AS mcp_tables FROM sqlite_master WHERE type='table' AND name IN ('mcp_principals','mcp_principal_projects','mcp_principal_operations','mcp_credentials','mcp_request_nonces','mcp_audit_events'); SELECT COUNT(*) AS plaintext_columns FROM pragma_table_info('mcp_credentials') WHERE name IN ('secret','token','credential'); SELECT COUNT(*) AS rotated_pair FROM mcp_credentials old JOIN mcp_credentials replacement ON replacement.id=old.replaced_by_credential_id AND replacement.principal_id=old.principal_id WHERE old.id='mcp-old' AND old.revoked_at IS NOT NULL; SELECT COUNT(*) AS exact_revoke_audit FROM mcp_audit_events WHERE credential_id='mcp-new' AND action='CREDENTIAL_REVOKED' AND outcome='SUCCEEDED';")
+grep -Eq '"mcp_tables": 6' <<<"$mcp_check"
+grep -Eq '"plaintext_columns": 0' <<<"$mcp_check"
+grep -Eq '"rotated_pair": 1' <<<"$mcp_check"
+grep -Eq '"exact_revoke_audit": 1' <<<"$mcp_check"
+
 # Machine lifecycle success audits are part of the same statement transaction.
 cat >"$TEMP/machine-audit-rollback.sql" <<'SQL'
 INSERT INTO graph_versions
@@ -412,15 +492,18 @@ cp "$ROOT"/apps/api/migrations/0013_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
 cp "$ROOT"/apps/api/migrations/0014_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
-v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql');")
+cp "$ROOT"/apps/api/migrations/0015_*.sql "$upgrade_project/migrations/"
+"$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
+v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS mcp_tables FROM sqlite_master WHERE type='table' AND name IN ('mcp_principals','mcp_principal_projects','mcp_principal_operations','mcp_credentials','mcp_request_nonces','mcp_audit_events'); SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql','0015_mcp_principals.sql');")
 grep -Eq '"legacy_rows": 2' <<<"$v2_upgrade_check"
 grep -Eq '"attempt_table": 1' <<<"$v2_upgrade_check"
 grep -Eq '"retry_rows": 1' <<<"$v2_upgrade_check"
 grep -Eq '"retry_events": 1' <<<"$v2_upgrade_check"
 grep -Eq '"machine_tables": 4' <<<"$v2_upgrade_check"
-grep -Eq '"applied": 5' <<<"$v2_upgrade_check"
+grep -Eq '"mcp_tables": 6' <<<"$v2_upgrade_check"
+grep -Eq '"applied": 6' <<<"$v2_upgrade_check"
 "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE graph_versions SET status='QUEUED',attempt=attempt+1,failure_category=NULL,failed_at=NULL,build_started_at=NULL,updated_at='2099-01-02' WHERE id='legacy-building'" >/dev/null
 migration_retry_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS queued_retry FROM graph_versions WHERE id='legacy-building' AND status='QUEUED' AND attempt=2")
 grep -Eq '"queued_retry": 1' <<<"$migration_retry_check"
 
-echo "fresh and staged-through-0014 upgrade migrations, machine credential/nonce/audit constraints, exact graph lifecycle evidence, restored graph bounds/status/provenance constraints, migration-event consistency, immutability, reconciliation, uniqueness, foreign keys, and transactional rollback passed"
+echo "fresh and staged-through-0015 upgrade migrations, separate CI/MCP credential models, nonce/audit constraints, exact graph lifecycle evidence, restored graph bounds/status/provenance constraints, migration-event consistency, immutability, reconciliation, uniqueness, foreign keys, and transactional rollback passed"

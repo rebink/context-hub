@@ -4,7 +4,7 @@ Repository discovery for Prompt 0A. This document describes the checked-in worki
 
 ## Product and current boundary
 
-Context Hub is a provider-neutral control plane for giving coding agents bounded, source-backed project context. The repository currently implements the foundation, GitHub identity authentication behind a minimal `AuthProvider` seam, workspace/project authorization and resolution, a real-data dashboard, immutable text artifacts behind a minimal `ObjectStorage` seam, the GitHub App repository connection backend and project UI behind a minimal `GitProvider` seam, the independently reviewed isolated Node-only Graphify adapter, Phase 9 graph publication/query/UI, reviewed Phase 10 machine publication, and reviewed Phase 11 local sync/offline cache. Phase 12 has a minimal `ContextProvider`, one query-aware bounded non-vector `ContextEngine`, an authenticated direct-member search route, complete-evidence token accounting, current-repository graph selection, private artifact HEAD/byte integrity, truthful exact provenance, and the shared artifact freshness classifier; its single independent review and 192-test full gate are complete. Phase 13 executable scenarios are implemented and independently reviewed, including bounded storage-component/key validation before Context Engine R2 reads, valid legacy/current matrices, calibrated pre-budget deduplication, capped graph evidence, exact provenance matrices, and strict repeated HEAD/get isolation; the 200-test full stop gate is complete. Live runner, remote D1/R2/sync, and OS secret-helper evidence remain release gates. MCP, Pi, snapshots, team administration, and generalized audit are not implemented.
+Context Hub is a provider-neutral control plane for giving coding agents bounded, source-backed project context. The repository currently implements the foundation, GitHub identity authentication behind a minimal `AuthProvider` seam, workspace/project authorization and resolution, a real-data dashboard, immutable text artifacts behind a minimal `ObjectStorage` seam, the GitHub App repository connection backend and project UI behind a minimal `GitProvider` seam, the independently reviewed isolated Node-only Graphify adapter, Phase 9 graph publication/query/UI, reviewed Phase 10 machine publication, and reviewed Phase 11 local sync/offline cache. Phase 12 has the minimal `ContextProvider` and one bounded non-vector `ContextEngine`; Phase 13's independently reviewed executable scenarios cover key/provenance/budget/isolation boundaries. Phase 14/B now has accepted ADR 0007, separate hash-only MCP/local-client principals, one bounded `WorkerMcpTransport`, the universal six-tool `GET/POST /mcp` route, explicit all-authorized cross-project scope, and targeted transport/lifecycle/replay/isolation/migration evidence. Its one independent review, consolidated seven-item P1 correction pass, and 219-test root gate are complete. Live runner, remote D1/R2/sync/MCP, OS secret-helper, and live MCP-client evidence remain release gates. Pi, snapshots, team administration, generalized audit, and Phase 15 token measurement are not implemented.
 
 The source-of-truth split is an architectural invariant:
 
@@ -19,7 +19,7 @@ The source-of-truth split is an architectural invariant:
 |-- .github/workflows/ci.yml       GitHub Actions quality gate
 |-- apps/
 |   |-- api/
-|   |   |-- migrations/            Ordered D1 SQL migrations 0001-0014
+|   |   |-- migrations/            Ordered D1 SQL migrations 0001-0015
 |   |   |-- src/                   Worker router, provider adapters, security, artifacts
 |   |   |-- test/                  Worker unit/integration-style tests with fakes
 |   |   |-- package.json
@@ -70,13 +70,13 @@ There is no ORM, application framework, component framework, generated API clien
 - `apps/api` is a Cloudflare Worker using the native Fetch API. `src/index.ts` is a hand-written route dispatcher and contains OAuth, session, workspace, project, and repository-resolution handlers.
 - `src/artifacts.ts` is the artifact route module. It validates bounded uploads, authorizes direct project members, writes immutable objects to R2, publishes D1 metadata, compensates safe unpublished writes, and verifies size/checksum before retrieval.
 - `src/security.ts` contains reusable random-token, SHA-256, cookie serialization/parsing, and cookie-name helpers.
-- Current routes are health; GitHub login/callback/session/logout; workspace list/create; project list/create/detail; authorized repository resolution; artifact list/create/detail/version list/publish/read; graph list/latest/detail/build reservation plus bounded explorer queries; ADMIN machine-credential lifecycle; and dedicated bearer-auth graph claim/publish/fail.
+- Current routes are health; GitHub login/callback/session/logout; workspace list/create; project list/create/detail; authorized repository resolution; artifact list/create/detail/version list/publish/read; graph list/latest/detail/build reservation plus bounded explorer queries; ADMIN CI machine-credential lifecycle and dedicated graph claim/publish/fail; ADMIN MCP/local-client credential lifecycle; and one bearer-authenticated universal `GET/POST /mcp` endpoint.
 - Authentication, project scope, role checks, Origin checks, CORS, and nonleaking errors are server concerns. Browser-provided identity/role is never authoritative.
 
 ### Database and object storage
 
 - Ordered SQL migrations under `apps/api/migrations` own the D1 schema. There is no schema generator or ORM migration layer.
-- Implemented tables: `users`, `sessions`, `oauth_states`, `workspaces`, `workspace_members`, `projects`, `project_members`, `repository_identities`, `project_repositories`, `artifacts`, `artifact_versions`, artifact-specific `audit_events`, `github_connection_states`, `git_connections`, `git_audit_events`, `graph_versions`, `graph_build_attempts`, and `graph_events`.
+- Implemented tables include identity/session, workspace/project membership, normalized repositories/Git connections, immutable artifact and attempt-scoped graph metadata, separate Phase 10 CI principal/credential/nonce/audit tables, and migration 0015's separate MCP principal/project/operation/credential/nonce/audit tables.
 - Implemented indexes cover session/state expiry and lookup, workspace/project membership, projects by workspace, repository resolution and Git connections, artifact project/type pagination and history, and domain audit lookup.
 - R2 is accessed only through the Worker `OBJECTS` binding and the single `R2ObjectStorage` adapter. Artifact and graph keys are server generated beneath `projects/{projectId}/`; D1 records immutable key, SHA-256, content type, byte size, provenance, author/principal, and time.
 - Minimal provider-neutral `AuthProvider` and `ObjectStorage` contracts have exactly one GitHub and R2 implementation respectively; there are no factories, registries, fallbacks, or speculative providers.
@@ -115,12 +115,12 @@ There is no ORM, application framework, component framework, generated API clien
 
 | Area | Implemented now | Deferred/planned |
 | --- | --- | --- |
-| Identity | GitHub OAuth identity, users, hashed states/sessions, logout | Additional auth providers; machine principals/credentials |
+| Identity | GitHub OAuth identity plus separate hash-only CI and MCP/local-client principals/credentials | Additional identity providers; OS secret-store client handoff |
 | Tenancy | Workspaces, projects, direct memberships, role checks | Invitations, role changes/removal, project administration |
 | Git | GitHub remote normalization, GitHub App connect/read/sync/disconnect backend and project UI, real identity links, commit tracking, and authorized resolution | Live-provider/browser deployment verification |
 | Artifacts | Bounded text formats, immutable R2 versions, checksums, conflicts, UI | Binary/multipart formats, archive lifecycle, freshness UI |
-| Graph | Independently reviewed isolated `GraphProvider`; constrained graph versions/events; internal immutable publication/storage; authenticated human metadata/build reservation and bounded explorer routes; status/focused-explorer frontend | Machine credentials/publication transport; CI workflow |
-| Context/clients | Node local sync CLI, verified graph cache/read seam, offline status; bounded single-project Context Engine and shared artifact freshness classifier | Universal MCP, Pi, artifact sync, cross-project retrieval |
+| Graph | Independently reviewed isolated `GraphProvider`; constrained graph versions/events; private immutable publication; CI machine transport/workflow; human metadata/build and bounded explorer | Live runner/provider/remote publication evidence |
+| Context/clients | Node local sync CLI; bounded single-project Context Engine; one reviewed universal six-tool MCP transport with explicit authorized multi-project requests | Live MCP evidence, Pi, artifact sync, generalized cross-project retrieval |
 | Operations | Local scripts, migrations, GitHub Actions definition | Remote CI evidence, production resources/deploy, rate limits/observability/backups |
 | Audit/snapshots | Artifact publication events only | General audit model/UI and immutable context snapshots |
 
@@ -140,7 +140,7 @@ There is no ORM, application framework, component framework, generated API clien
 These are locations implied by approved requirements, not implemented modules:
 
 - Extend Git connection behavior only through the accepted `GitProvider` boundary; keep normalized `repository_identities` and `project_repositories` as the resolution boundary.
-- Keep Graphify execution behind the implemented single minimal `GraphProvider` and independently reviewed `GraphifyAdapter`; add `ContextProvider` and `McpTransport` only in their own later phases.
+- Keep Graphify execution behind the implemented single minimal `GraphProvider`; Context retrieval behind the one `ContextProvider`; and MCP protocol behavior behind the one minimal `McpTransport`. Do not add factories or alternate providers/transports without an owning accepted decision.
 - Add new D1 migrations, never rewrite applied migrations; add indexed project predicates and tests with each table/route family.
 - Add graph and snapshot R2 prefixes beneath the existing server-generated `projects/{projectId}/...` namespace, preserving immutable publication and checksum metadata.
 - Split Worker route modules by feature while retaining the required authenticate -> resolve -> direct-membership -> role -> execute sequence.
