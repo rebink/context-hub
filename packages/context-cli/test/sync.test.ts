@@ -432,6 +432,88 @@ describe("transport and offline behavior", () => {
     assert.equal(stored.includes("top-secret-session"), false);
   });
 
+  it("does not persist a connection when lifecycle cancellation wins after metadata", async () => {
+    const fixture = await gitRepository();
+    const controller = new AbortController();
+    await assert.rejects(
+      connectProject({
+        directory: fixture.root,
+        apiOrigin: "https://api.example",
+        projectId: "project-a",
+        session: "secret",
+        signal: controller.signal,
+        fetchImplementation: async () => {
+          const value = remote();
+          value.repository.remoteCommitSha = fixture.second;
+          controller.abort();
+          return Response.json(value);
+        },
+      }),
+      /AbortError/,
+    );
+    const stored = await readFile(
+      path.join(fixture.root, ".ai-context", "manifest.json"),
+      "utf8",
+    ).then(
+      () => true,
+      () => false,
+    );
+    assert.equal(stored, false);
+  });
+
+  it("validates bounded zero, unique, and ambiguous repository candidates", async () => {
+    for (const [payload, expected] of [
+      [
+        { match: "none", projects: [] },
+        { match: "none", projects: [] },
+      ],
+      [
+        { match: "unique", project: { id: "project-a", name: "Payments" } },
+        { match: "unique", projects: [{ id: "project-a", name: "Payments" }] },
+      ],
+      [
+        {
+          match: "ambiguous",
+          projects: [
+            { id: "project-a", name: "Payments" },
+            { id: "project-b", name: "Shared payments" },
+          ],
+        },
+        {
+          match: "ambiguous",
+          projects: [
+            { id: "project-a", name: "Payments" },
+            { id: "project-b", name: "Shared payments" },
+          ],
+        },
+      ],
+    ] as const) {
+      const client = new SyncClient("https://api.example", "secret", async () =>
+        Response.json(payload),
+      );
+      assert.deepEqual(
+        await client.resolveCandidates("git@github.com:acme/payments.git"),
+        expected,
+      );
+    }
+  });
+
+  it("rejects malformed repository candidate disclosure", async () => {
+    const client = new SyncClient("https://api.example", "secret", async () =>
+      Response.json({
+        match: "ambiguous",
+        projects: [
+          { id: "project-a", name: "Payments" },
+          { id: "invalid/id", name: "Other" },
+        ],
+      }),
+    );
+    await assert.rejects(
+      client.resolveCandidates("git@github.com:acme/payments.git"),
+      /INVALID_RESPONSE/,
+    );
+  });
+
   it("rejects metadata/header mismatch and oversized downloads", async () => {
     const graph = metadata();
     const mismatch = new SyncClient(

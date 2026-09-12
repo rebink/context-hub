@@ -25,8 +25,8 @@ Durable implementation ledger for the PRD, technical architecture, implementatio
 - [x] Context results are relevance-first, deduplicated, explicitly budgeted, bounded, and carry project/source/path/version/commit/checksum provenance where applicable.
 - [x] Sync writes through a temporary path, verifies checksum and source commit, atomically replaces the cache, and preserves the last valid graph on failure.
 - [x] One authenticated provider-neutral MCP endpoint exposes a stable six-tool, read-oriented surface regardless of project count; Phase 15 measures the complete schema as byte-identical for 1, 10, and 100 authorized projects.
-- [ ] Pi and other clients add approximately zero permanent model context, never inject the repository/full graph/all artifacts, and do not duplicate Context Engine or Graphify logic.
-- [ ] Local-first use continues from Git, manifest, graph cache, artifact cache, and offline cache when Context Hub is unavailable.
+- [x] The Phase 16 Pi client adds no LLM tools or prompt injection, never injects the repository/full graph/all artifacts, and does not duplicate Context Engine or Graphify logic; Phase 17's quantitative token audit remains pending.
+- [~] Local-first use continues from Git, manifest, and the verified graph cache when Context Hub is unavailable; artifact/offline context caches remain deferred.
 - [x] The MVP uses minimal dependencies and free/open-source-compatible Pages, Workers, D1, R2, GitHub OAuth, and GitHub Actions architecture; no mandatory paid service.
 
 ## Ordered phase ledger
@@ -240,15 +240,19 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Complete the one independent Phase 15 review and fix its complete two-item P1 set in one consolidated pass without a second review: one production limits source across runtime/schema/audit plus exact envelope/limits/ceiling regression locks.
 - [x] Passed the root phase stop gate: fresh/staged-through-0015 migration integrity plus 222 tests (136 API, 26 web, 19 CLI, 41 adapter), typecheck, Biome lint, and all builds.
 
-### 16/C. Pi integration and project resolution (Prompt 16 + Task C) — `PENDING`
+### 16/C. Pi integration and project resolution (Prompt 16 + Task C) — `COMPLETE LOCALLY`
 
-- [ ] Implement lightweight native commands: `/context connect`, `/context status`, `/context sync`, `/context search <query>`, `/context graph <node>`, and `/context snapshot`.
-- [ ] Call Context Hub/MCP rather than reimplementing retrieval or Graphify.
-- [ ] Read/normalize the local Git remote, resolve the project, cache explicit selection locally, expose status, report zero matches, and require selection for multiple matches.
-- [ ] Support explicit project switching, provision/use the scoped MCP/local-client principal credential from Phase 14, and keep credentials out of repository files/prompts.
-- [ ] Add no provider-specific model behavior, new agent architecture, unnecessary LLM tools, bulk injection, or blocking cloud dependency for cached use.
-- [ ] Test automatic resolution, zero/one/many matches, cache/switch behavior, authorization failure, offline behavior, and bounded command output.
-- [ ] Run the phase stop gate.
+- [x] Implement lightweight native commands: `/context connect`, `/context status`, `/context sync`, `/context search <query>`, `/context graph <node>`, and `/context snapshot`.
+- [x] Call the existing local CLI and Context Hub/MCP rather than reimplementing retrieval or Graphify; snapshot remains an explicit non-mutating Phase 18 placeholder.
+- [x] Read/normalize the local Git remote, resolve the project, cache explicit selection locally, expose status, report zero matches, and require selection for multiple matches.
+- [x] Support explicit project switching, consume the scoped MCP/local-client principal credential provisioned through Phase 14's ADMIN lifecycle, and keep credentials out of repository files/prompts/output.
+- [x] Add no provider-specific model behavior, new agent architecture, LLM tools, bulk injection, or required cloud dependency for cached status/graph use.
+- [x] Add Pi API-fake and client tests for registration/lifecycle, automatic resolution, zero/one/many, selection/switching, authorization, offline graph fallback, origin/credential handling, secret redaction, output bounds, no tools/providers, and shutdown cleanup.
+- [x] Record exact researched Pi 0.85.1 extension/package assumptions in [`pi-integration.md`](pi-integration.md).
+- [x] Complete the one independent phase review and this single consolidated four-item P1 correction pass: live remote/manifest fencing before every MCP or cached graph read, strict initialize-result negotiation, streaming 128 KiB response enforcement, and abortable generation-fenced startup auto-selection.
+- [x] Passed the root phase stop gate: fresh/staged-through-0015 migration integrity plus 245 tests (136 API, 26 web, 22 CLI, 20 Pi, 41 adapter), typecheck, Biome lint, and all builds.
+- [ ] Collect external live Pi/TUI command, reload, and shutdown evidence plus live OS-secret-helper handoff before release.
+- **P2 backlog (non-blocking):** typecheck against Pi's exported types when an install fixture is available; strengthen the fake to detect prompt/model mutation; add explicit redirect, no-UI ambiguity, invalid-credential, and distinct nonce/ID tests; collect package distribution evidence for Node >=22.19.
 
 ### 17. Pi token audit (Prompt 17) — `PENDING`
 

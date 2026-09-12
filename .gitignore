@@ -7,3 +7,7 @@ dist/
 coverage/
 .DS_Store
 *.log
+
+# Project documentation is source, even when a user-level ignore hides README files.
+!/README.md
+!/packages/context-pi/README.md

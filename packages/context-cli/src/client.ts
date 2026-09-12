@@ -111,16 +111,17 @@ export class SyncClient {
       throw new ClientError("CREDENTIAL_REQUIRED");
   }
 
-  private async request(pathname: string) {
+  private async request(pathname: string, signal?: AbortSignal) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const requestSignal = signal ? AbortSignal.any([controller.signal, signal]) : controller.signal;
     let response: Response;
     try {
       response = await this.fetchImplementation(`${this.apiOrigin}${pathname}`, {
         method: "GET",
         redirect: "manual",
         headers: { cookie: `context_hub_session=${encodeURIComponent(this.session)}` },
-        signal: controller.signal,
+        signal: requestSignal,
       });
     } catch {
       throw new ClientError("OFFLINE");
@@ -140,9 +141,9 @@ export class SyncClient {
     return response;
   }
 
-  async metadata(projectId: string) {
+  async metadata(projectId: string, signal?: AbortSignal) {
     if (!/^[A-Za-z0-9_-]+$/.test(projectId)) throw new ClientError("INVALID_PROJECT_ID");
-    const response = await this.request(`/projects/${encodeURIComponent(projectId)}/sync`);
+    const response = await this.request(`/projects/${encodeURIComponent(projectId)}/sync`, signal);
     if (response.headers.get("content-type")?.split(";", 1)[0] !== "application/json")
       throw new ClientError("INVALID_RESPONSE");
     const bytes = await boundedBytes(response, MAX_METADATA_BYTES);
@@ -155,10 +156,17 @@ export class SyncClient {
     return validateMetadata(value);
   }
 
-  async resolve(repository: string) {
+  async resolveCandidates(
+    repository: string,
+    signal?: AbortSignal,
+  ): Promise<{
+    match: "none" | "unique" | "ambiguous";
+    projects: Array<{ id: string; name: string }>;
+  }> {
     if (repository.length > 1024) throw new ClientError("INVALID_REPOSITORY");
     const response = await this.request(
       `/projects/resolve?repository=${encodeURIComponent(repository)}`,
+      signal,
     );
     const bytes = await boundedBytes(response, MAX_METADATA_BYTES);
     let value: unknown;
@@ -170,18 +178,46 @@ export class SyncClient {
     if (!value || typeof value !== "object" || Array.isArray(value))
       throw new ClientError("INVALID_RESPONSE");
     const result = value as Record<string, unknown>;
+    const rawProjects =
+      result.match === "unique" && result.project ? [result.project] : result.projects;
     if (
-      result.match !== "unique" ||
-      !result.project ||
-      typeof result.project !== "object" ||
-      typeof (result.project as Record<string, unknown>).id !== "string"
+      !["none", "unique", "ambiguous"].includes(result.match as string) ||
+      !Array.isArray(rawProjects) ||
+      rawProjects.length > 20
     )
+      throw new ClientError("INVALID_RESPONSE");
+    const projects = rawProjects.map((project) => {
+      if (!project || typeof project !== "object" || Array.isArray(project))
+        throw new ClientError("INVALID_RESPONSE");
+      const item = project as Record<string, unknown>;
+      if (
+        typeof item.id !== "string" ||
+        !/^[A-Za-z0-9_-]+$/.test(item.id) ||
+        typeof item.name !== "string" ||
+        item.name.length < 1 ||
+        item.name.length > 100
+      )
+        throw new ClientError("INVALID_RESPONSE");
+      return { id: item.id, name: item.name };
+    });
+    if (
+      (result.match === "none" && projects.length !== 0) ||
+      (result.match === "unique" && projects.length !== 1) ||
+      (result.match === "ambiguous" && projects.length < 2)
+    )
+      throw new ClientError("INVALID_RESPONSE");
+    return { match: result.match as "none" | "unique" | "ambiguous", projects };
+  }
+
+  async resolve(repository: string, signal?: AbortSignal) {
+    const result = await this.resolveCandidates(repository, signal);
+    if (result.match !== "unique")
       throw new ClientError(
         result.match === "ambiguous" ? "AMBIGUOUS_PROJECT" : "PROJECT_NOT_FOUND",
       );
-    const projectId = (result.project as Record<string, unknown>).id as string;
-    if (!/^[A-Za-z0-9_-]+$/.test(projectId)) throw new ClientError("INVALID_RESPONSE");
-    return projectId;
+    const project = result.projects[0];
+    if (!project) throw new ClientError("INVALID_RESPONSE");
+    return project.id;
   }
 
   async download(projectId: string, graph: GraphMetadata) {

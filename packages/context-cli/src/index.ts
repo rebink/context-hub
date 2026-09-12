@@ -17,8 +17,14 @@ import {
 } from "./client.js";
 import type { LocalGraph, Manifest, RepositoryIdentity, SyncMetadata, SyncState } from "./types.js";
 
-export { ensureLayout, readLocalGraph, recoverInterruptedSync } from "./cache.js";
-export { ClientError, SyncClient } from "./client.js";
+export { ensureLayout, readLocalGraph, readManifest, recoverInterruptedSync } from "./cache.js";
+export {
+  ClientError,
+  localRemote,
+  repositoryRoot,
+  SyncClient,
+  validateApiOrigin,
+} from "./client.js";
 export type { GraphMetadata, LocalGraph, Manifest, SyncMetadata, SyncState } from "./types.js";
 
 export type StatusResult = {
@@ -137,7 +143,9 @@ export async function connectProject(options: {
   session: string;
   projectId?: string;
   fetchImplementation?: typeof fetch;
+  signal?: AbortSignal;
 }) {
+  options.signal?.throwIfAborted();
   const root = await repositoryRoot(options.directory);
   const remoteValue = await localRemote(root);
   const canonical = normalizeGithubRemote(remoteValue);
@@ -147,9 +155,10 @@ export async function connectProject(options: {
     options.session,
     options.fetchImplementation,
   );
-  const projectId = options.projectId ?? (await client.resolve(remoteValue));
-  const metadata = await client.metadata(projectId);
+  const projectId = options.projectId ?? (await client.resolve(remoteValue, options.signal));
+  const metadata = await client.metadata(projectId, options.signal);
   if (metadata.repository.canonicalUrl !== canonical) throw new ClientError("COMMIT_MISMATCH");
+  options.signal?.throwIfAborted();
   const layout = await ensureLayout(root);
   const existing = await readManifest(layout);
   const keepGraph =
@@ -172,6 +181,7 @@ export async function connectProject(options: {
     },
     graph: keepGraph,
   };
+  options.signal?.throwIfAborted();
   await writeManifest(layout, manifest);
   return manifest;
 }
