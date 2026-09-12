@@ -1,6 +1,7 @@
 import { apiOrigin, callbackUrl } from "./api-origin.js";
 import { handleArtifactRoute } from "./artifacts.js";
 import { type AuthProviderIdentity, AuthProviderResponseError } from "./auth-provider.js";
+import { handleContextRoute } from "./context-route.js";
 import {
   beginGitConnection,
   githubAppCallback,
@@ -584,6 +585,13 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
             syncRoute[1] ?? "",
             syncDownload?.[2],
           );
+        }
+
+        const contextSearch = /^\/projects\/([^/]+)\/context\/search$/.exec(pathname);
+        if (contextSearch) {
+          const user = await authenticate(request, env);
+          if (!user) return error(request, env, "UNAUTHENTICATED", 401);
+          return handleContextRoute(request, env, storage, user, contextSearch[1] ?? "");
         }
 
         const graphCollection = /^\/projects\/([^/]+)\/graphs$/.exec(pathname);

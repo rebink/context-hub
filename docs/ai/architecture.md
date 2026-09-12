@@ -81,7 +81,7 @@ Provider neutrality is enforced with the smallest useful contract at the real in
 | `ObjectStorage` | Current-provider seams; Cloudflare R2 adapter | Create-only put, head/get, and narrowly controlled compensation delete with object metadata; D1 publication remains domain logic | Current; accepted in [`adr/0001-provider-boundaries.md`](adr/0001-provider-boundaries.md) |
 | `GitProvider` | Git connection phase; GitHub App repository adapter | Build installation/user-PKCE URLs, prove user/installation, mint transient exact-repository tokens, and read validated repository/default-branch/current-commit metadata | Current backend; accepted in [`adr/0002-github-app-repository-credentials.md`](adr/0002-github-app-repository-credentials.md) |
 | `GraphProvider` | Graphify adapter phase; one `GraphifyAdapter` | Run/validate the accepted `code-only-clustered-v1` profile and expose exact bytes, complete repository/project/build provenance, derived counts, size, generator, and SHA-256; never own project/version/R2/D1/auth | Current in isolated Node-only `packages/graphify-adapter`; ADR 0003 accepted and Phase 8 independently reviewed with final ACCEPT and no findings |
-| `ContextProvider` | Context Engine phase; Context Engine implementation | Execute bounded project-scoped retrieval and return deduplicated evidence with budget/provenance/freshness | Planned |
+| `ContextProvider` | Context Engine phase; one `ContextEngine` | Execute bounded project-scoped retrieval and return deduplicated evidence with budget/provenance/freshness; never own auth or transport | Current; narrow decision recorded in this document |
 | `McpTransport` | Universal MCP phase; Worker MCP transport | Decode/encode authenticated MCP requests for the stable six tools and enforce transport/request/result bounds | Planned after MCP ADR |
 
 Provider adapters do not bypass domain authorization, choose project scope, or redefine immutable publication. `AuthProvider` does not persist Git credentials; Git identity login and repository access are separate concerns. `ObjectStorage` does not decide keys or metadata truth.
@@ -176,16 +176,11 @@ Under accepted ADR 0004, publication remains private immutable R2 object-first a
 
 ## Context Engine
 
-**Current:** not implemented.
+**Current:** Phase 12 implements the minimal provider-neutral `ContextProvider` and exactly one `ContextEngine`; there is no factory, registry, cache, vector index, or alternate backend. The contract accepts project ID, query, optional domain/package, and explicit token and byte ceilings. Authentication, current direct-membership authorization, Origin enforcement, and HTTP transport remain in the Worker route.
 
-**Planned:** `ContextProvider` accepts authenticated project scope, query, optional domain/package, and one explicit token/size budget. Its pipeline is:
+The implementation uses query-aware metadata ordering before reading at most 24 project-predicated current artifact versions (and at most 64 KiB per payload), one current READY graph only when its immutable repository identity matches the current verified Git connection and its verified payload is at most 512 KiB, current verified Git metadata, and compact versioned built-in architecture guidance derived from the checked-in project invariants. Artifact and graph R2 bytes are resolved only from authorized D1 rows; artifact HEAD size, HTTP/custom content type, and checksum metadata must exactly match D1 before download, followed by exact byte-size/checksum verification. Graph reads retain the existing HEAD/upload identity and format-v1 checks. It ranks task/package/domain matches, architecture evidence, current provenance, and bounded source-backed graph relationships; deduplicates excerpts; computes token cost from each complete serialized evidence object; and then applies one global token/byte budget. Every result has one fixed provenance shape with exact project/source/path/section/version/commit/checksum fields, nullable only when a source has no applicable value. Built-in generated guidance truthfully uses null path/commit with its own stable version and checksum rather than claiming repository provenance.
 
-1. Retrieve bounded candidates from artifact metadata/content, Graphify, Git metadata, architecture maps, and small linked repository guidance such as `AGENTS.md`.
-2. Rank exact task/package/domain, source-backed evidence, architecture relevance, and currency.
-3. Deduplicate overlapping evidence before applying one overall budget.
-4. Return concise excerpts, graph evidence, source locations, relevance reason, token estimate, and project/source/path/section/version/commit/checksum provenance.
-
-Indexes/caches are principal- and project-namespaced. MVP retrieval is bounded and indexed without embeddings/vector infrastructure. One shared classifier reports artifact `CURRENT`, `STALE`, or `UNKNOWN` from artifact source commit and current known repository commit; it does not rewrite artifacts. Explicit cross-project retrieval independently authorizes every project before reading any and fails all without identifying an inaccessible project.
+`classifyArtifactFreshness` is the shared `CURRENT | STALE | UNKNOWN` classifier. It returns `CURRENT` only for equal valid lowercase 40-hex artifact/current commits, `STALE` for unequal valid commits, and `UNKNOWN` for missing or invalid provenance. It annotates applicable context evidence and never rewrites artifacts. The implementation has no cache, so there is no cross-principal cache state; any future cache/index must be principal- and project-namespaced. Cross-project retrieval remains deferred and must independently authorize every project before any read.
 
 ## Universal MCP and Pi
 

@@ -173,19 +173,21 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Passed the full phase stop gate: migration integrity plus 178 tests (92 API, 26 web, 19 CLI, 41 adapter), typecheck, Biome lint, and all builds.
 - **P2 backlog (non-blocking):** expand overlap-heavy state precedence cases and exhaustive crash injection across every marker/backup/rename/fsync boundary on representative target filesystems; keep live Worker/D1/R2 and OS-secret-helper checks in the external evidence ledger.
 
-### 12. Context Engine (Prompt 12) — `PENDING`
+### 12. Context Engine (Prompt 12) — `COMPLETE LOCALLY`
 
-- [ ] Pass the provider-contract gate for minimal `ContextProvider`; ship exactly one Context Engine implementation, with no provider factory or alternative retrieval backend.
-- [ ] Define the contract around project-scoped query/domain/package/budget input and bounded ranked evidence/provenance/freshness output; authentication, project authorization, and transport stay outside it.
-- [ ] Add contract tests for bounds, deduplication, provenance, freshness, source failures, and project/cache isolation in addition to Phase 13 scenarios.
-- [ ] Accept project, query, optional domain/package, and explicit token/size budget.
-- [ ] Retrieve candidates from artifact metadata/content, Graphify, Git metadata, architecture maps, and small global reference context (`AGENTS.md` and linked architecture knowledge).
-- [ ] Rank direct task, package/domain, architecture, currency, and source-backed relevance; deduplicate before applying one budget.
-- [ ] Return concise artifact excerpts, graph evidence, source locations, relevance reason, token estimate, and project/source/path/section/version/commit/checksum provenance.
-- [ ] Implement the shared artifact freshness classifier as `CURRENT`, `STALE`, or `UNKNOWN` from artifact source commit and current known repository commit, including missing/invalid provenance behavior.
-- [ ] Expose that shared classifier in every applicable Context Engine result; never return the full repository, full graph, all artifacts/ADRs, or an unbounded permanent prompt.
-- [ ] Namespace indexes/caches by principal and project; use bounded, indexed, non-vector retrieval for MVP.
-- [ ] Run the phase stop gate.
+- [x] Pass the implementation side of the provider-contract gate for minimal `ContextProvider`; ship exactly one `ContextEngine`, with no provider factory or alternative retrieval backend. The existing architecture decision is sufficient and no new undecided boundary required an ADR.
+- [x] Define the contract around project-scoped query/domain/package/explicit token-and-byte budget input and bounded ranked evidence/provenance/freshness output; authentication, project authorization, and transport stay outside it.
+- [x] Add focused contract/unit/route tests for bounds, ranking, deduplication, provenance, freshness states plus missing/invalid provenance, source failures, role/project isolation, no-cache behavior, and private payload integrity. Prompt 13 remains separate.
+- [x] Accept project, query, optional domain/package, and explicit token/size budget.
+- [x] Retrieve query-aware bounded candidates from project-indexed current artifact metadata/content, one bounded current-repository-matched Graphify graph, current verified Git metadata, architecture artifacts, and compact versioned built-in guidance derived from checked-in project invariants with truthful generated-source provenance.
+- [x] Rank direct task, package/domain, architecture, currency, and source-backed relevance; deduplicate before applying one budget calculated from complete serialized evidence objects.
+- [x] Return concise artifact excerpts, bounded graph relationships, source locations, relevance reason, independently testable token estimate, and exact project/source/path/section/version/commit/checksum provenance fields.
+- [x] Implement the shared artifact freshness classifier as `CURRENT`, `STALE`, or `UNKNOWN` from valid artifact/current repository commits, including missing/invalid provenance behavior.
+- [x] Expose that shared classifier in every applicable Context Engine result; never return the full repository, full graph, all artifacts/ADRs, or an unbounded permanent prompt.
+- [x] Use bounded, indexed, non-vector retrieval for MVP. No cache/index is introduced, so there is no shared principal state; future caches remain required to namespace principal plus project.
+- [x] Completed the one independent phase review and fixed its complete five-item P1 set in one consolidated pass without a second review: full-evidence token accounting, artifact HEAD integrity, current-repository graph selection, truthful built-in provenance, and query-aware artifact candidate ordering.
+- [x] Passed the full phase stop gate: migration integrity plus 192 tests (106 API, 26 web, 19 CLI, 41 adapter), typecheck, Biome lint, and all builds.
+- **P2 backlog (non-blocking):** make relevance reasons name only the query/domain/package dimensions that actually matched; add method, control-heavy optional-field, and exact multibyte response-boundary cases opportunistically.
 
 ### 13. Context Engine scenarios (Prompt 13) — `PENDING`
 
@@ -386,7 +388,7 @@ All project endpoints inherit authenticate -> resolve -> direct membership -> ro
 - [x] `GET/POST/DELETE /projects/:id/git` and `POST /projects/:id/git/sync`.
 - [x] `GET /projects/:id/graphs`, `GET /projects/:id/graphs/latest`, `GET /projects/:id/graphs/:version`, `POST /projects/:id/graphs/build` (authenticated human metadata/reservation only; dispatch remains unavailable until Phase 10).
 - [x] `POST /projects/:id/graphs/:version/query` for bounded node search/detail, neighbors, callers/callees, directed path, and sources.
-- [ ] `POST /projects/:id/context/search` and bounded relevant-context retrieval (do not use unbounded query-string payloads for substantive searches).
+- [x] `POST /projects/:id/context/search` and bounded relevant-context retrieval (substantive search input uses a bounded JSON body, not query strings).
 - [ ] `GET /projects/:id/team`, invite/accept, role `PATCH`, and member `DELETE` routes.
 - [ ] ADMIN-only `PATCH /projects/:id` (or documented settings subroute) with expected settings revision and deterministic conflict behavior.
 - [ ] ADMIN-only logical `DELETE /projects/:id/artifacts/:artifactId` (or documented archive action) with expected artifact revision and immutable version-history preservation.

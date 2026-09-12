@@ -54,7 +54,7 @@ Mitigations:
 - Re-authorize every request; never cache browser-provided roles or trust hidden UI controls.
 - Keep authorization denial tests for every route family and mutation role.
 
-Current status: enforced for current workspace, project, repository-resolution, Git, artifact, and authenticated human graph routes. Member/role administration and later context, MCP, sync, snapshot, and machine-publication routes must add the same checks before release.
+Current status: enforced for current workspace, project, repository-resolution, Git, artifact, authenticated human graph, sync, and Context Engine routes. The context search route authenticates before project resolution, verifies current direct membership for every role, applies exact Origin validation, and returns the same nonleaking `404` for outsiders and workspace-only users. Member/role administration and later MCP and snapshot routes must add the same checks before release.
 
 ### Project isolation
 
@@ -69,7 +69,7 @@ Mitigations:
 - Namespace caches by authenticated principal and project; never cache authorization failures as global existence facts.
 - Test users in multiple workspaces/projects plus workspace-only and outsider access.
 
-Current status: direct membership, nonleaking denials, multi-workspace/project tests, and authorized repository resolution are implemented. Project-namespaced context indexes/caches do not exist yet and are required with the Context Engine.
+Current status: direct membership, nonleaking denials, multi-workspace/project tests, authorized repository resolution, and project-predicated Context Engine retrieval are implemented. Context Engine graph selection also requires the immutable graph repository identity to match the project's current verified Git connection, preventing mixed old/new repository evidence. The Context Engine creates no cache or persistent index, avoiding shared principal state; any future cache/index must use authenticated-principal plus project namespaces and invalidate authorization-sensitive entries.
 
 ### Git credentials
 
@@ -201,7 +201,7 @@ Mitigations:
 - Do not support archives, PDF, diagrams, multipart, or binary content until format-specific validation, sandboxing/scanning, and quotas are defined.
 - Reject compressed uploads unless decompressed size can be bounded before storage.
 
-Current status: bounded Markdown/text/JSON/YAML uploads are implemented.
+Current status: bounded Markdown/text/JSON/YAML uploads are implemented. Context Engine artifact retrieval checks D1 size/checksum/content type against private-R2 HEAD HTTP/custom metadata and the 64 KiB source ceiling before download, then verifies exact returned bytes and UTF-8 before producing bounded evidence.
 
 ### Replay attacks
 
@@ -243,7 +243,7 @@ Mitigations:
 - Never infer additional project scope from workspace membership or repository similarity.
 - Namespace retrieval indexes/caches and test partially unauthorized project sets.
 
-Status: single-project isolation and authorized repository resolution exist; cross-project retrieval is not implemented.
+Status: single-project Context Engine retrieval, direct-membership isolation, bounded private-payload verification, and authorized repository resolution are implemented. Explicit cross-project retrieval is not implemented.
 
 ## Additional platform controls
 

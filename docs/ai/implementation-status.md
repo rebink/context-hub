@@ -8,6 +8,7 @@ The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`
 
 - [x] Phase 9 immutable graph versions, attempt-scoped publication, bounded explorer, and role-aware UI are implemented through additive migration 0013. The full local gate passes 140 tests (78 API, 26 web, 36 adapter), migration integrity, typecheck, Biome lint, and Worker/Vite/adapter builds; final bounded review returned ACCEPT. Browser/live Cloudflare verification remains an external release gate.
 - [x] Phase 11 local sync is complete locally from Phase 10 checkpoint `3d15a0f`; its one independent review is complete, the complete P1 set is fixed, and the 178-test full stop gate passes. Remote CI has not run.
+- [x] Phase 12 Context Engine is complete locally from checkpoint `9c0702a`: one minimal `ContextProvider`/`ContextEngine`, query-aware bounded single-project retrieval, complete-evidence token accounting, current-repository graph selection, exact provenance, private artifact HEAD/byte verification, and the shared freshness classifier pass the single review and 192-test full gate.
 - [!] Production D1 ID, R2 bucket, Pages origin, and Worker origin remain placeholders. GitHub OAuth credentials and live Cloudflare resources are not configured.
 - [!] No browser, live OAuth, remote D1/R2, or deployment end-to-end test has run.
 
@@ -32,7 +33,7 @@ The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`
 - [~] Authentication/projects scope beyond Prompt 2: member invitation, removal, and role-management APIs/UI are deferred.
 - [~] Phase 6 / remaining task #2: the backend and project repository UI fixes pass locally, including demotion/removal race rejection, every-request sync audit rollback, callback-to-authorized-project binding, verified-GET success announcements, recovery states, focus restoration, and narrow mobile styling. The overall phase remains partial pending independent final-review acceptance. Live browser/GitHub App/Cloudflare verification remains a separate external release blocker.
 - [~] Audit history: artifact and redacted Git lifecycle events exist, but generalized project/member/graph/snapshot auditing and audit UI do not.
-- [~] Artifact UI freshness is pending: only current-version source-commit provenance is complete; the shared `CURRENT | STALE | UNKNOWN` classifier and Context Engine exposure belong to Phase 12, with artifact UI and sync-state persistence integration in Phase 19.
+- [~] Artifact UI freshness is pending: Phase 12 now provides the shared `CURRENT | STALE | UNKNOWN` classifier and Context Engine exposure, while artifact UI and sync-state persistence integration remain deferred to Phase 19.
 - [~] Artifact formats: Markdown, text, JSON, and YAML work; PDF, diagrams, binary, and multipart uploads are intentionally deferred.
 - [~] Git/D1/R2 source-of-truth separation is implemented for artifacts and attempt-scoped graphs. Migrations 0010-0013 preserve legacy graphs and enforce exact attempt-scoped lifecycle/publication; migration 0014 adds machine principals, hash-only credentials, replay nonces, and immutable machine audits. Snapshot, sync-state, and generalized audit schemas remain pending.
 
@@ -44,7 +45,7 @@ Every significant architecture choice first needs an approved ADR. The mandatory
 2. [x] Phase 9 is locally complete through migration 0013 and final bounded review ACCEPT. Browser/live Cloudflare verification remains part of the external release gate.
 3. [x] Phase 10 CI graph generation is locally complete through migration 0014 after its single review and 154-test gate. Live bounded-runner benchmarks and remote D1/R2 publication remain external release gates.
 4. [x] Phase 11 local sync is locally complete after one review, one consolidated P1 fix pass, and the 178-test full stop gate. Live Worker/D1/R2 sync, OS secret-helper handoff, and target-filesystem crash evidence remain external release gates.
-5. [ ] Implement minimal `ContextProvider` with exactly one Context Engine implementation and contract tests, including bounded retrieval and the shared `CURRENT | STALE | UNKNOWN` classifier/result exposure; only then run Prompt 13 scenarios.
+5. [x] Phase 12 `ContextProvider` and Context Engine are complete locally after one review, one consolidated five-item P1 fix pass, and the 192-test full gate. Prompt 13 remains the next separate phase.
 6. [ ] Approve the MCP auth/transport ADR; implement minimal `McpTransport` with exactly one Worker transport and contract tests, hashed/scoped/expiring/revocable MCP/local-client principals, replay controls, and the stable universal six-tool surface.
 7. [ ] Complete MCP schema/response token audits for 1, 10, and 100 projects.
 8. [ ] Add Pi integration using the local-client principal, automatic repository resolution, explicit project switching, and Pi token audit.
