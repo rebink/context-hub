@@ -817,6 +817,39 @@ describe("API foundation and CORS", () => {
     );
   });
 
+  it("applies security headers to every Worker response and HSTS only in production", async () => {
+    for (const production of [false, true]) {
+      const response = await app.fetch(request("/missing"), bindings(new FakeD1(), production));
+      assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+      assert.equal(response.headers.get("x-frame-options"), "DENY");
+      assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+      assert.match(response.headers.get("permissions-policy") ?? "", /camera=\(\)/);
+      assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
+      assert.equal(
+        response.headers.has("strict-transport-security"),
+        production,
+        "HSTS must not affect local HTTP development",
+      );
+    }
+  });
+
+  it("rejects workspace and project bodies before buffering beyond two KiB", async () => {
+    const db = new FakeD1();
+    await addUserSession(db, "u", "token");
+    const oversized = JSON.stringify({ name: "x".repeat(2049), slug: "safe" });
+    const response = await app.fetch(
+      request("/workspaces", "token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: oversized,
+      }),
+      bindings(db),
+    );
+    assert.equal(response.status, 400);
+    assert.deepEqual(await body(response), { error: "INVALID_INPUT" });
+    assert.equal(db.workspaces.length, 0);
+  });
+
   it("supports exact-origin credentialed preflights and rejects hostile mutations", async () => {
     const env = bindings();
     const preflight = await app.fetch(
@@ -928,14 +961,28 @@ describe("GitHub OAuth and sessions", () => {
     const malformed = await callbackWith(
       async () => new Response("not-json", { headers: { "content-type": "application/json" } }),
     );
-    assert.equal(malformed.status, 500);
-    assert.deepEqual(await body(malformed), { error: "INTERNAL_ERROR" });
+    assert.equal(malformed.status, 502);
+    assert.deepEqual(await body(malformed), { error: "AUTH_FAILED" });
 
     const network = await callbackWith(async () => {
-      throw new Error("network failed");
+      throw new Error("network failed with provider detail");
     });
-    assert.equal(network.status, 500);
-    assert.deepEqual(await body(network), { error: "INTERNAL_ERROR" });
+    assert.equal(network.status, 502);
+    assert.deepEqual(await body(network), { error: "AUTH_FAILED" });
+
+    const streamFailure = await callbackWith(
+      async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(new Error("uncontrolled provider stream detail"));
+            },
+          }),
+          { headers: { "content-type": "application/json" } },
+        ),
+    );
+    assert.equal(streamFailure.status, 502);
+    assert.deepEqual(await body(streamFailure), { error: "AUTH_FAILED" });
   });
 
   it("rejects missing, invalid, and expired sessions, then logout invalidates a valid session", async () => {

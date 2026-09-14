@@ -347,12 +347,15 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Passed the root phase stop gate: fresh/staged-through-0020 migration integrity plus 330 tests (197 API, 40 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. No browser runtime is installed, so live browser, keyboard, responsive, accessibility, and back/forward execution remain an explicit external Phase 24 gate.
 - [ ] Management UI P2 backlog only: replace global Activity append failures with append-specific retry/error handling; replace stale Graphify copy that says local sync is not implemented; explicitly classify whether the account provider user ID belongs in the Settings response; add snapshot pagination or an explicit truncation/load-more state beyond the current bounded first page.
 
-### 22. Security audit (Prompt 22) — `PENDING`
+### 22. Security audit (Prompt 22) — `COMPLETE LOCALLY`
 
-- [ ] Audit authentication, authorization, project isolation, D1 predicates, R2 privacy/integrity, OAuth/Git credentials, webhooks, MCP, downloads, sync, traversal, SSRF, uploads, replay, rate limits, headers, logging, CI, backups, and secret handling.
-- [ ] Create `docs/ai/security-audit.md`; fix critical/high findings only without unrelated refactors.
-- [ ] Verify role revocation, compromised credential, webhook replay, corrupted object, partial cross-project failure, account removal, and restore behavior in safe environments.
-- [ ] Run the phase stop gate.
+- [x] Audited authentication, authorization, project isolation, D1 predicates, R2 privacy/integrity, OAuth/Git credentials, webhook absence, MCP, downloads, sync, traversal, SSRF, uploads, replay, rate limits, headers, logging, CI, backups, privacy, and secret handling.
+- [x] Created `docs/ai/security-audit.md` with reproducible evidence and fixed the confirmed High local-code findings: centralized Worker headers, exact-origin generated Pages headers, bounded redirect-safe identity OAuth provider responses with complete stream cleanup, bounded workspace/project JSON bodies, and pinned/read-only general CI actions.
+- [x] Verified local role/membership revocation across human/MCP/sync, revoked/expired/wrong/replayed credentials, artifact/graph/snapshot corruption, and all-before-read partial cross-project denial. Webhook replay is N/A because no endpoint exists; complete account deletion remains open.
+- [x] Marked backup/restore `BLOCKED` because no safe isolated deployed procedure exists; production headers/origins, rate limits, logs, provider/client/runner behavior, privacy/retention, and recovery remain explicit external/live blockers.
+- [x] Completed the one independent review and fixed its complete two-item P1 set in one consolidated writer pass without a second review: fail-closed exact parsed-origin Pages CSP generation and stable redacted OAuth stream/body cleanup failures.
+- [ ] P2 backlog only: broaden representative Worker-header assertions; cancel shared bounded JSON on early media/declared-length rejection.
+- [x] Passed the root phase stop gate: fresh/staged-through-0020 migration integrity plus 336 tests (201 API, 42 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. The dependency audit remains at zero known vulnerabilities across 229 dependencies.
 
 ### 23. Free-tier audit (Prompt 23) — `PENDING`
 

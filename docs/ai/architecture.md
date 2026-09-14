@@ -60,7 +60,7 @@ The browser and future local/MCP clients are untrusted input boundaries. Only th
 ### Current
 
 - `apps/api/src/index.ts` is a native Fetch router for health, OAuth/session, workspace/project, repository resolution, and dispatch to `artifacts.ts` and `graphs.ts`; it composes the single GitHub and R2 adapters.
-- Browser mutations require the exact configured `WEB_ORIGIN`; credentialed CORS reflects only that origin. API responses use bounded, stable error codes.
+- Browser mutations require the exact configured `WEB_ORIGIN`; credentialed CORS reflects only that origin. API responses use bounded, stable error codes. One outer Worker response boundary applies CSP/frame denial, nosniff, strict referrer/permissions policy, and production-only HSTS to redirects, errors, preflights, JSON, MCP, and downloads.
 - Current project reads join direct `project_members`; artifact handlers query children by both project and resource ID. Workspace membership alone grants no project read.
 - D1 statements are parameterized. Upload bodies, fields, media types, IDs, pages, and cursors are bounded and validated.
 
@@ -272,10 +272,10 @@ The current web application requires the Worker. Current CLI/Pi operation is loc
 
 ### Current
 
-- `apps/web`: Vite build for Cloudflare Pages; local Vite proxies API/auth/project/workspace paths. `VITE_API_URL` is the only documented public web endpoint setting.
+- `apps/web`: Vite build for Cloudflare Pages; local Vite proxies API/auth/project/workspace paths. `VITE_API_URL` is the only documented public web endpoint setting and is parsed by one shared exact-origin normalizer. The build generates `dist/_headers` without modifying tracked source: local same-origin builds may use self only, while Cloudflare Pages (`CF_PAGES=1`) requires an explicit non-placeholder HTTPS API origin and fails before Vite on credentials, paths, query, fragment, malformed input, or non-HTTPS. CSP `connect-src` is self plus exactly that normalized origin.
 - `apps/api`: Worker with `DB`, `OBJECTS`, `APP_ENV`, `WEB_ORIGIN`, `API_ORIGIN`, and server-only GitHub OAuth bindings. `API_ORIGIN` is required, origin-only, and HTTPS in production; configured HTTP is accepted only outside production for local use. Wrangler contains local values and placeholder production resources.
-- GitHub Actions defines install, local migration, test, typecheck, lint, and build on PRs and `main`, but the repository has no commit/remote run evidence.
+- GitHub Actions defines install, local migration, test, typecheck, lint, and build on PRs and `main`; actions are full-commit pinned and the token is read-only, but the repository has no commit/remote run evidence.
 
 ### Planned release requirements
 
-Provision private production D1/R2, apply migrations, configure exact origins/routes/bindings and OAuth callback, keep secrets in Wrangler/CI secret stores, add security headers/rate limits/redacted observability/backups, deploy Pages/Worker, and verify browser OAuth, remote integrity/private-object denial, Graphify CI, sync, MCP, Pi, and end-to-end flows. No phase or deployment advances unless tests, typecheck, lint, and build pass; significant architecture choices additionally require their accepted ADR and contract tests.
+Provision private production D1/R2, apply migrations, set exact HTTPS `VITE_API_URL` in the Cloudflare Pages build environment and verify its generated CSP plus all routes/bindings and OAuth callback, keep secrets in Wrangler/CI secret stores, configure rate limits/redacted observability/retention and an isolated backup/restore exercise, deploy Pages/Worker, and verify browser OAuth, remote integrity/private-object denial, Graphify CI, sync, MCP, Pi, and end-to-end flows. No phase or deployment advances unless tests, typecheck, lint, and build pass; significant architecture choices additionally require their accepted ADR and contract tests.

@@ -259,8 +259,8 @@ The one engine uses caller-wide retrieval caps, global deterministic ranking wit
 - Use generic external errors and structured internal logs with secret/content redaction.
 - Apply Cloudflare and application rate limits to authentication, uploads, search, MCP, sync, webhook, and graph-build triggers.
 - Pin dependencies with the lockfile, audit production dependencies, restrict CI permissions, and protect deployment environments.
-- Use CSP, `frame-ancestors`, `X-Content-Type-Options`, `Referrer-Policy`, and appropriate cache headers before public launch.
-- Back up D1 metadata, retain immutable R2 payloads, and test restoration without changing checksums or provenance.
+- Apply CSP, `frame-ancestors`, `X-Content-Type-Options`, strict `Referrer-Policy`/`Permissions-Policy`, frame denial, and production HSTS consistently. Phase 22 adds centralized Worker headers and build-generated Pages headers whose `connect-src` derives from the same exact normalized `VITE_API_URL` used by the browser; Pages builds reject an absent or unsafe origin. Edge behavior remains deployment verification.
+- Back up D1 metadata, retain immutable R2 payloads, and test restoration without changing checksums or provenance. Phase 22 explicitly marks this BLOCKED until isolated deployed resources and a safe procedure exist.
 
 ## Verification requirements
 
@@ -272,4 +272,4 @@ Before each phase proceeds:
 - Payload operations test bounds, integrity failures, and compensation/data-loss cases.
 - Security-sensitive provider behavior is tested against live sandbox resources before production.
 
-Before public launch, complete the dedicated security audit, rotate test credentials, verify no production bucket/database is public, inspect logs for secret leakage, and exercise account removal, role revocation, compromised credential, webhook replay, corrupted object, and partial cross-project failure scenarios.
+The local Phase 22 audit is recorded in [`security-audit.md`](security-audit.md). Its one review, consolidated two-P1 correction, zero-vulnerability dependency audit, and 336-test root gate are complete. It fixes the confirmed High local-code findings and exercises role/membership revocation, compromised/revoked/expired credentials, replay, corrupt artifact/graph/snapshot objects, and partially unauthorized cross-project requests. Webhook replay is N/A because no endpoint exists; complete account deletion is open; backup/restore is BLOCKED. Before public launch, rotate test credentials, verify no production bucket/database is public, inspect logs for secret leakage, and close every external/live gap in that audit.

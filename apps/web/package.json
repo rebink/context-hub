@@ -7,6 +7,6 @@
     "dev": "vite",
     "test": "tsx --test test/**/*.test.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "build": "tsc -p tsconfig.json && vite build"
+    "build": "tsc -p tsconfig.json && tsx scripts/generate-security-headers.ts --validate && vite build && tsx scripts/generate-security-headers.ts"
   }
 }

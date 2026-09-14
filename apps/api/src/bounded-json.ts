@@ -5,9 +5,12 @@ export type BoundedJsonResult =
 export async function readBoundedJsonObject(
   request: Request,
   maxBytes: number,
+  requireJsonContentType = true,
 ): Promise<BoundedJsonResult> {
   const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
-  if (contentType !== "application/json") return { ok: false, error: "UNSUPPORTED_MEDIA_TYPE" };
+  if (requireJsonContentType && contentType !== "application/json") {
+    return { ok: false, error: "UNSUPPORTED_MEDIA_TYPE" };
+  }
   const declared = request.headers.get("content-length");
   if (declared && (!/^\d+$/.test(declared) || Number(declared) > maxBytes)) {
     return { ok: false, error: "PAYLOAD_TOO_LARGE" };

@@ -52,6 +52,8 @@ describe("GitHub AuthProvider contract", () => {
       url: "https://github.com/login/oauth/access_token",
       init: {
         method: "POST",
+        redirect: "error",
+        signal: calls[0]?.init?.signal,
         headers: { accept: "application/json", "content-type": "application/json" },
         body: JSON.stringify({
           client_id: "client-id",
@@ -63,6 +65,8 @@ describe("GitHub AuthProvider contract", () => {
     assert.deepEqual(calls[1], {
       url: "https://api.github.com/user",
       init: {
+        redirect: "error",
+        signal: calls[1]?.init?.signal,
         headers: {
           accept: "application/vnd.github+json",
           authorization: "Bearer transient-secret",
@@ -106,21 +110,106 @@ describe("GitHub AuthProvider contract", () => {
     });
   });
 
-  it("propagates network and malformed JSON failures", async () => {
-    const network = new Error("network failed");
-    const failed = new GithubAuthProvider({ clientId: "id", clientSecret: "secret" }, (async () => {
-      throw network;
-    }) as typeof fetch);
-    await assert.rejects(failed.exchangeCode("code"), network);
+  it("fails closed on network, redirect, media-type, malformed, and oversized responses", async () => {
+    const responses: Array<() => Promise<Response>> = [
+      async () => {
+        throw new Error("network failed with secret detail");
+      },
+      async () => Response.redirect("https://attacker.example", 307),
+      async () => new Response("{}", { headers: { "content-type": "text/plain" } }),
+      async () => new Response("not json", { headers: { "content-type": "application/json" } }),
+      async () =>
+        new Response("{}", {
+          headers: { "content-type": "application/json", "content-length": "65537" },
+        }),
+      async () =>
+        new Response(`{"access_token":"${"x".repeat(65 * 1024)}"}`, {
+          headers: { "content-type": "application/json" },
+        }),
+    ];
+    for (const response of responses) {
+      const provider = new GithubAuthProvider(
+        { clientId: "id", clientSecret: "secret" },
+        response as typeof fetch,
+      );
+      await assert.rejects(provider.exchangeCode("code"), AuthProviderResponseError);
+    }
+  });
 
-    const malformed = new GithubAuthProvider(
+  it("maps token and identity stream failures to one redacted provider error", async () => {
+    const streamFailure = () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(new Error("uncontrolled stream detail with token"));
+          },
+        }),
+        { headers: { "content-type": "application/json" } },
+      );
+
+    for (const failIdentity of [false, true]) {
+      let call = 0;
+      const provider = new GithubAuthProvider(
+        { clientId: "id", clientSecret: "secret" },
+        (async () => {
+          call += 1;
+          if (!failIdentity || call === 2) return streamFailure();
+          return Response.json({ access_token: "transient-secret" });
+        }) as typeof fetch,
+      );
+      await assert.rejects(provider.exchangeCode("code"), (error: unknown) => {
+        assert.ok(error instanceof AuthProviderResponseError);
+        assert.equal(error.message.includes("uncontrolled"), false);
+        assert.equal(error.message.includes("token"), false);
+        return true;
+      });
+    }
+  });
+
+  it("cancels rejected token and identity response bodies", async () => {
+    const pending = (onCancel: () => void, init: ResponseInit) =>
+      new Response(
+        new ReadableStream({
+          pull() {
+            return new Promise(() => undefined);
+          },
+          cancel() {
+            onCancel();
+          },
+        }),
+        init,
+      );
+
+    let tokenCanceled = 0;
+    const rejectedToken = new GithubAuthProvider(
       { clientId: "id", clientSecret: "secret" },
       (async () =>
-        new Response("not json", {
-          headers: { "content-type": "application/json" },
-        })) as typeof fetch,
+        pending(
+          () => {
+            tokenCanceled += 1;
+          },
+          { status: 503 },
+        )) as typeof fetch,
     );
-    await assert.rejects(malformed.exchangeCode("code"), SyntaxError);
+    await assert.rejects(rejectedToken.exchangeCode("code"), AuthProviderResponseError);
+    assert.equal(tokenCanceled, 1);
+
+    let identityCanceled = 0;
+    const replies = [
+      Response.json({ access_token: "transient-secret" }),
+      pending(
+        () => {
+          identityCanceled += 1;
+        },
+        { headers: { "content-type": "text/plain" } },
+      ),
+    ];
+    const rejectedIdentity = new GithubAuthProvider(
+      { clientId: "id", clientSecret: "secret" },
+      (async () => replies.shift() ?? Response.json({})) as typeof fetch,
+    );
+    await assert.rejects(rejectedIdentity.exchangeCode("code"), AuthProviderResponseError);
+    assert.equal(identityCanceled, 1);
   });
 });
 

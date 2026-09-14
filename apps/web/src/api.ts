@@ -1,3 +1,5 @@
+import { normalizeApiOrigin } from "./api-origin.js";
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -10,7 +12,7 @@ export class ApiError extends Error {
   }
 }
 
-const apiUrl = (import.meta.env?.VITE_API_URL ?? "").replace(/\/$/, "");
+const apiUrl = normalizeApiOrigin(import.meta.env?.VITE_API_URL ?? "");
 
 export function loginUrl(): string {
   return `${apiUrl}/auth/github`;

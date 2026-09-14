@@ -2,6 +2,7 @@ import { handleActivityRoute } from "./activity.js";
 import { apiOrigin, callbackUrl } from "./api-origin.js";
 import { handleArtifactRoute } from "./artifacts.js";
 import { type AuthProviderIdentity, AuthProviderResponseError } from "./auth-provider.js";
+import { readBoundedJsonObject } from "./bounded-json.js";
 import { handleContextRoute, handleCrossProjectContextRoute } from "./context-route.js";
 import { corsJsonHeaders } from "./cors.js";
 import {
@@ -129,14 +130,8 @@ function isConflict(value: unknown): boolean {
 }
 
 async function parseObject(request: Request): Promise<Record<string, unknown> | null> {
-  try {
-    const value: unknown = await request.json();
-    return value !== null && typeof value === "object" && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
+  const result = await readBoundedJsonObject(request, 2 * 1024, false);
+  return result.ok ? result.value : null;
 }
 
 function requiredString(body: Record<string, unknown>, key: string, max: number): string | null {
@@ -503,7 +498,27 @@ async function options(
   return new Response(null, { status: 204, headers });
 }
 
-export function createApp(outboundFetch: typeof fetch = fetch) {
+function applySecurityHeaders(response: Response, env: Env): Response {
+  const headers = new Headers(response.headers);
+  headers.set(
+    "content-security-policy",
+    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  );
+  headers.set("permissions-policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  headers.set("referrer-policy", "no-referrer");
+  headers.set("x-content-type-options", "nosniff");
+  headers.set("x-frame-options", "DENY");
+  if (env.APP_ENV === "production") {
+    headers.set("strict-transport-security", "max-age=31536000; includeSubDomains");
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function createRouter(outboundFetch: typeof fetch) {
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
       try {
@@ -824,6 +839,15 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
       } catch {
         return error(request, env, "INTERNAL_ERROR", 500);
       }
+    },
+  };
+}
+
+export function createApp(outboundFetch: typeof fetch = fetch) {
+  const router = createRouter(outboundFetch);
+  return {
+    async fetch(request: Request, env: Env): Promise<Response> {
+      return applySecurityHeaders(await router.fetch(request, env), env);
     },
   };
 }
