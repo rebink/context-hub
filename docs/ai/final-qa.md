@@ -216,3 +216,5 @@ Latest correction evidence (local only):
 ## Validation Boundary
 
 Local commands demonstrate deterministic implementation behavior only. They do not prove external-provider configuration, browser behavior, production performance/cost, recovery, privacy operations or deployment. No deployment, production resource creation, product metrics collection, second review or commit is performed by this correction.
+
+Phase 26 subsequently implements preparation-only runbook, canonical nonsecret manifest, offline preflight, and synthetic tests from checkpoint `dd65ff6`; see [`deployment-evidence.md`](deployment-evidence.md). Its only review, consolidated correction, offline preflight, and 342-test root gate are complete; no live action ran, and none of BLK-001 or BLK-003 through BLK-012 is promoted by preparation evidence.

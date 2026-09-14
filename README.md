@@ -73,35 +73,23 @@ ADMIN-provisioned Phase 14 MCP credentials are injected from an OS secret helper
 
 Create a GitHub OAuth App with its callback URL set to `API_ORIGIN` plus `/auth/github/callback` (`http://localhost:8787/auth/github/callback` locally). The application needs identity only and requests no repository scope.
 
-Make `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` available only to the Worker. For local development, put them in an untracked `apps/api/.dev.vars` file. For production, use Wrangler's secret store or equivalent CI secret bindings; never add either value to `wrangler.toml`, Pages variables, or `VITE_*` variables.
-
-```sh
-cd apps/api
-npx wrangler secret put GITHUB_CLIENT_ID --env production
-npx wrangler secret put GITHUB_CLIENT_SECRET --env production
-```
+`GITHUB_CLIENT_ID` is a nonsecret Worker variable; `GITHUB_CLIENT_SECRET` is a Worker-only encrypted secret. For local development, put values in an untracked `apps/api/.dev.vars` file. Never put a secret value in `wrangler.toml`, Pages variables, a deployment manifest, or any `VITE_*` variable. Production secret mutation commands are labeled but deliberately not run in [`docs/ai/deployment.md`](docs/ai/deployment.md).
 
 ## GitHub repository connection
 
-Repository access uses a separate GitHub App; the identity-only OAuth flow above remains unchanged. Configure the App setup URL as `API_ORIGIN/auth/github-app/setup`, the user authorization callback as `API_ORIGIN/auth/github-app/callback`, and grant only Metadata read and Contents read. Set `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, and `GITHUB_APP_CLIENT_ID` as Worker configuration. Store `GITHUB_APP_CLIENT_SECRET` and `GITHUB_APP_PRIVATE_KEY` only as Worker secrets (standard GitHub App PKCS#1 and PKCS#8 PEM keys are accepted):
-
-```sh
-cd apps/api
-npx wrangler secret put GITHUB_APP_CLIENT_SECRET --env production
-npx wrangler secret put GITHUB_APP_PRIVATE_KEY --env production
-```
+Repository access uses a separate GitHub App; the identity-only OAuth flow above remains unchanged. Configure the App setup URL as `API_ORIGIN/auth/github-app/setup`, the user authorization callback as `API_ORIGIN/auth/github-app/callback`, and grant only Metadata read and Contents read. Set `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, and `GITHUB_APP_CLIENT_ID` as Worker configuration. Store `GITHUB_APP_CLIENT_SECRET` and `GITHUB_APP_PRIVATE_KEY` only as Worker encrypted secrets (standard GitHub App PKCS#1 and PKCS#8 PEM keys are accepted). The deployment manifest contains only these secret names, never values.
 
 The App flow uses short-lived, exact-repository installation tokens. D1 stores the installation reference and hashed one-time state/PKCE verifier only; it never stores user tokens, App JWTs, installation tokens, the client secret, or the private key.
 
 ## Deployment configuration
 
-Configure the `env.production` D1 ID, R2 bucket, exact `WEB_ORIGIN`, and public Worker `API_ORIGIN` in `apps/api/wrangler.toml`, apply all D1 migrations, then deploy with `wrangler deploy --env production`. The API permits credentialed browser requests only from `WEB_ORIGIN`; production cookies are `Secure`, `HttpOnly`, and `SameSite=None` so credentialed requests work when Pages and the Worker are on separate sites. Local non-TLS development uses `SameSite=Lax`.
-
-Cloudflare Pages should build `@context-hub/web` with `npm run build -w @context-hub/web`, publish `apps/web/dist`, and set `VITE_API_URL` to the production Worker origin. OAuth credentials belong only on the Worker and must not be configured in Pages.
+Production deployment is blocked. Use the external canonical manifest and offline `npm run deploy:preflight -- --manifest <path>` described in [`docs/ai/deployment.md`](docs/ai/deployment.md); it retains one digest-verified ignored candidate whose config and exact Worker/Pages bytes are the only later rollout inputs. Do not replace placeholders in checked-in `apps/api/wrangler.toml` or run a live command from this README. The API permits credentialed browser requests only from the exact `WEB_ORIGIN`; production cookies are `Secure`, `HttpOnly`, and `SameSite=None`. Pages exposes only the exact Worker origin through `VITE_API_URL`; OAuth credentials remain Worker-only. Current preparation and unrun live gates are recorded in [`docs/ai/deployment-evidence.md`](docs/ai/deployment-evidence.md).
 
 ## Documentation
 
 - `docs/ai/project-discovery.md`: active stack and phase boundaries.
 - `docs/ai/architecture.md`: runtime, tenancy, and source-of-truth rules.
 - `docs/ai/free-tier-audit.md`: current official quotas, reproducible measurements, route budgets, and external blockers.
+- `docs/ai/deployment.md`: fail-closed production preparation, approvals, manifest, verification, incident, and rollback boundaries.
+- `docs/ai/deployment-evidence.md`: current local preparation evidence and blocked/not-run live gates.
 - `docs/requirements/`: original supplied PRD, architecture, and implementation playbook.

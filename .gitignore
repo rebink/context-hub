@@ -8,6 +8,10 @@ coverage/
 .DS_Store
 *.log
 
+# Production manifests/evidence carry operationally sensitive nonsecret identifiers.
+.deployment/
+deployment-evidence/
+
 # Project documentation is source, even when a user-level ignore hides README files.
 !/README.md
 !/packages/context-pi/README.md

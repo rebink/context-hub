@@ -16,6 +16,11 @@
     "audit:free-tier": "npm run build -w @context-hub/api && npm run build -w @context-hub/web && node scripts/free-tier-audit.mjs",
     "qa:architecture": "tsx scripts/architecture-qa.mts",
     "test:e2e:local": "tsx scripts/e2e-local.ts",
+    "deploy:preflight": "tsx scripts/deploy-preflight.mts",
+    "deploy:preflight:test": "tsx --test scripts/deploy-preflight.test.mts",
+    "deploy:candidate:verify": "tsx scripts/deploy-preflight.mts --verify-candidate",
+    "deploy:gate-receipt": "tsx scripts/gate-receipt.mts",
+    "deploy:schema:check": "tsx scripts/deployment-schema.mts --check",
     "format": "biome check --write .",
     "db:migrate:local": "npm run db:migrate:local -w @context-hub/api",
     "db:migrate:remote": "npm run db:migrate:remote -w @context-hub/api"

@@ -396,14 +396,18 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] The one independent Phase 25 review is complete and its single consolidated P0/P1 correction pass is implemented; no second review was performed.
 - [x] Passed the parent-owned root phase stop gate: deterministic architecture QA digest `3cddb373ad45292a542bcb6a7f94ca618ed543db9af586961c1435a8e4198aec`, local E2E, fresh/staged-through-0020 migration integrity, 342 tests (207 API, 42 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds.
 
-### 26. Production deployment and live verification — `PENDING`
+### 26. Production deployment and live verification — `PREPARATION COMPLETE LOCALLY; LIVE DEPLOYMENT BLOCKED`
 
+- [x] Added the fail-closed runbook, canonical nonsecret manifest contract, offline preflight and mutation-resistant synthetic tests documented in [`deployment.md`](deployment.md) and [`deployment-evidence.md`](deployment-evidence.md). No network, production mutation, deployment, traffic, metrics or recovery action ran.
+- [x] Completed the only independent Phase 26 review and this single consolidated complete nine-P1/two-P2 correction: immutable retained candidate identity, production/test separation, enforced deny-network sandbox, distinct gate receipts, comprehensive secret scanning, hard process deadlines, generated schema/runtime contract, disabled previews, and behavior-level regression coverage. No second review was performed.
+- [x] Passed the parent-owned preparation root gate: schema drift check, 16 offline preflight tests with two real deny-network synthetic candidates, fresh/staged-through-0020 migration integrity, 342 tests (207 API, 42 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds.
 - [ ] Create real production D1 and private R2 resources; apply fresh ordered migrations and verify indexes/backups/restore procedure.
 - [ ] Configure Pages/Worker origins, routes, bindings, production IDs/bucket, exact credentialed CORS, secure cookies, CSP/security headers, caching, rate limits, and redacted observability.
 - [ ] Configure GitHub OAuth callback/credentials, GitHub Actions/machine publication secrets, deployment environment protection, least CI permissions, and credential rotation/revocation.
 - [ ] Deploy Pages and Worker; verify health, browser flows, live OAuth, remote D1/R2 integrity, private object denial, Graphify CI, sync, MCP, Pi, and E2E.
 - [ ] Verify no secrets in source, Pages config, browser bundles, logs, or public buckets; rotate test credentials before launch.
-- [ ] Record live URLs/resource identifiers in secure operational configuration, deployment evidence, rollback, incident, and recovery procedures.
+- [x] Defined secure operational configuration, exact origin/callback derivation, release-evidence fields, and incident/rollback decision trees without fabricating live identifiers. Code rollback is explicitly not D1/R2 rollback; recovery stays blocked pending isolated checksum/provenance rehearsal.
+- [ ] Record real live URLs/resource identifiers and approved policies in external operational configuration and complete deployment evidence.
 - [ ] Run the phase stop gate against the production candidate and stop launch on any failed security/E2E check.
 
 ### 27. Success metrics and launch acceptance — `PENDING`
