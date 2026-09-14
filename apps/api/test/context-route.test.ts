@@ -21,7 +21,11 @@ class Statement {
     return this.db.first(this.sql, this.args) as T | null;
   }
   async all<T>() {
-    return { success: true, results: this.db.all(this.sql), meta: {} } as unknown as D1Result<T>;
+    return {
+      success: true,
+      results: this.db.all(this.sql, this.args),
+      meta: {},
+    } as unknown as D1Result<T>;
   }
 }
 
@@ -68,8 +72,12 @@ class RouteD1 {
     }
     throw new Error(`Unhandled SQL: ${sql}`);
   }
-  all(sql: string) {
-    if (sql.includes("FROM artifacts a JOIN artifact_versions")) {
+  all(sql: string, _args: any[]) {
+    if (
+      sql.includes("FROM artifacts a JOIN artifact_versions") ||
+      sql.includes("FROM git_connections gc") ||
+      sql.includes("FROM graph_versions gv")
+    ) {
       this.domainReads += 1;
       return [];
     }

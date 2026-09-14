@@ -41,16 +41,20 @@ class Statement {
     readonly sql: string,
   ) {}
   bind(...args: unknown[]) {
+    if (args.length > 100) throw new Error("D1 parameter 101");
     this.args = args;
     return this;
   }
   async first<T>() {
+    this.db.consumeQuery?.();
     return this.db.first(this.sql, this.args) as T | null;
   }
   async all<T>() {
+    this.db.consumeQuery?.();
     return { success: true, results: this.db.all(this.sql, this.args), meta: {} } as D1Result<T>;
   }
   async run() {
+    this.db.consumeQuery?.();
     return { success: true, meta: { changes: this.db.run(this.sql, this.args) } } as D1Result;
   }
 }
@@ -64,7 +68,13 @@ class McpD1 {
   activeNonceCount = 0;
   domainReads = 0;
   auditOperations: string[] = [];
+  queryCount = 0;
+  maxQueries = Number.POSITIVE_INFINITY;
   raceAfterDispatch: "REVOKE" | "REMOVE" | "DEACTIVATE" | "REPLACE" | null = null;
+  consumeQuery() {
+    this.queryCount += 1;
+    if (this.queryCount > this.maxQueries) throw new Error("D1 query 51");
+  }
   projects: Project[] = [
     {
       id: "project-one",
@@ -597,7 +607,7 @@ class ToolStatement {
     return this.db.first(this.sql, this.args) as T | null;
   }
   async all<T>() {
-    return { success: true, results: this.db.all(this.sql), meta: {} } as D1Result<T>;
+    return { success: true, results: this.db.all(this.sql, this.args), meta: {} } as D1Result<T>;
   }
 }
 
@@ -670,7 +680,32 @@ class ToolD1 {
     }
     throw new Error(`Unhandled tool first query: ${sql}`);
   }
-  all(sql: string) {
+  all(sql: string, _args: unknown[]) {
+    if (sql.includes("SELECT gc.project_id, gc.provider")) {
+      assert.match(sql, /context_auth_mpo\.operation='search_context'/);
+      return [
+        {
+          project_id: "project-one",
+          provider: "github",
+          provider_repository_id: "repo-one",
+          owner: "acme",
+          repository_name: "one",
+          canonical_url: "github.com/acme/one",
+          default_branch: "main",
+          last_known_commit_sha: "a".repeat(40),
+          status: "VERIFIED",
+          updated_at: "2026-01-01T00:00:00.000Z",
+        },
+      ];
+    }
+    if (sql.includes("context_candidates")) {
+      assert.match(sql, /context_auth_mpo\.operation='search_context'/);
+      return [{ ...this.artifact, project_id: "project-one", candidate_rank: 1 }];
+    }
+    if (sql.includes("context_graphs")) {
+      assert.match(sql, /context_auth_mpo\.operation='search_context'/);
+      return [{ ...this.graph, project_id: "project-one", candidate_rank: 1 }];
+    }
     if (sql.includes("a.current_version AS version")) {
       assert.ok(sql.includes("a.status = 'ACTIVE'"));
       assert.match(sql, /context_auth_mpo\.operation='search_context'/);
@@ -1111,10 +1146,21 @@ describe("universal MCP authorization", () => {
   it("enforces an optional current repository binding", async () => {
     const db = new McpD1();
     db.boundCanonical = "github.com/acme/two";
+    db.maxQueries = 50;
     assert.equal(
       (await call(db, "nonce-bound-correct", "project_info", { projectId: "project-two" })).status,
       200,
     );
+    db.queryCount = 0;
+    assert.equal(
+      (
+        await call(db, "nonce-bound-transport-budget", "project_info", {
+          projectId: "project-two",
+        })
+      ).status,
+      200,
+    );
+    assert.equal(db.queryCount, 8);
     const wrong = await call(db, "nonce-bound-wrong", "project_info", {
       projectId: "project-one",
     });

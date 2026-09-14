@@ -15,16 +15,20 @@ class Statement {
     readonly sql: string,
   ) {}
   bind(...args: any[]) {
+    if (args.length > 100) throw new Error("D1 parameter 101");
     this.args = args;
     return this;
   }
   async first<T>() {
+    this.db.consumeQuery();
     return this.db.first(this.sql, this.args) as T | null;
   }
   async all<T>() {
+    this.db.consumeQuery();
     return { success: true, results: this.db.all(this.sql, this.args), meta: {} } as D1Result<T>;
   }
   async run() {
+    this.db.consumeQuery();
     return {
       success: true,
       meta: { changes: this.db.run(this.sql, this.args) },
@@ -45,10 +49,19 @@ class SnapshotD1 {
   events: Row[] = [];
   failBatch = false;
   failSuccessAudit = false;
+  preparedSql: string[] = [];
+  queryCount = 0;
+  maxQueries = 50;
+  hideIdempotencyOnce = false;
   now = "2026-02-03T04:05:06.007Z";
   beforeManifestReferenceCheck?: (key: string) => void;
 
+  consumeQuery() {
+    this.queryCount += 1;
+    if (this.queryCount > this.maxQueries) throw new Error("D1 query 51");
+  }
   prepare(sql: string) {
+    this.preparedSql.push(sql.replace(/\s+/g, " "));
     return new Statement(this, sql);
   }
   private has(sql: string, value: string) {
@@ -57,6 +70,7 @@ class SnapshotD1 {
   async batch(statements: Statement[]) {
     if (this.failBatch) {
       this.failBatch = false;
+      for (const _statement of statements) this.consumeQuery();
       throw new Error("injected D1 failure");
     }
     const backup = structuredClone({
@@ -104,7 +118,11 @@ class SnapshotD1 {
     }
     if (this.has(sql, "SELECT * FROM context_snapshots WHERE project_id = ? AND id = ?"))
       return this.snapshots.find((row) => row.project_id === args[0] && row.id === args[1]) ?? null;
-    if (this.has(sql, "created_by = ? AND idempotency_key = ?"))
+    if (this.has(sql, "created_by = ? AND idempotency_key = ?")) {
+      if (this.hideIdempotencyOnce) {
+        this.hideIdempotencyOnce = false;
+        return null;
+      }
       return (
         this.snapshots.find(
           (row) =>
@@ -113,6 +131,7 @@ class SnapshotD1 {
             row.idempotency_key === args[2],
         ) ?? null
       );
+    }
     if (this.has(sql, "SELECT gv.* FROM graph_versions gv")) {
       if (!this.graph || this.graph.project_id !== args[0] || this.graph.version !== args[1])
         return null;
@@ -147,6 +166,52 @@ class SnapshotD1 {
     throw new Error(`Unhandled first SQL: ${sql}`);
   }
   all(sql: string, args: any[]): Row[] {
+    if (this.has(sql, "WITH requested(artifact_id,artifact_version) AS")) {
+      const projectId = args.at(-1);
+      const requested = new Map<string, number>();
+      for (let index = 0; index < args.length - 1; index += 2)
+        requested.set(args[index], args[index + 1]);
+      return this.versions
+        .filter((version) => requested.get(version.artifact_id) === version.version)
+        .map((version): Row | null => {
+          const artifact = this.artifacts.find(
+            (row) => row.id === version.artifact_id && row.project_id === projectId,
+          );
+          return artifact
+            ? {
+                ...version,
+                artifact_version: version.version,
+                artifact_type: artifact.type,
+                version_created_by: version.created_by,
+                version_created_at: version.created_at,
+              }
+            : null;
+        })
+        .filter((row): row is Row => row !== null)
+        .sort((a, b) => a.artifact_id.localeCompare(b.artifact_id));
+    }
+    if (this.has(sql, "FROM snapshot_artifacts sa"))
+      return this.refs
+        .filter((row) => row.project_id === args[0] && row.snapshot_id === args[1])
+        .map((ref): Row | null => {
+          const artifact = this.artifacts.find(
+            (row) => row.id === ref.artifact_id && row.project_id === ref.project_id,
+          );
+          const version = this.versions.find(
+            (row) => row.artifact_id === ref.artifact_id && row.version === ref.artifact_version,
+          );
+          return artifact && version
+            ? {
+                ...version,
+                artifact_version: version.version,
+                artifact_type: artifact.type,
+                version_created_by: version.created_by,
+                version_created_at: version.created_at,
+              }
+            : null;
+        })
+        .filter((row): row is Row => row !== null)
+        .sort((a, b) => a.artifact_id.localeCompare(b.artifact_id));
     if (this.has(sql, "FROM snapshot_artifacts"))
       return this.refs
         .filter((row) => row.project_id === args[0] && row.snapshot_id === args[1])
@@ -443,6 +508,37 @@ async function setup() {
   });
 }
 
+async function useTwentyArtifacts() {
+  const template = db.versions[0] as Row;
+  const original = bucket.objects.get(template.storage_key) as {
+    bytes: Uint8Array;
+    httpMetadata: Row;
+    customMetadata: Row;
+  };
+  db.artifacts = db.artifacts.filter((row) => row.project_id !== "p");
+  db.versions = [];
+  for (let index = 0; index < 20; index += 1) {
+    const artifactId = `a${String(index).padStart(2, "0")}`;
+    const storageKey = `projects/p/artifacts/${artifactId}/v/1/content`;
+    db.artifacts.push({ id: artifactId, project_id: "p", type: "architecture", status: "ACTIVE" });
+    db.versions.push({ ...template, artifact_id: artifactId, storage_key: storageKey });
+    bucket.objects.set(storageKey, {
+      bytes: original.bytes.slice(),
+      httpMetadata: { ...original.httpMetadata },
+      customMetadata: { ...original.customMetadata },
+    });
+  }
+}
+
+function twentyArtifactBody() {
+  return createBody({
+    artifacts: Array.from({ length: 20 }, (_, index) => ({
+      artifactId: `a${String(index).padStart(2, "0")}`,
+      version: 1,
+    })),
+  });
+}
+
 function request(
   path: string,
   method = "GET",
@@ -497,6 +593,10 @@ describe("immutable snapshots", () => {
         id,
       );
       assert.equal(inspected.status, 200);
+      assert.equal(
+        db.preparedSql.filter((sql) => sql.includes("FROM snapshot_artifacts sa")).length >= 1,
+        true,
+      );
       const retrieved = await handleSnapshotRoute(
         request(`/projects/p/snapshots/${id}/manifest`),
         { DB: db as any },
@@ -940,6 +1040,23 @@ describe("immutable snapshots", () => {
     assert.equal(first.status, 201);
     assert.equal(replay.status, 200);
     assert.equal(((await replay.json()) as any).idempotent, true);
+    const tooManyReferences = await handleSnapshotRoute(
+      request(
+        "/projects/p/snapshots",
+        "POST",
+        createBody({
+          artifacts: Array.from({ length: 21 }, (_, index) => ({
+            artifactId: `a${index}`,
+            version: 1,
+          })),
+        }),
+      ),
+      env,
+      storage,
+      { id: "admin" },
+      "p",
+    );
+    assert.equal(tooManyReferences.status, 400);
     const oversized = new Request("https://api.example/projects/p/snapshots", {
       method: "POST",
       headers: { origin: "https://web.example", "content-type": "application/json" },
@@ -948,6 +1065,18 @@ describe("immutable snapshots", () => {
     assert.equal(
       (await handleSnapshotRoute(oversized, env, storage, { id: "admin" }, "p")).status,
       413,
+    );
+    assert.equal(
+      (
+        await handleSnapshotRoute(
+          request("/projects/p/snapshots?limit=5"),
+          env,
+          storage,
+          { id: "admin" },
+          "p",
+        )
+      ).status,
+      400,
     );
     assert.equal(
       (
@@ -994,5 +1123,44 @@ describe("immutable snapshots", () => {
       env as any,
     );
     assert.equal(routedCreate.status, 201);
+  });
+
+  it("keeps every routed twenty-artifact create and recovery path below D1 query 51", async () => {
+    const run = async (configure?: () => void) => {
+      await setup();
+      await useTwentyArtifacts();
+      configure?.();
+      const env = { DB: db as any, OBJECTS: bucket as any, WEB_ORIGIN: "https://web.example" };
+      const response = await createApp().fetch(
+        request("/projects/p/snapshots", "POST", twentyArtifactBody(), "https://web.example", true),
+        env as any,
+      );
+      assert.ok(db.queryCount <= 50, `observed ${db.queryCount} D1 queries`);
+      return { response, env, queryCount: db.queryCount };
+    };
+
+    const normal = await run();
+    assert.equal(normal.response.status, 201);
+    assert.equal(normal.queryCount, 28);
+    const collision = await run(() => (bucket.collide = true));
+    assert.equal(collision.response.status, 409);
+    assert.equal(collision.queryCount, 8);
+    const ambiguous = await run(() => (bucket.throwAfterPut = true));
+    assert.equal(ambiguous.response.status, 201);
+    assert.equal(ambiguous.queryCount, 28);
+    const failed = await run(() => (db.failBatch = true));
+    assert.equal(failed.response.status, 500);
+    assert.equal(failed.queryCount, 30);
+
+    const { response: created, env } = await run();
+    assert.equal(created.status, 201);
+    db.queryCount = 0;
+    db.hideIdempotencyOnce = true;
+    const replay = await createApp().fetch(
+      request("/projects/p/snapshots", "POST", twentyArtifactBody(), "https://web.example", true),
+      env as any,
+    );
+    assert.equal(replay.status, 200);
+    assert.equal(db.queryCount, 13);
   });
 });

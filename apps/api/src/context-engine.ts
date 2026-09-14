@@ -17,12 +17,15 @@ import { loadVerifiedReadyGraph } from "./graphs.js";
 import type { ObjectStorage } from "./object-storage.js";
 import { sha256Bytes } from "./security.js";
 
-const MAX_ARTIFACT_CANDIDATES = 24;
+const MAX_ARTIFACT_CANDIDATES = 15;
 const MAX_ARTIFACT_SOURCE_BYTES = 64 * 1024;
 const MAX_GRAPH_SOURCE_BYTES = 512 * 1024;
 const MAX_GRAPH_EVIDENCE = 12;
-const MAX_CROSS_PROJECT_ARTIFACT_CANDIDATES = 40;
-const MAX_CROSS_PROJECT_GRAPH_EVIDENCE = 20;
+// R2 source reads each require an immediate D1 authorization recheck before HEAD
+// and GET. Keep all source objects caller-wide so a 20-project request stays below
+// D1's per-invocation query ceiling after transport auth/audit overhead.
+const MAX_CROSS_PROJECT_ARTIFACT_CANDIDATES = 8;
+const MAX_CROSS_PROJECT_GRAPH_EVIDENCE = 8;
 const DEFAULT_MAX_SOURCES = 40;
 const MAX_SOURCES = 80;
 const MAX_PROJECTS = 20;
@@ -43,6 +46,12 @@ type ArtifactCandidate = {
   byte_size: number;
   source_commit_sha: string | null;
   updated_at: string;
+};
+
+type RankedArtifactCandidate = ArtifactCandidate & {
+  project_id: string;
+  candidate_rank: number;
+  metadata_score: number;
 };
 
 type GitRow = {
@@ -69,6 +78,15 @@ type Retrieval = {
   ranked: Ranked[];
   sourceErrors: ContextSourceError[];
   retrievalTruncated: boolean;
+};
+
+type PreloadedRetrieval = {
+  git: GitRow | null;
+  artifacts: ArtifactCandidate[];
+  omittedArtifacts: ArtifactCandidate[];
+  artifactsTruncated: boolean;
+  graphRow: GraphRow | null;
+  graphTruncated: boolean;
 };
 
 type SearchTermsInput = Pick<ContextQuery, "query" | "domain" | "package">;
@@ -245,7 +263,7 @@ function applyBudget<
       evidence: [] as ContextEvidence[],
       tokenEstimate: 0,
       byteSize: 0,
-      truncated: false,
+      truncated: retrievalTruncated,
       sourceErrors: [...admittedErrors, error],
     });
     if (candidate.byteSize <= budget.maxBytes) admittedErrors.push(error);
@@ -281,8 +299,54 @@ function applyBudget<
   return result;
 }
 
-function allocatedLimit(total: number, projectCount: number, index: number): number {
-  return Math.floor(total / projectCount) + (index < total % projectCount ? 1 : 0);
+function evenlySelect<T>(values: T[], limit: number): T[] {
+  if (values.length <= limit) return values;
+  return Array.from({ length: limit }, (_, index) => {
+    const selected = Math.floor(((index + 0.5) * values.length) / limit);
+    return values[selected] as T;
+  });
+}
+
+export function crossProjectContextSql(projectCount: number, searchTermCount: number) {
+  const projects = Array.from({ length: projectCount }, () => "?").join(",");
+  const searchable = "lower(a.name || ' ' || a.type || ' ' || coalesce(a.description, ''))";
+  const score = searchTermCount
+    ? Array.from(
+        { length: searchTermCount },
+        () => `CASE WHEN instr(${searchable}, ?) > 0 THEN 1 ELSE 0 END`,
+      ).join(" + ")
+    : "0";
+  return {
+    git: `SELECT gc.project_id, gc.provider, gc.provider_repository_id, ri.owner, ri.repository_name,
+                ri.canonical_url, gc.default_branch, gc.last_known_commit_sha, gc.status, gc.updated_at
+         FROM git_connections gc
+         JOIN repository_identities ri ON ri.id=gc.repository_identity_id
+         JOIN project_repositories pr ON pr.project_id=gc.project_id AND pr.repository_identity_id=ri.id
+         WHERE gc.project_id IN (${projects}) AND gc.status='VERIFIED'`,
+    artifacts: `SELECT * FROM (
+          SELECT context_base.*,
+                 ROW_NUMBER() OVER (PARTITION BY project_id ORDER BY metadata_score DESC,
+                   updated_at DESC,id DESC) AS candidate_rank
+          FROM (
+            SELECT a.project_id, a.id, a.type, a.name, a.description,
+                   a.current_version AS version, a.updated_at, av.storage_key, av.checksum,
+                   av.content_type, av.byte_size, av.source_commit_sha, (${score}) AS metadata_score
+            FROM artifacts a JOIN artifact_versions av
+              ON av.artifact_id=a.id AND av.version=a.current_version
+            WHERE a.project_id IN (${projects}) AND a.status='ACTIVE'
+          ) context_base
+        ) context_candidates WHERE 1=1`,
+    graphs: `SELECT * FROM (
+          SELECT gv.*, ROW_NUMBER() OVER (PARTITION BY gv.project_id ORDER BY gv.version DESC) AS candidate_rank
+          FROM graph_versions gv
+          JOIN git_connections gc ON gc.project_id=gv.project_id AND gc.status='VERIFIED'
+            AND gc.provider=gv.repository_provider AND gc.provider_repository_id=gv.provider_repository_id
+          JOIN repository_identities ri ON ri.id=gc.repository_identity_id
+            AND ri.canonical_url=gv.repository_canonical_url
+          JOIN project_repositories pr ON pr.project_id=gv.project_id AND pr.repository_identity_id=ri.id
+          WHERE gv.project_id IN (${projects}) AND gv.status='READY'
+        ) context_graphs WHERE candidate_rank=1`,
+  };
 }
 
 function canonicalProjectIds(projectIds: string[]): string[] {
@@ -317,12 +381,15 @@ export class ContextEngine implements ContextProvider {
     const projectIds = canonicalProjectIds(input.projectIds);
     this.authorization.assertProjectSet(projectIds);
     ensureMinimumFits({ projectIds }, input.budget);
+    const preloaded = await this.preloadMany(input, projectIds);
     const retrievals: Array<{ projectId: string; value: Retrieval }> = [];
-    for (const [index, projectId] of projectIds.entries()) {
+    for (const projectId of projectIds) {
+      const sources = preloaded.get(projectId);
       const value = await this.retrieve(
         { ...input, projectId },
-        allocatedLimit(MAX_CROSS_PROJECT_ARTIFACT_CANDIDATES, projectIds.length, index),
-        allocatedLimit(MAX_CROSS_PROJECT_GRAPH_EVIDENCE, projectIds.length, index),
+        sources?.artifacts.length ?? 0,
+        sources?.graphRow ? MAX_GRAPH_EVIDENCE : 0,
+        sources,
       );
       retrievals.push({ projectId, value });
     }
@@ -340,33 +407,98 @@ export class ContextEngine implements ContextProvider {
     );
   }
 
+  private async preloadMany(
+    input: CrossProjectContextQuery,
+    projectIds: string[],
+  ): Promise<Map<string, PreloadedRetrieval>> {
+    await this.authorization.assertCurrent(this.db);
+    const searchTerms = terms(input);
+    const sql = crossProjectContextSql(projectIds.length, searchTerms.length);
+    const gitRows = await this.authorization
+      .prepare(this.db, sql.git, " ORDER BY gc.project_id", projectIds)
+      .all<GitRow & { project_id: string }>();
+    await this.authorization.assertCurrent(this.db);
+    const artifactRows = await this.authorization
+      .prepare(
+        this.db,
+        sql.artifacts,
+        " ORDER BY metadata_score DESC,candidate_rank,project_id,id LIMIT ?",
+        [...searchTerms, ...projectIds],
+        [MAX_CROSS_PROJECT_ARTIFACT_CANDIDATES + 1],
+      )
+      .all<RankedArtifactCandidate>();
+    await this.authorization.assertCurrent(this.db);
+    const graphRows = await this.authorization
+      .prepare(this.db, sql.graphs, " ORDER BY project_id", projectIds)
+      .all<GraphRow & { project_id: string }>();
+    await this.authorization.assertCurrent(this.db);
+
+    const selectedArtifacts = artifactRows.results.slice(0, MAX_CROSS_PROJECT_ARTIFACT_CANDIDATES);
+    const selectedArtifactProjects = new Set(selectedArtifacts.map((row) => row.project_id));
+    const graphCandidates = [...graphRows.results].sort((left, right) =>
+      left.project_id.localeCompare(right.project_id),
+    );
+    const uncovered = graphCandidates.filter(
+      (row) => !selectedArtifactProjects.has(row.project_id),
+    );
+    const covered = graphCandidates.filter((row) => selectedArtifactProjects.has(row.project_id));
+    const selectedGraphs = evenlySelect(uncovered, MAX_CROSS_PROJECT_GRAPH_EVIDENCE);
+    selectedGraphs.push(
+      ...evenlySelect(covered, MAX_CROSS_PROJECT_GRAPH_EVIDENCE - selectedGraphs.length),
+    );
+    const selectedGraphProjects = new Set(selectedGraphs.map((row) => row.project_id));
+    const artifactsTruncated = artifactRows.results.length > MAX_CROSS_PROJECT_ARTIFACT_CANDIDATES;
+    const graphsTruncated = graphRows.results.length > selectedGraphs.length;
+
+    const result = new Map<string, PreloadedRetrieval>();
+    for (const projectId of projectIds) {
+      result.set(projectId, {
+        git: gitRows.results.find((row) => row.project_id === projectId) ?? null,
+        artifacts: selectedArtifacts.filter((row) => row.project_id === projectId),
+        omittedArtifacts: artifactRows.results
+          .slice(MAX_CROSS_PROJECT_ARTIFACT_CANDIDATES)
+          .filter((row) => row.project_id === projectId),
+        artifactsTruncated,
+        graphRow: selectedGraphProjects.has(projectId)
+          ? (graphCandidates.find((row) => row.project_id === projectId) ?? null)
+          : null,
+        graphTruncated: graphsTruncated && !selectedGraphProjects.has(projectId),
+      });
+    }
+    return result;
+  }
+
   private async retrieve(
     input: ContextQuery,
     artifactLimit: number,
     graphLimit: number,
+    preloaded?: PreloadedRetrieval,
   ): Promise<Retrieval> {
     const searchTerms = terms(input);
     const ranked: Ranked[] = [];
     const sourceErrors: ContextResult["sourceErrors"] = [];
-    let retrievalTruncated = false;
+    let retrievalTruncated = preloaded?.graphTruncated ?? false;
 
-    await this.authorization.assertCurrent(this.db);
-    const git = await this.authorization
-      .prepare(
-        this.db,
-        `SELECT gc.provider, gc.provider_repository_id, ri.owner, ri.repository_name,
-                ri.canonical_url, gc.default_branch, gc.last_known_commit_sha,
-                gc.status, gc.updated_at
-         FROM git_connections gc
-         JOIN repository_identities ri ON ri.id = gc.repository_identity_id
-         JOIN project_repositories pr ON pr.project_id = gc.project_id
-           AND pr.repository_identity_id = ri.id
-         WHERE gc.project_id = ? AND gc.status = 'VERIFIED'`,
-        " LIMIT 1",
-        [input.projectId],
-      )
-      .first<GitRow>();
-    await this.authorization.assertCurrent(this.db);
+    let git = preloaded?.git ?? null;
+    if (!preloaded) {
+      await this.authorization.assertCurrent(this.db);
+      git = await this.authorization
+        .prepare(
+          this.db,
+          `SELECT gc.provider, gc.provider_repository_id, ri.owner, ri.repository_name,
+                  ri.canonical_url, gc.default_branch, gc.last_known_commit_sha,
+                  gc.status, gc.updated_at
+           FROM git_connections gc
+           JOIN repository_identities ri ON ri.id = gc.repository_identity_id
+           JOIN project_repositories pr ON pr.project_id = gc.project_id
+             AND pr.repository_identity_id = ri.id
+           WHERE gc.project_id = ? AND gc.status = 'VERIFIED'`,
+          " LIMIT 1",
+          [input.projectId],
+        )
+        .first<GitRow>();
+      await this.authorization.assertCurrent(this.db);
+    }
     const currentCommit = validCommit(git?.last_known_commit_sha)
       ? git?.last_known_commit_sha
       : null;
@@ -406,25 +538,39 @@ export class ContextEngine implements ContextProvider {
           .map(() => `CASE WHEN instr(${searchableMetadata}, ?) > 0 THEN 1 ELSE 0 END`)
           .join(" + ")
       : "0";
-    await this.authorization.assertCurrent(this.db);
-    const artifacts = await this.authorization
-      .prepare(
-        this.db,
-        `SELECT a.id, a.type, a.name, a.description, a.current_version AS version,
-                a.updated_at, av.storage_key, av.checksum, av.content_type, av.byte_size,
-                av.source_commit_sha
-         FROM artifacts a JOIN artifact_versions av
-           ON av.artifact_id = a.id AND av.version = a.current_version
-         WHERE a.project_id = ? AND a.status = 'ACTIVE'`,
-        ` ORDER BY (${metadataOrdering}) DESC, a.updated_at DESC, a.id DESC LIMIT ?`,
-        [input.projectId],
-        [...searchTerms, artifactLimit + 1],
+    let artifacts = preloaded?.artifacts ?? [];
+    if (!preloaded) {
+      await this.authorization.assertCurrent(this.db);
+      const selected = await this.authorization
+        .prepare(
+          this.db,
+          `SELECT a.id, a.type, a.name, a.description, a.current_version AS version,
+                  a.updated_at, av.storage_key, av.checksum, av.content_type, av.byte_size,
+                  av.source_commit_sha
+           FROM artifacts a JOIN artifact_versions av
+             ON av.artifact_id = a.id AND av.version = a.current_version
+           WHERE a.project_id = ? AND a.status = 'ACTIVE'`,
+          ` ORDER BY (${metadataOrdering}) DESC, a.updated_at DESC, a.id DESC LIMIT ?`,
+          [input.projectId],
+          [...searchTerms, artifactLimit + 1],
+        )
+        .all<ArtifactCandidate>();
+      await this.authorization.assertCurrent(this.db);
+      retrievalTruncated = selected.results.length > artifactLimit;
+      artifacts = selected.results.slice(0, artifactLimit);
+    } else {
+      retrievalTruncated ||= preloaded.artifactsTruncated;
+      if (
+        preloaded.omittedArtifacts.some(
+          (artifact) =>
+            artifact.storage_key !== artifactStorageKey(input.projectId, artifact) ||
+            artifact.byte_size > MAX_ARTIFACT_SOURCE_BYTES,
+        )
       )
-      .all<ArtifactCandidate>();
-    await this.authorization.assertCurrent(this.db);
-    retrievalTruncated = artifacts.results.length > artifactLimit;
+        sourceErrors.push("ARTIFACT_SOURCE_UNAVAILABLE");
+    }
 
-    for (const artifact of artifacts.results.slice(0, artifactLimit)) {
+    for (const artifact of artifacts) {
       const metadata = `${artifact.name} ${artifact.type} ${artifact.description ?? ""}`;
       const metadataScore = matchScore(metadata, searchTerms);
       if (artifact.byte_size > MAX_ARTIFACT_SOURCE_BYTES) {
@@ -506,20 +652,21 @@ export class ContextEngine implements ContextProvider {
       }
     }
 
-    if (git) await this.authorization.assertCurrent(this.db);
-    const graphRow = git
-      ? await this.authorization
-          .prepare(
-            this.db,
-            `SELECT * FROM graph_versions
-             WHERE project_id = ? AND repository_provider = ? AND provider_repository_id = ?
-               AND repository_canonical_url = ? AND status = 'READY'`,
-            " ORDER BY version DESC LIMIT 1",
-            [input.projectId, git.provider, git.provider_repository_id, git.canonical_url],
-          )
-          .first<GraphRow>()
-      : null;
-    if (git) await this.authorization.assertCurrent(this.db);
+    let graphRow = preloaded?.graphRow ?? null;
+    if (!preloaded && git) {
+      await this.authorization.assertCurrent(this.db);
+      graphRow = await this.authorization
+        .prepare(
+          this.db,
+          `SELECT * FROM graph_versions
+           WHERE project_id = ? AND repository_provider = ? AND provider_repository_id = ?
+             AND repository_canonical_url = ? AND status = 'READY'`,
+          " ORDER BY version DESC LIMIT 1",
+          [input.projectId, git.provider, git.provider_repository_id, git.canonical_url],
+        )
+        .first<GraphRow>();
+      await this.authorization.assertCurrent(this.db);
+    }
     if (
       graphRow &&
       (!graphRow.storage_key || graphRow.storage_key !== graphStorageKey(input.projectId, graphRow))
@@ -531,6 +678,8 @@ export class ContextEngine implements ContextProvider {
       graphRow.byte_size > MAX_GRAPH_SOURCE_BYTES
     ) {
       sourceErrors.push("GRAPH_SOURCE_UNAVAILABLE");
+    } else if (graphRow && graphLimit === 0) {
+      retrievalTruncated = true;
     } else if (graphRow && graphRow.byte_size !== null) {
       try {
         const loaded = await loadVerifiedReadyGraph(this.storage, graphRow, async () => {

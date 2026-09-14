@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import { ContextAuthorizationFence } from "../src/context-authorization.js";
 import { ContextBudgetError, ContextEngine } from "../src/context-engine.js";
 import { GRAPH_BUILD_IDENTITY, type GraphRow } from "../src/graphs.js";
+import { createApp } from "../src/index.js";
 import type { ObjectStorage, StoredObjectMetadata } from "../src/object-storage.js";
 import { sha256Bytes } from "../src/security.js";
 
@@ -20,14 +21,17 @@ class ScenarioStatement {
 
   bind(...args: any[]) {
     this.args = args;
+    this.db.maxBoundParameters = Math.max(this.db.maxBoundParameters, args.length);
     return this;
   }
 
   async first<T>() {
+    this.db.consumeQuery();
     return this.db.first(this.sql, this.args) as T | null;
   }
 
   async all<T>() {
+    this.db.consumeQuery();
     return {
       success: true,
       results: this.db.all(this.sql, this.args),
@@ -42,12 +46,30 @@ class ScenarioD1 {
   artifacts: Row[] = [];
   graphs: GraphRow[] = [];
   sourceMetadataReads = 0;
+  queryCount = 0;
+  maxQueries = Number.POSITIVE_INFINITY;
+  maxBoundParameters = 0;
+
+  consumeQuery() {
+    this.queryCount += 1;
+    if (this.queryCount > this.maxQueries) throw new Error("D1 query 51");
+  }
 
   prepare(sql: string) {
     return new ScenarioStatement(this, sql);
   }
 
   first(sql: string, args: any[]): Row | null {
+    if (sql.includes("FROM sessions s JOIN users u"))
+      return {
+        id: "user",
+        session_id: "session",
+        username: "user",
+        display_name: null,
+        avatar_url: null,
+      };
+    if (sql.includes("SELECT COUNT(*) AS authorized_count FROM projects p"))
+      return { authorized_count: args.length - 2 };
     if (sql.includes("SELECT 1 AS authorized")) return { authorized: 1 };
     if (sql.includes("FROM git_connections")) {
       this.sourceMetadataReads += 1;
@@ -94,33 +116,89 @@ class ScenarioD1 {
   }
 
   all(sql: string, args: any[]): Row[] {
+    if (sql.includes("FROM git_connections gc")) {
+      this.sourceMetadataReads += 1;
+      assert.match(sql, /gc\.project_id IN/);
+      assert.match(sql, /context_auth_p/);
+      return this.git.filter(
+        (row) =>
+          row.status === "VERIFIED" &&
+          this.repositoryLinks.some(
+            (link) =>
+              link.project_id === row.project_id &&
+              link.repository_identity_id === row.repository_identity_id,
+          ),
+      );
+    }
+    if (sql.includes("FROM graph_versions gv")) {
+      this.sourceMetadataReads += 1;
+      assert.match(sql, /gv\.project_id IN/);
+      assert.match(sql, /context_auth_p/);
+      return this.graphs
+        .filter((row) => row.status === "READY")
+        .filter((row) => {
+          const git = this.git.find((candidate) => candidate.project_id === row.project_id);
+          return (
+            git &&
+            row.repository_provider === git.provider &&
+            row.provider_repository_id === git.provider_repository_id &&
+            row.repository_canonical_url === git.canonical_url
+          );
+        })
+        .sort(
+          (left, right) =>
+            left.project_id.localeCompare(right.project_id) || right.version - left.version,
+        )
+        .filter(
+          (row, index, rows) => index === 0 || rows[index - 1]?.project_id !== row.project_id,
+        );
+    }
     if (!sql.includes("FROM artifacts a JOIN artifact_versions")) {
       throw new Error(`Unhandled all SQL: ${sql}`);
     }
     this.sourceMetadataReads += 1;
-    assert.match(sql, /a\.project_id = \?/);
-    assert.match(sql, /a\.status = 'ACTIVE'/);
+    assert.match(sql, /a\.status ?= ?'ACTIVE'/);
     assert.match(sql, /context_auth_p/);
-    assert.match(sql, /av\.artifact_id = a\.id AND av\.version = a\.current_version/);
+    assert.match(sql, /av\.artifact_id ?= ?a\.id AND av\.version ?= ?a\.current_version/);
+    const consolidated = sql.includes("a.project_id IN");
     const firstFenceCount = args.findIndex((value) => typeof value === "number");
     const limit = args.at(-1) as number;
-    const searchTerms = args.slice(firstFenceCount + 1, -1) as string[];
+    const firstProjectId = this.git[0]?.project_id ?? this.artifacts[0]?.project_id;
+    const searchTerms = consolidated
+      ? args.slice(0, args.indexOf(firstProjectId))
+      : (args.slice(firstFenceCount + 1, -1) as string[]);
     const score = (row: Row) => {
       const metadata = `${row.name} ${row.type} ${row.description ?? ""}`.toLowerCase();
       return searchTerms.filter((term) => metadata.includes(term)).length;
     };
-    return this.artifacts
+    const selected = this.artifacts
       .filter(
         (row) =>
-          row.project_id === args[0] &&
+          (consolidated || row.project_id === args[0]) &&
           row.status === "ACTIVE" &&
           row.version === row.current_version,
       )
       .sort(
         (left, right) =>
+          left.project_id.localeCompare(right.project_id) ||
           score(right) - score(left) ||
           right.updated_at.localeCompare(left.updated_at) ||
           right.id.localeCompare(left.id),
+      );
+    if (!consolidated) return selected.slice(0, limit);
+    const counts = new Map<string, number>();
+    return selected
+      .map((row): Row & { candidate_rank: number; metadata_score: number } => {
+        const rank = (counts.get(row.project_id) ?? 0) + 1;
+        counts.set(row.project_id, rank);
+        return { ...row, candidate_rank: rank, metadata_score: score(row) };
+      })
+      .sort(
+        (left, right) =>
+          right.metadata_score - left.metadata_score ||
+          left.candidate_rank - right.candidate_rank ||
+          left.project_id.localeCompare(right.project_id) ||
+          left.id.localeCompare(right.id),
       )
       .slice(0, limit);
   }
@@ -928,6 +1006,115 @@ describe("Task D explicit cross-project Context Engine scenarios", () => {
     }
   });
 
+  it("keeps human and MCP twenty-project worst-case D1 query budgets below 50", async () => {
+    const projectIds = Array.from({ length: 20 }, (_, index) => `budget-${index}`);
+    const db = new ScenarioD1();
+    const storage = new ScenarioStorage();
+    for (const [index, projectId] of projectIds.entries()) {
+      db.git.push({
+        project_id: projectId,
+        repository_identity_id: `identity-${index}`,
+        provider: "github",
+        provider_repository_id: `repo-${index}`,
+        owner: "team",
+        repository_name: `repository-${index}`,
+        canonical_url: `github.com/team/repository-${index}`,
+        default_branch: "main",
+        last_known_commit_sha: commit,
+        status: "VERIFIED",
+        updated_at: "2026-03-01T00:00:00.000Z",
+      });
+      db.repositoryLinks.push({
+        project_id: projectId,
+        repository_identity_id: `identity-${index}`,
+      });
+      await addArtifact(db, storage, {
+        id: `artifact-${index}`,
+        project_id: projectId,
+        name: index === 19 ? "term-31 strongest late project" : `candidate ${index}`,
+        content: "bounded source object",
+      });
+      await addGraph(db, storage, projectId, {
+        provider_repository_id: `repo-${index}`,
+        repository_name: `repository-${index}`,
+        repository_canonical_url: `github.com/team/repository-${index}`,
+      });
+    }
+    const input = {
+      projectIds,
+      query: Array.from({ length: 32 }, (_, index) => `term-${index}`).join(" "),
+      budget: { maxTokens: 8_000, maxBytes: 64 * 1024, maxSources: 80 },
+    };
+    const fences = [
+      ContextAuthorizationFence.human(projectIds, "user"),
+      ContextAuthorizationFence.mcp(projectIds, {
+        credentialId: "credential",
+        principalId: "principal",
+        repositoryProvider: "github",
+        providerRepositoryId: "repo-bound",
+        repositoryCanonicalUrl: "github.com/team/bound",
+      }),
+    ];
+    for (const fence of fences) {
+      db.queryCount = 0;
+      db.maxBoundParameters = 0;
+      storage.headCalls.length = 0;
+      storage.getCalls.length = 0;
+      const result = await new ContextEngine(
+        db as unknown as D1Database,
+        storage,
+        fence,
+      ).searchMany(input);
+      assert.equal(storage.headCalls.length, 16);
+      assert.equal(storage.getCalls.length, 16);
+      assert.equal(db.queryCount, 39);
+      assert.ok(storage.headCalls.some((key) => key.includes("artifact-19")));
+      assert.ok(result.evidence.some((item) => item.provenance.projectId === "budget-19"));
+      assert.ok(storage.headCalls.some((key) => /projects\/budget-(?:1[7-9])\/graphs\//.test(key)));
+      assert.ok(db.maxBoundParameters <= 100, String(db.maxBoundParameters));
+    }
+
+    db.queryCount = 0;
+    db.maxQueries = 50;
+    db.maxBoundParameters = 0;
+    const bucket = {
+      head: async (key: string) => {
+        const head = await storage.head(key);
+        return head
+          ? {
+              size: head.byteSize,
+              httpMetadata: { contentType: head.httpContentType },
+              customMetadata: head.metadata,
+            }
+          : null;
+      },
+      get: async (key: string) => {
+        const bytes = await storage.getBytes(key);
+        return bytes
+          ? {
+              arrayBuffer: async () =>
+                bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+            }
+          : null;
+      },
+    };
+    const routed = await createApp().fetch(
+      new Request("https://api.example/context/cross-project/search", {
+        method: "POST",
+        headers: {
+          cookie: "context_hub_session=budget-session",
+          origin: "https://web.example",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(input),
+      }),
+      { DB: db, OBJECTS: bucket, WEB_ORIGIN: "https://web.example" } as any,
+    );
+    assert.equal(routed.status, 200);
+    assert.equal(db.queryCount, 41);
+    assert.ok(db.maxBoundParameters <= 100);
+  });
+
   it("enforces exact complete-shell and source-error byte boundaries for 1, 10, and 20 projects", async () => {
     const ids = (count: number) =>
       Array.from(
@@ -986,7 +1173,7 @@ describe("Task D explicit cross-project Context Engine scenarios", () => {
       assert.deepEqual(tooSmallStorage.headCalls, []);
 
       const errors = await search(projectIds, 64 * 1024, true);
-      assert.equal(errors.result.sourceErrors.length, count);
+      assert.equal(errors.result.sourceErrors.length, Math.min(count, 9));
       const exactErrors = await search(projectIds, errors.result.byteSize, true);
       assert.deepEqual(exactErrors.result, errors.result);
       const boundedErrors = await search(projectIds, errors.result.byteSize - 1, true);

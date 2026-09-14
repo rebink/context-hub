@@ -19,6 +19,10 @@ describe("canonical graph workflow assumptions", () => {
     assert.match(workflow, /permissions:\n\s+contents: read/);
     assert.match(workflow, /runs-on: \[self-hosted, linux, x64\]/);
     assert.match(workflow, /environment: context-hub-graphify/);
+    assert.match(workflow, /timeout-minutes: 30/);
+    assert.match(workflow, /group: graphify-\$\{\{ inputs\.project_id \}\}/);
+    assert.match(workflow, /cancel-in-progress: false/);
+    assert.doesNotMatch(workflow, /group: graphify-.*graph_version/);
     assert.match(workflow, /--only-binary=:all: --require-hashes/);
     assert.doesNotMatch(workflow, /pull_request:|push:|repository_dispatch:|workflow_run:/);
   });

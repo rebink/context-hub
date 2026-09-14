@@ -71,9 +71,11 @@ const SHA = /^[0-9a-f]{40}$/;
 const IDEMPOTENCY = /^[A-Za-z0-9._:-]{1,128}$/;
 const MAX_BODY_BYTES = 32 * 1024;
 const MAX_MANIFEST_BYTES = 64 * 1024;
-const DEFAULT_LIMIT = 25;
-const MAX_LIMIT = 100;
-const MAX_ARTIFACTS = 100;
+const DEFAULT_LIMIT = 4;
+const MAX_LIMIT = 4;
+// Creation writes one D1 batch statement per reference. Twenty keeps the complete
+// success path below both D1's 50-query and the Worker's service-subrequest ceilings.
+const MAX_ARTIFACTS = 20;
 const MANIFEST_CONTENT_TYPE = "application/json";
 
 export const SNAPSHOT_GRAPH_RESPONSE_FIELDS = [
@@ -411,27 +413,14 @@ async function recordAttempt(
     .run();
 }
 
-async function verifiedArtifact(
-  env: SnapshotEnv,
+async function verifiedArtifactObject(
   storage: ObjectStorage,
   projectId: string,
-  requested: { artifactId: string; version: number },
-  allowArchived = false,
+  row: Omit<ArtifactReference, "upload_id">,
 ) {
-  const row = await env.DB.prepare(
-    `SELECT av.artifact_id, av.version AS artifact_version, a.type AS artifact_type, av.storage_key,
-            av.checksum, av.content_type, av.byte_size, av.source_commit_sha, av.change_note,
-            av.created_by AS version_created_by, av.created_at AS version_created_at
-     FROM artifact_versions av JOIN artifacts a ON a.id = av.artifact_id
-     WHERE a.project_id = ? AND av.artifact_id = ? AND av.version = ?
-       AND (? = 1 OR a.status='ACTIVE')`,
-  )
-    .bind(projectId, requested.artifactId, requested.version, allowArchived ? 1 : 0)
-    .first<Omit<ArtifactReference, "upload_id">>();
   if (
-    !row ||
     row.storage_key !==
-      `projects/${projectId}/artifacts/${requested.artifactId}/v/${requested.version}/content`
+    `projects/${projectId}/artifacts/${row.artifact_id}/v/${row.artifact_version}/content`
   )
     return null;
   const head = await storage.head(row.storage_key);
@@ -448,6 +437,56 @@ async function verifiedArtifact(
   if (!bytes || bytes.byteLength !== row.byte_size || (await sha256Bytes(bytes)) !== row.checksum)
     return null;
   return { ...row, upload_id: head.metadata.uploadId };
+}
+
+export function snapshotArtifactReferenceSql(referenceCount: number) {
+  const values = Array.from({ length: referenceCount }, () => "(?,?)").join(",");
+  return `WITH requested(artifact_id,artifact_version) AS (VALUES ${values})
+    SELECT av.artifact_id, av.version AS artifact_version, a.type AS artifact_type, av.storage_key,
+           av.checksum, av.content_type, av.byte_size, av.source_commit_sha, av.change_note,
+           av.created_by AS version_created_by, av.created_at AS version_created_at
+    FROM requested r
+    JOIN artifacts a ON a.id=r.artifact_id AND a.project_id=? AND a.status='ACTIVE'
+    JOIN artifact_versions av ON av.artifact_id=r.artifact_id AND av.version=r.artifact_version
+    ORDER BY av.artifact_id`;
+}
+
+async function verifiedArtifacts(
+  env: SnapshotEnv,
+  storage: ObjectStorage,
+  projectId: string,
+  requested: Array<{ artifactId: string; version: number }>,
+) {
+  if (requested.length === 0) return [];
+  const result = await env.DB.prepare(snapshotArtifactReferenceSql(requested.length))
+    .bind(...requested.flatMap((item) => [item.artifactId, item.version]), projectId)
+    .all<Omit<ArtifactReference, "upload_id">>();
+  if (result.results.length !== requested.length) return null;
+  const verified: ArtifactReference[] = [];
+  for (const [index, item] of requested.entries()) {
+    const row = result.results[index];
+    if (!row || row.artifact_id !== item.artifactId || row.artifact_version !== item.version)
+      return null;
+    const stored = await verifiedArtifactObject(storage, projectId, row);
+    if (!stored) return null;
+    verified.push(stored);
+  }
+  return verified;
+}
+
+async function currentSnapshotArtifacts(env: SnapshotEnv, projectId: string, snapshotId: string) {
+  const result = await env.DB.prepare(
+    `SELECT av.artifact_id, av.version AS artifact_version, a.type AS artifact_type, av.storage_key,
+            av.checksum, av.content_type, av.byte_size, av.source_commit_sha, av.change_note,
+            av.created_by AS version_created_by, av.created_at AS version_created_at
+     FROM snapshot_artifacts sa
+     JOIN artifacts a ON a.id=sa.artifact_id AND a.project_id=sa.project_id
+     JOIN artifact_versions av ON av.artifact_id=sa.artifact_id AND av.version=sa.artifact_version
+     WHERE sa.project_id=? AND sa.snapshot_id=? ORDER BY sa.artifact_id`,
+  )
+    .bind(projectId, snapshotId)
+    .all<Omit<ArtifactReference, "upload_id">>();
+  return result.results;
 }
 
 function exactBytes(left: Uint8Array, right: Uint8Array) {
@@ -652,14 +691,10 @@ async function createSnapshot(
     await recordAttempt(env, projectId, user.id, "REJECTED", "INVALID_GRAPH_REFERENCE");
     return fail(request, env, "INVALID_REFERENCE", 400);
   }
-  const artifacts: ArtifactReference[] = [];
-  for (const requested of parsed.artifacts) {
-    const ref = await verifiedArtifact(env, storage, projectId, requested);
-    if (!ref) {
-      await recordAttempt(env, projectId, user.id, "REJECTED", "INVALID_ARTIFACT_REFERENCE");
-      return fail(request, env, "INVALID_REFERENCE", 400);
-    }
-    artifacts.push(ref);
+  const artifacts = await verifiedArtifacts(env, storage, projectId, parsed.artifacts);
+  if (!artifacts) {
+    await recordAttempt(env, projectId, user.id, "REJECTED", "INVALID_ARTIFACT_REFERENCE");
+    return fail(request, env, "INVALID_REFERENCE", 400);
   }
   const id = crypto.randomUUID();
   const createdAt = await databaseNow(env);
@@ -861,20 +896,16 @@ async function verifySnapshotIntegrity(
       )
       .first<GraphRow>();
     if (!graph || !(await loadVerifiedReadyGraph(storage, graph))) return null;
-    for (const ref of refs) {
-      const current = await verifiedArtifact(
-        env,
-        storage,
-        row.project_id,
-        {
-          artifactId: ref.artifact_id,
-          version: ref.artifact_version,
-        },
-        true,
-      );
+    const currentRefs = await currentSnapshotArtifacts(env, row.project_id, row.id);
+    if (currentRefs.length !== refs.length) return null;
+    for (const [index, ref] of refs.entries()) {
+      const current = currentRefs[index];
+      if (!current) return null;
+      const verified = await verifiedArtifactObject(storage, row.project_id, current);
       if (
-        !current ||
-        JSON.stringify(artifactEvidence(current)) !== JSON.stringify(artifactEvidence(ref))
+        !verified ||
+        JSON.stringify(artifactEvidence(verified)) !== JSON.stringify(artifactEvidence(ref)) ||
+        verified.upload_id !== ref.upload_id
       )
         return null;
     }

@@ -1,6 +1,6 @@
 # Context Hub
 
-A source-backed context control plane for teams and coding agents. The current boundary includes immutable artifacts and snapshots, GitHub identity/repository integration, Graphify publication/exploration, team and audit management, local sync/offline graph cache, the bounded universal MCP endpoint, and the thin Pi package. The management UI now provides URL-backed global/project navigation, directly authorized global Activity, real read-only account/configuration Settings, and all implemented project surfaces. Its independent review/root gate and live browser/accessibility evidence remain pending alongside remote release evidence; see the [implementation status](docs/ai/implementation-status.md), [master plan](docs/ai/master-plan.md), and [architecture](docs/ai/architecture.md).
+A source-backed context control plane for teams and coding agents. The current boundary includes immutable artifacts and snapshots, GitHub identity/repository integration, Graphify publication/exploration, team and audit management, local sync/offline graph cache, the bounded universal MCP endpoint, and the thin Pi package. The management UI provides URL-backed global/project navigation, directly authorized global Activity, real read-only account/configuration Settings, and all implemented project surfaces. Phase 23's local free-tier audit is complete after one independent review, one consolidated four-P1 correction, and the 340-test root gate; live browser/accessibility and remote release evidence remain pending. See the [implementation status](docs/ai/implementation-status.md), [master plan](docs/ai/master-plan.md), [architecture](docs/ai/architecture.md), and [free-tier audit](docs/ai/free-tier-audit.md).
 
 ## Local setup
 
@@ -21,6 +21,7 @@ npm test # migration integrity plus all workspace unit tests
 npm run typecheck
 npm run lint
 npm run build
+npm run audit:free-tier # rebuild and measure local free-tier evidence
 ```
 
 ## Artifact API
@@ -101,4 +102,5 @@ Cloudflare Pages should build `@context-hub/web` with `npm run build -w @context
 
 - `docs/ai/project-discovery.md`: active stack and phase boundaries.
 - `docs/ai/architecture.md`: runtime, tenancy, and source-of-truth rules.
+- `docs/ai/free-tier-audit.md`: current official quotas, reproducible measurements, route budgets, and external blockers.
 - `docs/requirements/`: original supplied PRD, architecture, and implementation playbook.

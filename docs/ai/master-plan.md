@@ -25,7 +25,7 @@ Durable implementation ledger for the PRD, technical architecture, implementatio
 - [x] Context results are relevance-first, deduplicated, explicitly budgeted, bounded, and carry project/source/path/version/commit/checksum provenance where applicable.
 - [x] Sync writes through a temporary path, verifies checksum and source commit, atomically replaces the cache, and preserves the last valid graph on failure.
 - [x] One authenticated provider-neutral MCP endpoint exposes a stable six-tool, read-oriented surface regardless of project count; Phase 15 measures the complete schema as byte-identical for 1, 10, and 100 authorized projects.
-- [x] The Phase 16 Pi client adds no LLM tools or prompt injection, never injects the repository/full graph/all artifacts, and does not duplicate Context Engine or Graphify logic; Phase 17's reviewed quantitative audit now derives and regression-locks that zero-context result, with only its root gate pending.
+- [x] The Phase 16 Pi client adds no LLM tools or prompt injection, never injects the repository/full graph/all artifacts, and does not duplicate Context Engine or Graphify logic; Phase 17's reviewed quantitative audit derives and regression-locks that zero-context result, and its root gate passes.
 - [~] Local-first use continues from Git, manifest, and the verified graph cache when Context Hub is unavailable; artifact/offline context caches remain deferred.
 - [x] The MVP uses minimal dependencies and free/open-source-compatible Pages, Workers, D1, R2, GitHub OAuth, and GitHub Actions architecture; no mandatory paid service.
 
@@ -357,13 +357,16 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [ ] P2 backlog only: broaden representative Worker-header assertions; cancel shared bounded JSON on early media/declared-length rejection.
 - [x] Passed the root phase stop gate: fresh/staged-through-0020 migration integrity plus 336 tests (201 API, 42 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. The dependency audit remains at zero known vulnerabilities across 229 dependencies.
 
-### 23. Free-tier audit (Prompt 23) — `PENDING`
+### 23. Free-tier audit (Prompt 23) — `COMPLETE LOCALLY`
 
-- [ ] Audit current limits/usage for Workers, Pages, D1, R2, and GitHub Actions in `docs/ai/free-tier-audit.md`.
-- [ ] Measure/limit polling, requests, D1 scans/reads/writes, duplicate writes/uploads, R2 storage, graph builds, Actions minutes, cache misses, and orphan growth.
-- [ ] Verify batching, indexes, caching, event-driven sync, commit/content deduplication, immutable object reuse, quotas, and no mandatory paid infrastructure.
-- [ ] Optimize without reducing correctness, isolation, integrity, provenance, or local-first operation.
-- [ ] Run the phase stop gate.
+- [x] Recorded current first-party Workers, Pages, D1, R2, and GitHub Actions limits/access date/caveats plus repository measurements and account/deployment unknowns in [`free-tier-audit.md`](free-tier-audit.md).
+- [x] Added a dependency-free executable audit and regression tests for Worker/web build output, fresh migration schema/size/local plans, workflow triggers/concurrency/timeouts/retention, application limits, no interval polling, bounded retries, graph-build deduplication, and create-only storage evidence.
+- [x] Audited bounded high-cost route models. Reduced snapshots to 20 artifact references/four fully verified list entries, consolidated create metadata into one bounded project-scoped query, and replaced integrity's per-artifact D1 metadata reads with one project/snapshot-predicated join while preserving every R2 HEAD/GET/checksum/schema/provenance check. Consolidated 1-20-project Context metadata into three complete-set-fenced queries, globally ranked artifacts before eight reads, and allocated eight complementary graphs fairly and deterministically under the 16-object cap (15+1 for single-project), preserving every immediate pre-HEAD/pre-GET authorization check.
+- [x] Added 20-minute superseded-run cancellation to quality CI and serialized non-cancelled Graphify publication per project; no unsafe cancellation after object-first upload and no Actions artifact retention were introduced.
+- [x] Verified representative local SQLite plans use project-first indexes; no index was added because no unbounded scan was demonstrated. Remote D1 plans/rows scanned remain external evidence and local SQLite is not claimed equivalent.
+- [x] Recorded 70/85/95 monitoring thresholds, exact deployed billing/analytics requirements, no-cost assumptions, and fixed/open/external findings without claiming repository-enforced zero cost.
+- [x] Completed the one independent review and its consolidated four-P1 correction pass.
+- [x] Passed the root phase stop gate: fresh/staged-through-0020 migration integrity plus 340 tests (205 API, 42 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. External Cloudflare/GitHub usage and plan/visibility, remote D1 plans, and Graphify benchmarks remain blockers.
 
 ### 24. End-to-end verification (Prompt 24) — `PENDING`
 
@@ -444,7 +447,7 @@ All project endpoints inherit authenticate -> resolve -> direct membership -> ro
 - [x] `github_connection_states`, `git_connections`, and `git_audit_events` with hashed expiring connection state, project/provider/repository/default branch/installation reference/known commit/metadata/timestamps, normalized repository identity joins, and project/time audit indexes.
 - [x] `artifacts`, `artifact_versions` with immutable checksummed payload metadata and project/type/version indexes.
 - [x] Migration 0019 extends `projects` with approved mutable settings revision/evidence and `artifacts` with logical archive status/actor/time/reason/revision while preserving immutable `artifact_versions` and active/archive indexes.
-- [x] Generalized immutable `project_audit_events` materialization for required targets/actions with deterministic source identities and project/time plus actor/action indexes; root gate pending.
+- [x] Generalized immutable `project_audit_events` materialization for required targets/actions with deterministic source identities and project/time plus actor/action indexes; its 309-test root gate passes.
 - [~] `graph_versions` and `graph_events` exist with complete build-identity uniqueness, project/version and status/version indexes, one current READY row, lease expiry lookup, constrained lifecycle payloads, and immutable transition events; Phase 9 acceptance additionally requires ADR 0004's additive `graph_build_attempts`, storage-layout marker, selected-publication metadata, and project-first cleanup indexes.
 - [x] `context_snapshots`, `snapshot_artifacts` with project and exact-version constraints/indexes.
 - [x] `sync_states` with project/client uniqueness/index and local/remote Git/graph state.
