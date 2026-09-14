@@ -1,4 +1,5 @@
-import { ContextEngine } from "./context-engine.js";
+import { ContextAuthorizationError, ContextAuthorizationFence } from "./context-authorization.js";
+import { ContextBudgetError, ContextEngine } from "./context-engine.js";
 import { type GraphRow, loadVerifiedReadyGraph, queryGraph } from "./graphs.js";
 import {
   MCP_LIMITS,
@@ -23,7 +24,7 @@ const MAX_ACTIVE_PRINCIPALS = 20;
 const MAX_REQUESTS_PER_MINUTE = 120;
 const MAX_ACTIVE_NONCES = 1_000;
 
-type CredentialIdentity = {
+export type CredentialIdentity = {
   credential_id: string;
   principal_id: string;
   owner_user_id: string;
@@ -248,7 +249,7 @@ async function resolveScope(
     JOIN mcp_principal_projects mpp ON mpp.project_id=p.id AND mpp.principal_id=?
     JOIN project_members pm ON pm.project_id=p.id AND pm.user_id=?
     JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=?
-    WHERE p.status='ACTIVE'${binding}`;
+    WHERE p.status='ACTIVE' AND pm.role IN ('ADMIN','EDITOR','VIEWER')${binding}`;
   const bindings: unknown[] = [
     identity.principal_id,
     identity.owner_user_id,
@@ -355,7 +356,8 @@ async function authorizeDispatch(
           JOIN projects p ON p.id=mpp.project_id AND p.status='ACTIVE'
           JOIN project_members pm ON pm.project_id=p.id AND pm.user_id=mp.owner_user_id
           JOIN workspace_members wm ON wm.workspace_id=p.workspace_id AND wm.user_id=mp.owner_user_id
-          WHERE mpp.principal_id=mp.id AND p.id IN (${placeholders}))=?`;
+          WHERE mpp.principal_id=mp.id AND pm.role IN ('ADMIN','EDITOR','VIEWER')
+            AND p.id IN (${placeholders}))=?`;
   const bindingCheck =
     scopedIds.length === 0 || !identity.repository_provider
       ? ""
@@ -553,6 +555,7 @@ export async function executeMcpTool(
   name: McpToolName,
   args: Record<string, unknown>,
   projects: AuthorizedProject[],
+  identity?: CredentialIdentity,
 ): Promise<unknown> {
   const scopeKeys = ["repository", "projectId", "projectIds"];
   const toolKeys: Record<McpToolName, string[]> = {
@@ -593,33 +596,28 @@ export async function executeMcpTool(
     const packageName = args.package === undefined ? undefined : stringArg(args, "package", 1, 160);
     if ((args.domain !== undefined && !domain) || (args.package !== undefined && !packageName))
       failure("INVALID_ARGUMENTS", 400);
-    if (
-      maxTokens < MCP_LIMITS.searchContext.minTokens * projects.length ||
-      maxBytes < MCP_LIMITS.searchContext.minBytes * projects.length
-    )
-      failure("INVALID_ARGUMENTS", 400);
-    const engine = new ContextEngine(env.DB, storage);
-    const perTokens = Math.floor(maxTokens / projects.length);
-    const perBytes = Math.floor(maxBytes / projects.length);
-    const results = [];
-    for (const project of projects) {
-      results.push(
-        await engine.search({
-          projectId: project.id,
-          query,
-          ...(domain ? { domain } : {}),
-          ...(packageName ? { package: packageName } : {}),
-          budget: { maxTokens: perTokens, maxBytes: perBytes },
-        }),
-      );
+    if (!identity) failure("REQUEST_DENIED", 401);
+    const projectIds = projects.map((project) => project.id);
+    const fence = ContextAuthorizationFence.mcp(projectIds, {
+      credentialId: identity.credential_id,
+      principalId: identity.principal_id,
+      repositoryProvider: identity.repository_provider,
+      providerRepositoryId: identity.provider_repository_id,
+      repositoryCanonicalUrl: identity.repository_canonical_url,
+    });
+    try {
+      return await new ContextEngine(env.DB, storage, fence).searchMany({
+        projectIds,
+        query,
+        ...(domain ? { domain } : {}),
+        ...(packageName ? { package: packageName } : {}),
+        budget: { maxTokens, maxBytes },
+      });
+    } catch (cause) {
+      if (cause instanceof ContextAuthorizationError) failure("PROJECT_NOT_FOUND", 404);
+      if (cause instanceof ContextBudgetError) failure("INVALID_ARGUMENTS", 400);
+      throw cause;
     }
-    return {
-      projects: results,
-      budget: { maxTokens, maxBytes },
-      tokenEstimate: results.reduce((sum, result) => sum + result.tokenEstimate, 0),
-      byteSize: results.reduce((sum, result) => sum + result.byteSize, 0),
-      truncated: results.some((result) => result.truncated),
-    };
   }
   if (name === "get_artifact") {
     return {
@@ -797,7 +795,7 @@ export async function handleMcpRoute(
       }
       const value =
         input.kind === "call-tool"
-          ? await executeMcpTool(env, storage, input.name, input.arguments, projects)
+          ? await executeMcpTool(env, storage, input.name, input.arguments, projects, identity)
           : undefined;
       await auditRequest(env, identity, operation, projects, "SUCCEEDED");
       return { ok: true, value };

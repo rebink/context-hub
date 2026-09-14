@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   type AuthorizedProject,
+  type CredentialIdentity,
   callerWideLimit,
   executeMcpTool,
   handleMcpCredentialRoute,
@@ -12,6 +13,14 @@ import { sha256Bytes } from "../src/security.js";
 
 const CREDENTIAL_ID = "11111111-1111-4111-8111-111111111111";
 const SECRET = "a".repeat(43);
+const TOOL_IDENTITY: CredentialIdentity = {
+  credential_id: CREDENTIAL_ID,
+  principal_id: "principal-one",
+  owner_user_id: "user-one",
+  repository_provider: null,
+  provider_repository_id: null,
+  repository_canonical_url: null,
+};
 
 type Project = {
   id: string;
@@ -55,6 +64,7 @@ class McpD1 {
   activeNonceCount = 0;
   domainReads = 0;
   auditOperations: string[] = [];
+  raceAfterDispatch: "REVOKE" | "REMOVE" | "DEACTIVATE" | "REPLACE" | null = null;
   projects: Project[] = [
     {
       id: "project-one",
@@ -162,11 +172,37 @@ class McpD1 {
           (!this.boundCanonical || project.repositoryCurrent)
         );
       });
-      return this.credentialStatus === "ACTIVE" &&
+      const accepted =
+        this.credentialStatus === "ACTIVE" &&
         (operation.match(/^[A-Z_]+$/) || this.allowed.has(operation)) &&
-        authorized
-        ? { id: CREDENTIAL_ID }
-        : null;
+        authorized;
+      if (accepted && operation === "search_context" && this.raceAfterDispatch) {
+        const raced = this.projects.find((project) => project.id === "project-two");
+        if (this.raceAfterDispatch === "REVOKE") this.credentialStatus = "REVOKED";
+        else if (raced && this.raceAfterDispatch === "REMOVE") raced.directMember = false;
+        else if (raced && this.raceAfterDispatch === "DEACTIVATE") raced.active = false;
+        else if (raced && this.raceAfterDispatch === "REPLACE") raced.repositoryCurrent = false;
+        this.raceAfterDispatch = null;
+      }
+      return accepted ? { id: CREDENTIAL_ID } : null;
+    }
+    if (sql.includes("SELECT 1 AS authorized")) {
+      assert.match(sql, /context_auth_mpo\.operation='search_context'/);
+      assert.match(sql, /context_auth_mc\.revoked_at IS NULL/);
+      const requested = args.filter(
+        (arg) => typeof arg === "string" && arg.startsWith("project-"),
+      ) as string[];
+      const authorized = requested.every((id) => {
+        const project = this.projects.find((candidate) => candidate.id === id);
+        return (
+          project?.principalScoped &&
+          project.active &&
+          project.directMember &&
+          project.workspaceMember &&
+          (!this.boundCanonical || project.repositoryCurrent)
+        );
+      });
+      return this.credentialStatus === "ACTIVE" && authorized ? { authorized: 1 } : null;
     }
     if (sql.includes("SELECT p.id,p.workspace_id,p.name")) {
       this.domainReads += 1;
@@ -229,14 +265,17 @@ class McpD1 {
   }
 }
 
+let mcpStorageReads = 0;
 const storage: ObjectStorage = {
   async createOnly() {
     return "collision";
   },
   async head() {
+    mcpStorageReads += 1;
     return null;
   },
   async getBytes() {
+    mcpStorageReads += 1;
     return null;
   },
   async compensationDelete() {},
@@ -571,6 +610,12 @@ class ToolD1 {
     return new ToolStatement(this, sql);
   }
   first(sql: string, args: unknown[]) {
+    if (sql.includes("SELECT 1 AS authorized")) {
+      assert.match(sql, /context_auth_mpo\.operation='search_context'/);
+      assert.match(sql, /context_auth_mc\.revoked_at IS NULL/);
+      assert.match(sql, /context_auth_pm\.role IN/);
+      return { authorized: 1 };
+    }
     if (sql.includes("SELECT p.id,p.workspace_id,p.name")) {
       assert.ok(sql.includes("gc.status='VERIFIED'"));
       assert.ok(sql.includes("EXISTS (SELECT 1 FROM project_repositories current_pr"));
@@ -605,7 +650,8 @@ class ToolD1 {
       assert.ok(sql.includes("gv.project_id=?"));
       return this.graph;
     }
-    if (sql.includes("SELECT gc.provider, gc.provider_repository_id"))
+    if (sql.includes("SELECT gc.provider, gc.provider_repository_id")) {
+      assert.match(sql, /context_auth_mpo\.operation='search_context'/);
       return {
         provider: "github",
         provider_repository_id: "repo-one",
@@ -617,12 +663,17 @@ class ToolD1 {
         status: "VERIFIED",
         updated_at: "2026-01-01T00:00:00.000Z",
       };
-    if (sql.includes("SELECT * FROM graph_versions")) return this.graph;
+    }
+    if (sql.includes("SELECT * FROM graph_versions")) {
+      assert.match(sql, /context_auth_mpo\.operation='search_context'/);
+      return this.graph;
+    }
     throw new Error(`Unhandled tool first query: ${sql}`);
   }
   all(sql: string) {
     if (sql.includes("a.current_version AS version")) {
       assert.ok(sql.includes("a.status = 'ACTIVE'"));
+      assert.match(sql, /context_auth_mpo\.operation='search_context'/);
       assert.ok(sql.includes("av.version = a.current_version"));
       return [this.artifact];
     }
@@ -812,7 +863,14 @@ describe("MCP six-tool domain contract", () => {
       ["sync_status", { projectId: "project-one" }],
     ] as const;
     for (const [name, args] of calls) {
-      const result = await executeMcpTool(env, storage, name, args, [project]);
+      const result = await executeMcpTool(
+        env,
+        storage,
+        name,
+        args,
+        [project],
+        name === "search_context" ? TOOL_IDENTITY : undefined,
+      );
       const encoded = JSON.stringify(result);
       assert.ok(encoded.length < 128 * 1024);
       assert.match(encoded, /project-one/);
@@ -988,6 +1046,30 @@ describe("universal MCP authorization", () => {
     assert.equal(denied.status, 404);
     assert.equal(await errorMessage(denied), "PROJECT_NOT_FOUND");
     assert.equal(db.domainReads, 0);
+  });
+
+  it("fails MCP credential, membership, active-project, and repository races before source reads", async () => {
+    for (const race of ["REVOKE", "REMOVE", "DEACTIVATE", "REPLACE"] as const) {
+      const db = new McpD1();
+      db.allowed.add("search_context");
+      db.raceAfterDispatch = race;
+      const selector =
+        race === "REPLACE"
+          ? { projectId: "project-two" }
+          : { projectIds: ["project-one", "project-two"] };
+      if (race === "REPLACE") db.boundCanonical = "github.com/acme/two";
+      mcpStorageReads = 0;
+      const denied = await call(db, `nonce-search-race-${race.toLowerCase()}`, "search_context", {
+        ...selector,
+        query: "refund identity",
+        maxTokens: 500,
+        maxBytes: 4_000,
+      });
+      assert.equal(denied.status, 404);
+      assert.equal(await errorMessage(denied), "PROJECT_NOT_FOUND");
+      assert.equal(db.domainReads, 0);
+      assert.equal(mcpStorageReads, 0);
+    }
   });
 
   it("rejects replay, expired/revoked credentials, wrong projects, and human cookies", async () => {

@@ -321,14 +321,16 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Passed the root phase stop gate: fresh/staged-through-0020 migration integrity plus 309 tests (184 API, 32 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. Remote D1 and live browser/accessibility evidence remain external.
 - **P2 backlog (non-blocking):** retain Phase 20A's method-branch and browser/focus items; make route-specific Activity `OPTIONS` advertise only its GET-only surface; generation-fence Activity loads or disable the complete filter form while loading; add broader router/auth/exact-preflight and per-required-event-class migration coverage.
 
-### D. Explicit cross-project context (Task D) — `PENDING`
+### D. Explicit cross-project context (Task D) — `COMPLETE LOCALLY`
 
-- [ ] Pass the architecture-decision gate with an accepted ADR for explicit scope semantics, all-or-nothing authorization, ranking/deduplication, cache separation, and nonleaking failure behavior.
-- [ ] Accept explicit authorized project IDs, query, and one overall token/size budget.
-- [ ] Authenticate and independently authorize every project before reading any source; fail all when one is unauthorized without identifying the inaccessible project.
-- [ ] Query each project's artifacts/graphs/Git/maps, preserve project provenance, deduplicate, rank, and apply one overall budget.
-- [ ] Test Payments-only and Identity-only isolation, authorized Payments+Identity, denied Payments+Mobile with zero Mobile leakage, cache namespace separation, and stable MCP tools.
-- [ ] Run the phase stop gate.
+- [x] Accepted ADR 0008 for explicit canonical scope, all-or-nothing caller authorization, global ranking/provenance-safe deduplication, one response budget, zero current cache state, stable MCP transport, bounded corruption, and nonleaking failure behavior.
+- [x] Extended the one Context Engine seam for an explicit one-to-twenty-project set, query/domain/package, and one overall token/byte/source budget while preserving the existing single-project API.
+- [x] Added the human-session `POST /context/cross-project/search`; it validates before one complete-set active-project/current direct-member/current workspace-member authorization check and starts no Context Engine/domain/R2 read on mismatch. MCP retains its scoped-principal/repository checks and invokes the multi-project engine once.
+- [x] Query each authorized project's active current artifacts, verified current Git/repository-matched graph, and built-in guidance under caller-wide retrieval caps; rank globally with deterministic fair ties, retain distinct project provenance, deduplicate exact same-project excerpts, and apply one serialized response budget.
+- [x] Added executable Payments/Identity/Mobile isolation, relevance/fairness/dedup/budget/order, archived/freshness/provenance/corruption, 1/10/20, route race/bounds/CORS/nonleakage, all-before-read, six-tool schema/digest, and zero-cache-surface evidence.
+- [x] Completed the one independent Task D review and fixed its complete two-item P1 set in one consolidated writer pass without a second review: opaque caller-built authorization fences now guard every source metadata SELECT and every R2 read against current human/MCP complete-set authority, and exact complete-shell byte accounting now rejects impossible budgets and bounds admitted source errors.
+- [x] Passed the root phase stop gate: fresh/staged-through-0020 migration integrity plus 318 tests (193 API, 32 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. Remote D1/R2 and twenty-project performance evidence remain external.
+- **P2 backlog (non-blocking):** reconcile ADR deduplication wording with boundary duplicate rejection; add route-specific `405 Allow: POST` and narrow global preflight behavior; broaden race/R2/minimum-budget coverage beyond the consolidated P1 fixes.
 
 ### Management UI completion — `PENDING`
 
@@ -426,7 +428,7 @@ All project endpoints inherit authenticate -> resolve -> direct membership -> ro
 - [ ] Bounded `GET /activity` aggregate over directly authorized projects only, with pagination/time bounds and nonleaking isolation.
 - [ ] `GET /settings` (or documented account route) for real account/session and authorized connection/configuration overview; no fabricated values or project mutation.
 - [ ] `GET/POST /mcp` universal authenticated transport.
-- [ ] `POST /context/cross-project/search` with independent all-project authorization.
+- [x] `POST /context/cross-project/search` with independent active/current direct-member/current workspace-member authorization for the complete explicit set before source reads.
 - [ ] Local sync/graph publication machine endpoints required by the researched Graphify/CI protocol, with scoped credentials and replay protection.
 
 ## Required data model and index ledger

@@ -77,7 +77,7 @@ The current code-enforced limits come directly from the one deeply frozen produc
 | `query_graph` records | 25 total across selected projects |
 | `get_sources` records | 50 total across selected projects |
 
-`search_context` divides one caller-provided token and byte budget across all authorized projects. Graph and source limits are also caller-wide, and artifact content divides one 48 KiB allocation across projects. Every encoded transport response is then fail-closed at 128 KiB; a larger serialization is replaced by the small `RESPONSE_TOO_LARGE` error rather than sent to the model.
+`search_context` invokes the one multi-project Context Engine with one caller-provided token and byte budget across all authorized projects. Candidates are ranked globally and one fixed overall source cap applies; graph/source limits and artifact retrieval work also remain caller-wide. Every encoded transport response is then fail-closed at 128 KiB; a larger serialization is replaced by the small `RESPONSE_TOO_LARGE` error rather than sent to the model. Task D does not change any MCP schema/tool-list bytes or this audit's locked digest.
 
 A conservative one-call model-context ceiling is the complete stable schema plus the maximum accepted response envelope:
 

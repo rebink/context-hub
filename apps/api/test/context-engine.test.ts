@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { classifyArtifactFreshness } from "../src/artifact-freshness.js";
+import { ContextAuthorizationFence } from "../src/context-authorization.js";
 import { ContextEngine } from "../src/context-engine.js";
 import type { ContextProvider } from "../src/context-provider.js";
 import { GRAPH_BUILD_IDENTITY } from "../src/graphs.js";
@@ -36,6 +37,7 @@ class ContextD1 {
     return new Statement(this, sql);
   }
   first(sql: string, args: any[]): Row | null {
+    if (sql.includes("SELECT 1 AS authorized")) return { authorized: 1 };
     if (sql.includes("FROM git_connections"))
       return this.git?.project_id === args[0] ? this.git : null;
     if (sql.includes("FROM graph_versions"))
@@ -49,8 +51,10 @@ class ContextD1 {
   }
   all(sql: string, args: any[]): Row[] {
     if (sql.includes("FROM artifacts a JOIN artifact_versions")) {
+      assert.match(sql, /context_auth_p/);
+      const firstFenceCount = args.findIndex((value) => typeof value === "number");
       const limit = args.at(-1) as number;
-      const searchTerms = args.slice(1, -1) as string[];
+      const searchTerms = args.slice(firstFenceCount + 1, -1) as string[];
       return this.artifacts
         .filter((row) => row.project_id === args[0] && row.status === "ACTIVE")
         .sort((left, right) => {
@@ -230,7 +234,11 @@ function setup() {
     status: "VERIFIED",
     updated_at: "2026-01-01T00:00:00.000Z",
   };
-  const provider: ContextProvider = new ContextEngine(db as unknown as D1Database, storage);
+  const provider: ContextProvider = new ContextEngine(
+    db as unknown as D1Database,
+    storage,
+    ContextAuthorizationFence.human(["p"], "user"),
+  );
   return { db, storage, provider };
 }
 
@@ -447,7 +455,11 @@ describe("ContextProvider contract", () => {
     const db = new ContextD1();
     const storage = new MemoryStorage();
     const archived = await putArtifact(db, storage, { status: "ARCHIVED" });
-    const provider = new ContextEngine(db as unknown as D1Database, storage);
+    const provider = new ContextEngine(
+      db as unknown as D1Database,
+      storage,
+      ContextAuthorizationFence.human(["p"], "user"),
+    );
     const result = await provider.search({ ...input, query: "refund architecture" });
     assert.equal(
       result.evidence.some((item) => item.kind === "ARTIFACT"),
@@ -461,7 +473,11 @@ describe("ContextProvider contract", () => {
     await putArtifact(db, storage, { id: "private-p", project_id: "p" });
     await putArtifact(db, storage, { id: "private-q", project_id: "q" });
     const first = await provider.search(input);
-    const second = await provider.search({ ...input, projectId: "q" });
+    const second = await new ContextEngine(
+      db as unknown as D1Database,
+      storage,
+      ContextAuthorizationFence.human(["q"], "user"),
+    ).search({ ...input, projectId: "q" });
     assert.equal(
       first.evidence.some((item) => item.provenance.path === "artifacts/private-q"),
       false,

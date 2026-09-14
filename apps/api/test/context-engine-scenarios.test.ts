@@ -1,7 +1,8 @@
 /* biome-ignore-all lint/suspicious/noExplicitAny: The fake models Cloudflare bindings structurally. */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ContextEngine } from "../src/context-engine.js";
+import { ContextAuthorizationFence } from "../src/context-authorization.js";
+import { ContextBudgetError, ContextEngine } from "../src/context-engine.js";
 import { GRAPH_BUILD_IDENTITY, type GraphRow } from "../src/graphs.js";
 import type { ObjectStorage, StoredObjectMetadata } from "../src/object-storage.js";
 import { sha256Bytes } from "../src/security.js";
@@ -40,13 +41,17 @@ class ScenarioD1 {
   repositoryLinks: Row[] = [];
   artifacts: Row[] = [];
   graphs: GraphRow[] = [];
+  sourceMetadataReads = 0;
 
   prepare(sql: string) {
     return new ScenarioStatement(this, sql);
   }
 
   first(sql: string, args: any[]): Row | null {
+    if (sql.includes("SELECT 1 AS authorized")) return { authorized: 1 };
     if (sql.includes("FROM git_connections")) {
+      this.sourceMetadataReads += 1;
+      assert.match(sql, /context_auth_p/);
       assert.match(sql, /gc\.project_id = \?/);
       assert.match(sql, /gc\.status = 'VERIFIED'/);
       assert.match(sql, /pr\.project_id = gc\.project_id/);
@@ -64,6 +69,8 @@ class ScenarioD1 {
       );
     }
     if (sql.includes("FROM graph_versions")) {
+      this.sourceMetadataReads += 1;
+      assert.match(sql, /context_auth_p/);
       assert.match(sql, /project_id = \?/);
       assert.match(sql, /repository_provider = \?/);
       assert.match(sql, /provider_repository_id = \?/);
@@ -90,11 +97,14 @@ class ScenarioD1 {
     if (!sql.includes("FROM artifacts a JOIN artifact_versions")) {
       throw new Error(`Unhandled all SQL: ${sql}`);
     }
+    this.sourceMetadataReads += 1;
     assert.match(sql, /a\.project_id = \?/);
     assert.match(sql, /a\.status = 'ACTIVE'/);
+    assert.match(sql, /context_auth_p/);
     assert.match(sql, /av\.artifact_id = a\.id AND av\.version = a\.current_version/);
+    const firstFenceCount = args.findIndex((value) => typeof value === "number");
     const limit = args.at(-1) as number;
-    const searchTerms = args.slice(1, -1) as string[];
+    const searchTerms = args.slice(firstFenceCount + 1, -1) as string[];
     const score = (row: Row) => {
       const metadata = `${row.name} ${row.type} ${row.description ?? ""}`.toLowerCase();
       return searchTerms.filter((term) => metadata.includes(term)).length;
@@ -178,7 +188,11 @@ function setup() {
   return {
     db,
     storage,
-    engine: new ContextEngine(db as unknown as D1Database, storage),
+    engine: new ContextEngine(
+      db as unknown as D1Database,
+      storage,
+      ContextAuthorizationFence.human(["p"], "user"),
+    ),
   };
 }
 
@@ -663,7 +677,6 @@ describe("Phase 13 Context Engine acceptance scenarios", () => {
       { projectId: "p", id: "bad/id", version: 1 },
       { projectId: "p", id: "valid", version: 0 },
       { projectId: "p", id: "valid", version: 1.5 },
-      { projectId: "bad/project", id: "valid", version: 1 },
     ];
     for (const item of cases) {
       const { db, storage, engine } = setup();
@@ -748,6 +761,256 @@ describe("Phase 13 Context Engine acceptance scenarios", () => {
       "ARTIFACT_SOURCE_UNAVAILABLE",
       "GRAPH_SOURCE_UNAVAILABLE",
     ]);
+    assert.deepEqual(storage.headCalls, []);
+    assert.deepEqual(storage.getCalls, []);
+  });
+});
+
+// Task D scenarios retain the SQL/order-aware and HEAD-before-get Phase 13 fakes.
+describe("Task D explicit cross-project Context Engine scenarios", () => {
+  it("globally ranks Payments and Identity fairly, preserves provenance, and is order deterministic", async () => {
+    const { db, storage } = setup();
+    const engine = new ContextEngine(
+      db as unknown as D1Database,
+      storage,
+      ContextAuthorizationFence.human(["identity", "p"], "user"),
+    );
+    db.git.push({
+      project_id: "identity",
+      repository_identity_id: "identity-repository",
+      provider: "github",
+      provider_repository_id: "repo-identity",
+      owner: "team",
+      repository_name: "identity",
+      canonical_url: "github.com/team/identity",
+      default_branch: "main",
+      last_known_commit_sha: commit,
+      status: "VERIFIED",
+      updated_at: "2026-03-01T00:00:00.000Z",
+    });
+    db.repositoryLinks.push({
+      project_id: "identity",
+      repository_identity_id: "identity-repository",
+    });
+    const shared = "# Refund identity\nRefund identity handoff uses a signed request.";
+    await addArtifact(db, storage, { id: "payments-contract", content: shared });
+    await addArtifact(db, storage, { id: "payments-duplicate", content: shared });
+    await addArtifact(db, storage, {
+      id: "payments-case-distinct",
+      content: shared.replace("signed", "Signed"),
+    });
+    await addArtifact(db, storage, {
+      id: "identity-contract",
+      project_id: "identity",
+      content: shared,
+    });
+    await addArtifact(db, storage, {
+      id: "mobile-secret",
+      project_id: "mobile",
+      content: "# Refund identity\nMobile secret implementation detail.",
+    });
+
+    const paymentsOnly = await new ContextEngine(
+      db as unknown as D1Database,
+      storage,
+      ContextAuthorizationFence.human(["p"], "user"),
+    ).searchMany({
+      projectIds: ["p"],
+      query: "refund identity handoff",
+      budget: { maxTokens: 2_000, maxBytes: 12_000 },
+    });
+    const identityOnly = await new ContextEngine(
+      db as unknown as D1Database,
+      storage,
+      ContextAuthorizationFence.human(["identity"], "user"),
+    ).searchMany({
+      projectIds: ["identity"],
+      query: "refund identity handoff",
+      budget: { maxTokens: 2_000, maxBytes: 12_000 },
+    });
+    assert.deepEqual(
+      new Set(paymentsOnly.evidence.map((item) => item.provenance.projectId)),
+      new Set(["p"]),
+    );
+    assert.deepEqual(
+      new Set(identityOnly.evidence.map((item) => item.provenance.projectId)),
+      new Set(["identity"]),
+    );
+    assert.equal(paymentsOnly.evidence.filter((item) => item.excerpt === shared).length, 1);
+    assert.equal(
+      paymentsOnly.evidence.some((item) => item.excerpt === shared.replace("signed", "Signed")),
+      true,
+    );
+
+    const request = {
+      projectIds: ["p", "identity"],
+      query: "refund identity handoff",
+      budget: { maxTokens: 2_000, maxBytes: 12_000, maxSources: 2 },
+    };
+    const first = await engine.searchMany(request);
+    const reversed = await engine.searchMany({
+      ...request,
+      projectIds: [...request.projectIds].reverse(),
+    });
+
+    assert.deepEqual(first, reversed);
+    assert.deepEqual(first.projectIds, ["identity", "p"]);
+    assert.equal(first.evidence.length, 2);
+    assert.deepEqual(
+      new Set(first.evidence.map((item) => item.provenance.projectId)),
+      new Set(["identity", "p"]),
+    );
+    assert.equal(
+      first.evidence.some((item) => item.provenance.projectId === "mobile"),
+      false,
+    );
+    assert.equal(first.truncated, true);
+    assert.ok(first.tokenEstimate <= request.budget.maxTokens);
+    assert.ok(first.byteSize <= request.budget.maxBytes);
+  });
+
+  it("keeps authorized corruption bounded and project-provenance-safe", async () => {
+    const { db, storage } = setup();
+    const engine = new ContextEngine(
+      db as unknown as D1Database,
+      storage,
+      ContextAuthorizationFence.human(["identity", "p"], "user"),
+    );
+    const corrupt = await addArtifact(db, storage, {
+      id: "identity-corrupt",
+      project_id: "identity",
+      content: "Identity refund corruption evidence.",
+    });
+    const object = storage.objects.get(corrupt.key);
+    assert.ok(object);
+    object.bytes = encoder.encode("tampered");
+
+    const result = await engine.searchMany({
+      projectIds: ["identity", "p"],
+      query: "identity refund",
+      budget: { maxTokens: 1_000, maxBytes: 8_000 },
+    });
+    assert.deepEqual(result.sourceErrors, [
+      { projectId: "identity", error: "ARTIFACT_SOURCE_UNAVAILABLE" },
+    ]);
+    assert.equal(
+      result.evidence.some((item) => item.provenance.path === "artifacts/identity-corrupt"),
+      false,
+    );
+  });
+
+  it("supports canonical 1, 10, and 20 project sets with zero cache-state surface", async () => {
+    const db = new ScenarioD1();
+    const storage = new ScenarioStorage();
+    for (const count of [1, 10, 20]) {
+      const projectIds = Array.from({ length: count }, (_, index) => `project-${index}`);
+      const engine = new ContextEngine(
+        db as unknown as D1Database,
+        storage,
+        ContextAuthorizationFence.human(projectIds, "user"),
+      );
+      const beforeHeads = storage.headCalls.length;
+      const first = await engine.searchMany({
+        projectIds,
+        query: "immutable project payload",
+        budget: { maxTokens: 8_000, maxBytes: 64 * 1024, maxSources: 40 },
+      });
+      const second = await engine.searchMany({
+        projectIds: [...projectIds].reverse(),
+        query: "immutable project payload",
+        budget: { maxTokens: 8_000, maxBytes: 64 * 1024, maxSources: 40 },
+      });
+      assert.deepEqual(first, second);
+      assert.equal(first.projectIds.length, count);
+      assert.equal(first.evidence.length, count);
+      assert.equal(storage.headCalls.length, beforeHeads);
+      assert.equal("cache" in first, false);
+    }
+  });
+
+  it("enforces exact complete-shell and source-error byte boundaries for 1, 10, and 20 projects", async () => {
+    const ids = (count: number) =>
+      Array.from(
+        { length: count },
+        (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      );
+    const search = async (projectIds: string[], maxBytes: number, errors: boolean) => {
+      const db = new ScenarioD1();
+      const storage = new ScenarioStorage();
+      if (errors) {
+        for (const [index, projectId] of projectIds.entries()) {
+          await addArtifact(db, storage, {
+            id: `broken-${index}`,
+            project_id: projectId,
+            storage_key: "invalid-key",
+            content: "refund boundary",
+          });
+        }
+      }
+      const engine = new ContextEngine(
+        db as unknown as D1Database,
+        storage,
+        ContextAuthorizationFence.human(projectIds, "user"),
+      );
+      const result = await engine.searchMany({
+        projectIds,
+        query: errors ? "refund boundary" : "no matching evidence",
+        budget: { maxTokens: 8_000, maxBytes, maxSources: 40 },
+      });
+      assert.equal(result.byteSize, byteLength(result));
+      assert.ok(result.byteSize <= maxBytes);
+      return { db, storage, result };
+    };
+
+    for (const count of [1, 10, 20]) {
+      const projectIds = ids(count);
+      const empty = await search(projectIds, 64 * 1024, false);
+      const exactEmpty = await search(projectIds, empty.result.byteSize, false);
+      assert.deepEqual(exactEmpty.result, empty.result);
+      const tooSmallDb = new ScenarioD1();
+      const tooSmallStorage = new ScenarioStorage();
+      const tooSmallEngine = new ContextEngine(
+        tooSmallDb as unknown as D1Database,
+        tooSmallStorage,
+        ContextAuthorizationFence.human(projectIds, "user"),
+      );
+      await assert.rejects(
+        tooSmallEngine.searchMany({
+          projectIds,
+          query: "no matching evidence",
+          budget: { maxTokens: 8_000, maxBytes: empty.result.byteSize - 1 },
+        }),
+        ContextBudgetError,
+      );
+      assert.equal(tooSmallDb.sourceMetadataReads, 0);
+      assert.deepEqual(tooSmallStorage.headCalls, []);
+
+      const errors = await search(projectIds, 64 * 1024, true);
+      assert.equal(errors.result.sourceErrors.length, count);
+      const exactErrors = await search(projectIds, errors.result.byteSize, true);
+      assert.deepEqual(exactErrors.result, errors.result);
+      const boundedErrors = await search(projectIds, errors.result.byteSize - 1, true);
+      assert.equal(boundedErrors.result.truncated, true);
+      assert.ok(boundedErrors.result.sourceErrors.length < count);
+    }
+
+    const twentyIds = ids(20);
+    const db = new ScenarioD1();
+    const storage = new ScenarioStorage();
+    const engine = new ContextEngine(
+      db as unknown as D1Database,
+      storage,
+      ContextAuthorizationFence.human(twentyIds, "user"),
+    );
+    await assert.rejects(
+      engine.searchMany({
+        projectIds: twentyIds,
+        query: "refund boundary",
+        budget: { maxTokens: 8_000, maxBytes: 512 },
+      }),
+      ContextBudgetError,
+    );
+    assert.equal(db.sourceMetadataReads, 0);
     assert.deepEqual(storage.headCalls, []);
     assert.deepEqual(storage.getCalls, []);
   });

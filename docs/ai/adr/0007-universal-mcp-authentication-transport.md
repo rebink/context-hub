@@ -51,7 +51,7 @@ The transport always advertises exactly `project_info`, `search_context`, `get_a
 
 MCP clients must provision a scoped credential through an ADMIN human session, store the displayed secret in OS credential storage where possible, send a fresh nonce per HTTP request, and explicitly supply repository/project scope. Repository-bound credentials stop working after repository replacement. Membership removal, workspace removal, role loss for lifecycle administration, expiry, rotation, and revocation are observed from current D1 state.
 
-Cross-project Context Engine searches split one caller budget across the already-authorized projects; too-small budgets fail instead of silently exceeding the total. Tool results can report individual source unavailability only after scope authorization. The six schemas and transport response ceiling remain constant with project count.
+Cross-project Context Engine searches use one caller budget across the already-authorized projects; too-small budgets never exceed the total. ADR 0008 replaces the provisional per-project split with one globally ranked/deduplicated engine result and one token/byte/source budget. Tool results can report individual source unavailability only after scope authorization. The six schemas and transport response ceiling remain constant with project count.
 
 ## Security and operations
 

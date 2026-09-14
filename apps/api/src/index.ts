@@ -2,7 +2,7 @@ import { handleActivityRoute } from "./activity.js";
 import { apiOrigin, callbackUrl } from "./api-origin.js";
 import { handleArtifactRoute } from "./artifacts.js";
 import { type AuthProviderIdentity, AuthProviderResponseError } from "./auth-provider.js";
-import { handleContextRoute } from "./context-route.js";
+import { handleContextRoute, handleCrossProjectContextRoute } from "./context-route.js";
 import { corsJsonHeaders } from "./cors.js";
 import {
   beginGitConnection,
@@ -635,10 +635,12 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
         }
 
         const contextSearch = /^\/projects\/([^/]+)\/context\/search$/.exec(pathname);
-        if (contextSearch) {
+        if (contextSearch || pathname === "/context/cross-project/search") {
           const user = await authenticate(request, env);
           if (!user) return error(request, env, "UNAUTHENTICATED", 401);
-          return handleContextRoute(request, env, storage, user, contextSearch[1] ?? "");
+          return contextSearch
+            ? handleContextRoute(request, env, storage, user, contextSearch[1] ?? "")
+            : handleCrossProjectContextRoute(request, env, storage, user);
         }
 
         const graphCollection = /^\/projects\/([^/]+)\/graphs$/.exec(pathname);

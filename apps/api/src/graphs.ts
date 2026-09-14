@@ -506,7 +506,11 @@ export function queryGraph(graph: ParsedGraph, body: Record<string, unknown>) {
   return null;
 }
 
-export async function loadVerifiedReadyGraph(storage: ObjectStorage, row: GraphRow) {
+export async function loadVerifiedReadyGraph(
+  storage: ObjectStorage,
+  row: GraphRow,
+  beforeStorageRead?: () => Promise<void>,
+) {
   if (
     !row.storage_key ||
     !row.checksum ||
@@ -520,6 +524,7 @@ export async function loadVerifiedReadyGraph(storage: ObjectStorage, row: GraphR
       ? row.selected_publication_id
       : `${row.published_attempt}.${row.published_lease_id}`;
   if (!uploadId) return null;
+  await beforeStorageRead?.();
   const head = await storage.head(row.storage_key);
   if (
     !head ||
@@ -530,6 +535,7 @@ export async function loadVerifiedReadyGraph(storage: ObjectStorage, row: GraphR
     head.metadata.uploadId !== uploadId
   )
     return null;
+  await beforeStorageRead?.();
   const bytes = await storage.getBytes(row.storage_key);
   if (
     !bytes ||

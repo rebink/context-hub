@@ -1,9 +1,16 @@
 import { classifyArtifactFreshness } from "./artifact-freshness.js";
+import {
+  ContextAuthorizationError,
+  type ContextAuthorizationFence,
+} from "./context-authorization.js";
 import type {
   ContextEvidence,
   ContextProvider,
   ContextQuery,
   ContextResult,
+  ContextSourceError,
+  CrossProjectContextQuery,
+  CrossProjectContextResult,
 } from "./context-provider.js";
 import type { GraphRow } from "./graphs.js";
 import { loadVerifiedReadyGraph } from "./graphs.js";
@@ -14,6 +21,11 @@ const MAX_ARTIFACT_CANDIDATES = 24;
 const MAX_ARTIFACT_SOURCE_BYTES = 64 * 1024;
 const MAX_GRAPH_SOURCE_BYTES = 512 * 1024;
 const MAX_GRAPH_EVIDENCE = 12;
+const MAX_CROSS_PROJECT_ARTIFACT_CANDIDATES = 40;
+const MAX_CROSS_PROJECT_GRAPH_EVIDENCE = 20;
+const DEFAULT_MAX_SOURCES = 40;
+const MAX_SOURCES = 80;
+const MAX_PROJECTS = 20;
 const MAX_EXCERPT_BYTES = 1_200;
 const MAX_TERMS = 32;
 
@@ -45,7 +57,21 @@ type GitRow = {
   updated_at: string;
 };
 
-type Ranked = { score: number; key: string; evidence: ContextEvidence };
+type Ranked = {
+  score: number;
+  key: string;
+  projectId: string;
+  localRank: number;
+  evidence: ContextEvidence;
+};
+
+type Retrieval = {
+  ranked: Ranked[];
+  sourceErrors: ContextSourceError[];
+  retrievalTruncated: boolean;
+};
+
+type SearchTermsInput = Pick<ContextQuery, "query" | "domain" | "package">;
 
 const bytes = (value: string) => new TextEncoder().encode(value).byteLength;
 const tokens = (value: string) => Math.max(1, Math.ceil(bytes(value) / 4));
@@ -58,7 +84,7 @@ function truncateUtf8(value: string, limit: number): string {
   return `${new TextDecoder().decode(encoded.slice(0, Math.max(0, limit - 3))).replace(/\s+$/u, "")}...`;
 }
 
-function terms(input: ContextQuery): string[] {
+function terms(input: SearchTermsInput): string[] {
   const values = [input.query, input.domain ?? "", input.package ?? ""]
     .join(" ")
     .toLowerCase()
@@ -135,67 +161,199 @@ function graphStorageKey(projectId: string, graph: GraphRow): string | null {
   return `projects/${projectId}/graphs/v/${graph.version}/attempts/${graph.published_attempt}/${graph.selected_publication_id}/graph.json`;
 }
 
-function finish(
-  projectId: string,
-  ranked: Ranked[],
-  input: ContextQuery,
-  sourceErrors: ContextResult["sourceErrors"],
-  retrievalTruncated: boolean,
-): ContextResult {
-  ranked.sort((a, b) => b.score - a.score || a.key.localeCompare(b.key));
-  const deduped = new Map<string, Ranked>();
+function sortedDeduplicated(ranked: Ranked[]): ContextEvidence[] {
+  const perProject = new Map<string, Ranked[]>();
   for (const item of ranked) {
-    const contentKey = item.evidence.excerpt.toLowerCase().replace(/\s+/g, " ").trim();
+    const values = perProject.get(item.projectId) ?? [];
+    values.push(item);
+    perProject.set(item.projectId, values);
+  }
+  for (const values of perProject.values()) {
+    values.sort((a, b) => b.score - a.score || a.key.localeCompare(b.key));
+    values.forEach((item, index) => {
+      item.localRank = index;
+    });
+  }
+  ranked.sort(
+    (a, b) =>
+      b.score - a.score ||
+      a.localRank - b.localRank ||
+      a.projectId.localeCompare(b.projectId) ||
+      a.key.localeCompare(b.key),
+  );
+  const deduped = new Map<string, ContextEvidence>();
+  for (const item of ranked) {
+    // Equal text in another project is distinct evidence because its provenance is distinct.
+    const contentKey = `${item.projectId}\0${item.evidence.excerpt}`;
     if (!deduped.has(contentKey)) {
-      deduped.set(contentKey, {
-        ...item,
-        evidence: completeEvidenceTokenEstimate(item.evidence),
-      });
+      deduped.set(contentKey, completeEvidenceTokenEstimate(item.evidence));
     }
   }
+  return [...deduped.values()];
+}
+
+export class ContextBudgetError extends Error {
+  constructor() {
+    super("context response budget is too small");
+  }
+}
+
+function measureResult<T extends { byteSize: number }>(value: T): T {
+  let measured = bytes(JSON.stringify(value));
+  while (value.byteSize !== measured) {
+    value.byteSize = measured;
+    measured = bytes(JSON.stringify(value));
+  }
+  return value;
+}
+
+function ensureMinimumFits(shell: Record<string, unknown>, budget: ContextQuery["budget"]): void {
+  const minimum = measureResult({
+    ...shell,
+    evidence: [] as ContextEvidence[],
+    tokenEstimate: 0,
+    byteSize: 0,
+    truncated: false,
+    sourceErrors: [] as unknown[],
+  });
+  if (minimum.byteSize > budget.maxBytes) throw new ContextBudgetError();
+}
+
+function applyBudget<
+  E,
+  T extends {
+    evidence: ContextEvidence[];
+    tokenEstimate: number;
+    byteSize: number;
+    truncated: boolean;
+    sourceErrors: E[];
+  },
+>(
+  shell: Omit<T, "evidence" | "tokenEstimate" | "byteSize" | "truncated" | "sourceErrors">,
+  sourceErrors: E[],
+  ranked: Ranked[],
+  budget: ContextQuery["budget"],
+  retrievalTruncated: boolean,
+): T {
+  const candidates = sortedDeduplicated(ranked);
+  const sourceLimit = Math.min(budget.maxSources ?? DEFAULT_MAX_SOURCES, MAX_SOURCES);
+  const admittedErrors: E[] = [];
+  let omittedErrors = false;
+  for (const error of sourceErrors) {
+    const candidate = measureResult({
+      ...shell,
+      evidence: [] as ContextEvidence[],
+      tokenEstimate: 0,
+      byteSize: 0,
+      truncated: false,
+      sourceErrors: [...admittedErrors, error],
+    });
+    if (candidate.byteSize <= budget.maxBytes) admittedErrors.push(error);
+    else omittedErrors = true;
+  }
+
   const evidence: ContextEvidence[] = [];
   let tokenEstimate = 0;
-  for (const item of deduped.values()) {
-    const nextTokens = tokenEstimate + item.evidence.tokenEstimate;
-    const next = [...evidence, item.evidence];
-    const resultBytes = bytes(
-      JSON.stringify({
-        projectId,
-        evidence: next,
-        tokenEstimate: nextTokens,
-        byteSize: input.budget.maxBytes,
-        truncated: true,
-        sourceErrors,
-      }),
-    );
-    if (nextTokens > input.budget.maxTokens || resultBytes > input.budget.maxBytes) continue;
-    evidence.push(item.evidence);
+  for (const item of candidates) {
+    if (evidence.length >= sourceLimit) break;
+    const nextTokens = tokenEstimate + item.tokenEstimate;
+    const candidate = measureResult({
+      ...shell,
+      evidence: [...evidence, item],
+      tokenEstimate: nextTokens,
+      byteSize: 0,
+      truncated: false,
+      sourceErrors: admittedErrors,
+    });
+    if (nextTokens > budget.maxTokens || candidate.byteSize > budget.maxBytes) continue;
+    evidence.push(item);
     tokenEstimate = nextTokens;
   }
-  const truncated = retrievalTruncated || evidence.length < deduped.size;
-  const base = { projectId, evidence, tokenEstimate, byteSize: 0, truncated, sourceErrors };
-  let measured = bytes(JSON.stringify(base));
-  while (base.byteSize !== measured) {
-    base.byteSize = measured;
-    measured = bytes(JSON.stringify(base));
+  const result = measureResult({
+    ...shell,
+    evidence,
+    tokenEstimate,
+    byteSize: 0,
+    truncated: retrievalTruncated || omittedErrors || evidence.length < candidates.length,
+    sourceErrors: admittedErrors,
+  }) as T;
+  if (result.byteSize > budget.maxBytes) throw new ContextBudgetError();
+  return result;
+}
+
+function allocatedLimit(total: number, projectCount: number, index: number): number {
+  return Math.floor(total / projectCount) + (index < total % projectCount ? 1 : 0);
+}
+
+function canonicalProjectIds(projectIds: string[]): string[] {
+  const ids = [...new Set(projectIds)].sort();
+  if (ids.length < 1 || ids.length > MAX_PROJECTS || ids.some((id) => !STORAGE_ID.test(id))) {
+    throw new Error("invalid project scope");
   }
-  return base;
+  return ids;
 }
 
 export class ContextEngine implements ContextProvider {
   constructor(
     private readonly db: D1Database,
     private readonly storage: ObjectStorage,
+    private readonly authorization: ContextAuthorizationFence,
   ) {}
 
   async search(input: ContextQuery): Promise<ContextResult> {
+    this.authorization.assertProjectSet([input.projectId]);
+    ensureMinimumFits({ projectId: input.projectId }, input.budget);
+    const retrieval = await this.retrieve(input, MAX_ARTIFACT_CANDIDATES, MAX_GRAPH_EVIDENCE);
+    return applyBudget<ContextSourceError, ContextResult>(
+      { projectId: input.projectId },
+      retrieval.sourceErrors,
+      retrieval.ranked,
+      input.budget,
+      retrieval.retrievalTruncated,
+    );
+  }
+
+  async searchMany(input: CrossProjectContextQuery): Promise<CrossProjectContextResult> {
+    const projectIds = canonicalProjectIds(input.projectIds);
+    this.authorization.assertProjectSet(projectIds);
+    ensureMinimumFits({ projectIds }, input.budget);
+    const retrievals: Array<{ projectId: string; value: Retrieval }> = [];
+    for (const [index, projectId] of projectIds.entries()) {
+      const value = await this.retrieve(
+        { ...input, projectId },
+        allocatedLimit(MAX_CROSS_PROJECT_ARTIFACT_CANDIDATES, projectIds.length, index),
+        allocatedLimit(MAX_CROSS_PROJECT_GRAPH_EVIDENCE, projectIds.length, index),
+      );
+      retrievals.push({ projectId, value });
+    }
+    return applyBudget<
+      CrossProjectContextResult["sourceErrors"][number],
+      CrossProjectContextResult
+    >(
+      { projectIds },
+      retrievals.flatMap(({ projectId, value }) =>
+        value.sourceErrors.map((error) => ({ projectId, error })),
+      ),
+      retrievals.flatMap(({ value }) => value.ranked),
+      input.budget,
+      retrievals.some(({ value }) => value.retrievalTruncated),
+    );
+  }
+
+  private async retrieve(
+    input: ContextQuery,
+    artifactLimit: number,
+    graphLimit: number,
+  ): Promise<Retrieval> {
     const searchTerms = terms(input);
     const ranked: Ranked[] = [];
     const sourceErrors: ContextResult["sourceErrors"] = [];
     let retrievalTruncated = false;
 
-    const git = await this.db
+    await this.authorization.assertCurrent(this.db);
+    const git = await this.authorization
       .prepare(
+        this.db,
         `SELECT gc.provider, gc.provider_repository_id, ri.owner, ri.repository_name,
                 ri.canonical_url, gc.default_branch, gc.last_known_commit_sha,
                 gc.status, gc.updated_at
@@ -203,10 +361,12 @@ export class ContextEngine implements ContextProvider {
          JOIN repository_identities ri ON ri.id = gc.repository_identity_id
          JOIN project_repositories pr ON pr.project_id = gc.project_id
            AND pr.repository_identity_id = ri.id
-         WHERE gc.project_id = ? AND gc.status = 'VERIFIED' LIMIT 1`,
+         WHERE gc.project_id = ? AND gc.status = 'VERIFIED'`,
+        " LIMIT 1",
+        [input.projectId],
       )
-      .bind(input.projectId)
       .first<GitRow>();
+    await this.authorization.assertCurrent(this.db);
     const currentCommit = validCommit(git?.last_known_commit_sha)
       ? git?.last_known_commit_sha
       : null;
@@ -230,7 +390,13 @@ export class ContextEngine implements ContextProvider {
           checksum: null,
         },
       };
-      ranked.push({ score: 8 + matchScore(text, searchTerms), key: "git", evidence: item });
+      ranked.push({
+        score: 8 + matchScore(text, searchTerms),
+        key: "git",
+        projectId: input.projectId,
+        localRank: 0,
+        evidence: item,
+      });
     }
 
     const searchableMetadata =
@@ -240,21 +406,25 @@ export class ContextEngine implements ContextProvider {
           .map(() => `CASE WHEN instr(${searchableMetadata}, ?) > 0 THEN 1 ELSE 0 END`)
           .join(" + ")
       : "0";
-    const artifacts = await this.db
+    await this.authorization.assertCurrent(this.db);
+    const artifacts = await this.authorization
       .prepare(
+        this.db,
         `SELECT a.id, a.type, a.name, a.description, a.current_version AS version,
                 a.updated_at, av.storage_key, av.checksum, av.content_type, av.byte_size,
                 av.source_commit_sha
          FROM artifacts a JOIN artifact_versions av
            ON av.artifact_id = a.id AND av.version = a.current_version
-         WHERE a.project_id = ? AND a.status = 'ACTIVE'
-         ORDER BY (${metadataOrdering}) DESC, a.updated_at DESC, a.id DESC LIMIT ?`,
+         WHERE a.project_id = ? AND a.status = 'ACTIVE'`,
+        ` ORDER BY (${metadataOrdering}) DESC, a.updated_at DESC, a.id DESC LIMIT ?`,
+        [input.projectId],
+        [...searchTerms, artifactLimit + 1],
       )
-      .bind(input.projectId, ...searchTerms, MAX_ARTIFACT_CANDIDATES + 1)
       .all<ArtifactCandidate>();
-    retrievalTruncated = artifacts.results.length > MAX_ARTIFACT_CANDIDATES;
+    await this.authorization.assertCurrent(this.db);
+    retrievalTruncated = artifacts.results.length > artifactLimit;
 
-    for (const artifact of artifacts.results.slice(0, MAX_ARTIFACT_CANDIDATES)) {
+    for (const artifact of artifacts.results.slice(0, artifactLimit)) {
       const metadata = `${artifact.name} ${artifact.type} ${artifact.description ?? ""}`;
       const metadataScore = matchScore(metadata, searchTerms);
       if (artifact.byte_size > MAX_ARTIFACT_SOURCE_BYTES) {
@@ -267,6 +437,7 @@ export class ContextEngine implements ContextProvider {
         continue;
       }
       try {
+        await this.authorization.assertCurrent(this.db);
         const stored = await this.storage.head(artifact.storage_key);
         if (
           !stored ||
@@ -280,6 +451,7 @@ export class ContextEngine implements ContextProvider {
             sourceErrors.push("ARTIFACT_SOURCE_UNAVAILABLE");
           continue;
         }
+        await this.authorization.assertCurrent(this.db);
         const content = await this.storage.getBytes(artifact.storage_key);
         if (
           !content ||
@@ -323,25 +495,31 @@ export class ContextEngine implements ContextProvider {
         ranked.push({
           score: 10 + metadataScore + contentScore + architectureBoost + currencyBoost,
           key: `artifact:${artifact.id}`,
+          projectId: input.projectId,
+          localRank: 0,
           evidence,
         });
-      } catch {
+      } catch (cause) {
+        if (cause instanceof ContextAuthorizationError) throw cause;
         if (!sourceErrors.includes("ARTIFACT_SOURCE_UNAVAILABLE"))
           sourceErrors.push("ARTIFACT_SOURCE_UNAVAILABLE");
       }
     }
 
+    if (git) await this.authorization.assertCurrent(this.db);
     const graphRow = git
-      ? await this.db
+      ? await this.authorization
           .prepare(
+            this.db,
             `SELECT * FROM graph_versions
              WHERE project_id = ? AND repository_provider = ? AND provider_repository_id = ?
-               AND repository_canonical_url = ? AND status = 'READY'
-             ORDER BY version DESC LIMIT 1`,
+               AND repository_canonical_url = ? AND status = 'READY'`,
+            " ORDER BY version DESC LIMIT 1",
+            [input.projectId, git.provider, git.provider_repository_id, git.canonical_url],
           )
-          .bind(input.projectId, git.provider, git.provider_repository_id, git.canonical_url)
           .first<GraphRow>()
       : null;
+    if (git) await this.authorization.assertCurrent(this.db);
     if (
       graphRow &&
       (!graphRow.storage_key || graphRow.storage_key !== graphStorageKey(input.projectId, graphRow))
@@ -355,14 +533,16 @@ export class ContextEngine implements ContextProvider {
       sourceErrors.push("GRAPH_SOURCE_UNAVAILABLE");
     } else if (graphRow && graphRow.byte_size !== null) {
       try {
-        const loaded = await loadVerifiedReadyGraph(this.storage, graphRow);
+        const loaded = await loadVerifiedReadyGraph(this.storage, graphRow, async () => {
+          await this.authorization.assertCurrent(this.db);
+        });
         if (!loaded) throw new Error("invalid graph source");
         const matchingNodes = loaded.graph.nodes
           .map((node) => ({ node, score: matchScore(JSON.stringify(node), searchTerms) }))
           .filter((entry) => entry.score > 0)
           .sort((a, b) => b.score - a.score);
-        if (matchingNodes.length > MAX_GRAPH_EVIDENCE) retrievalTruncated = true;
-        for (const { node, score } of matchingNodes.slice(0, MAX_GRAPH_EVIDENCE)) {
+        if (matchingNodes.length > graphLimit) retrievalTruncated = true;
+        for (const { node, score } of matchingNodes.slice(0, graphLimit)) {
           const adjacent = loaded.graph.links
             .filter((link) => link.source === node.id || link.target === node.id)
             .slice(0, 4)
@@ -395,9 +575,16 @@ export class ContextEngine implements ContextProvider {
               checksum: graphRow.checksum,
             },
           };
-          ranked.push({ score: 12 + score, key: `graph:${node.id}`, evidence });
+          ranked.push({
+            score: 12 + score,
+            key: `graph:${node.id}`,
+            projectId: input.projectId,
+            localRank: 0,
+            evidence,
+          });
         }
-      } catch {
+      } catch (cause) {
+        if (cause instanceof ContextAuthorizationError) throw cause;
         sourceErrors.push("GRAPH_SOURCE_UNAVAILABLE");
       }
     }
@@ -422,9 +609,15 @@ export class ContextEngine implements ContextProvider {
           checksum,
         },
       };
-      ranked.push({ score: 5 + referenceScore, key: "reference:agents", evidence: reference });
+      ranked.push({
+        score: 5 + referenceScore,
+        key: "reference:agents",
+        projectId: input.projectId,
+        localRank: 0,
+        evidence: reference,
+      });
     }
 
-    return finish(input.projectId, ranked, input, sourceErrors, retrievalTruncated);
+    return { ranked, sourceErrors, retrievalTruncated };
   }
 }
