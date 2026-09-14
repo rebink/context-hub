@@ -54,5 +54,5 @@ Allowed results in this report are `PASS | BLOCKED | NOT RUN`. `PASS` is local r
 - Phase 26 deployment **preparation** and the complete nine-P1/two-P2 review correction are implemented locally; the parent-owned preparation root gate also passes.
 - Actual Phase 26 resource configuration, deployment, live checklist and release evidence remain **BLOCKED / NOT RUN**.
 - Production launch remains **BLOCKED**. Code rollback is not D1/R2/OAuth/DNS/secret rollback.
-- Historical Phase 6 acceptance remains separately **BLOCKED**; current Phase 26 checks cannot recreate its missing contemporaneous review/gate evidence.
+- The contemporaneous Phase 6 review and root gate were recovered separately; local process acceptance remains **BLOCKED** on the historical review-topology deviation and absent focused Git phase checkpoint. Phase 26 checks are not relabeled as historical evidence.
 - Phase 27 local measurement contracts and synthetic evidence are recorded separately in [`metrics-evidence.md`](metrics-evidence.md). No production metric collection, alert configuration, deployment, or final launch acceptance is claimed.

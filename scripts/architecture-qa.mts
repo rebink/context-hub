@@ -661,6 +661,21 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
+interface SchemaManifest {
+  tables: Array<{ name: string; sqlSha256: string }>;
+  indexes: Array<{ name: string; sqlSha256: string }>;
+  triggers: Array<{ name: string; sqlSha256: string }>;
+  foreignKeys: Record<string, unknown[]>;
+}
+
+function parseSchemaManifest(value: string, label: string): SchemaManifest {
+  try {
+    return JSON.parse(value) as SchemaManifest;
+  } catch {
+    throw new Error(`${label} is not valid JSON`);
+  }
+}
+
 async function migrationEvidence(python: string) {
   const persist = join(runRoot, "d1");
   await command(
@@ -701,14 +716,10 @@ print(json.dumps(out,sort_keys=True,separators=(",",":")))`;
   const actualText = (
     await command(python, ["-c", program, sqlite], { timeoutMs: 30_000 })
   ).stdout.trim();
-  const actual = JSON.parse(actualText) as {
-    tables: Array<{ name: string; sqlSha256: string }>;
-    indexes: Array<{ name: string; sqlSha256: string }>;
-    triggers: Array<{ name: string; sqlSha256: string }>;
-    foreignKeys: Record<string, unknown[]>;
-  };
-  const expected = JSON.parse(
+  const actual = parseSchemaManifest(actualText, "fresh schema manifest");
+  const expected = parseSchemaManifest(
     readFileSync(join(root, "scripts/architecture-schema-manifest.json"), "utf8"),
+    "reviewed schema manifest",
   );
   check(
     canonicalJson(actual) === canonicalJson(expected),
@@ -787,12 +798,17 @@ function documentationEvidence() {
   const master = readFileSync(join(root, "docs/ai/master-plan.md"), "utf8");
   const status = readFileSync(join(root, "docs/ai/implementation-status.md"), "utf8");
   check(
-    !/Phase 6[^\n]*(PARTIAL|pending independent final-review)/i.test(`${master}\n${status}`),
-    "stale Phase 6 local acceptance remains",
+    /^### 6\.[^\n]*PARTIAL: HISTORICAL PROTOCOL GAPS/m.test(master) &&
+      /phase-6-acceptance-evidence\.md/.test(`${master}\n${status}\n${qa}`) &&
+      /split backend\/frontend reviews plus a post-fix final review/.test(qa),
+    "Phase 6 recovered evidence or historical protocol-gap disposition changed",
   );
   check(
-    /Local MVP acceptance: BLOCKED/.test(qa),
-    "local MVP must remain blocked on missing Phase 6 review evidence",
+    /Local MVP process acceptance: BLOCKED/.test(qa) &&
+      /neither the current exactly-one-review topology nor focused Git-checkpoint rule was satisfied/.test(
+        qa,
+      ),
+    "local MVP process acceptance must remain blocked on the Phase 6 protocol gaps",
   );
   return {
     coverage: Object.fromEntries(Object.entries(coverage).map(([key, ids]) => [key, ids.length])),

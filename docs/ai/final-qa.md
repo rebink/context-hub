@@ -6,7 +6,7 @@ Allowed classifications: `PASS | FAIL | BLOCKED | NICE TO HAVE`
 
 ## Verdict
 
-- **Local MVP acceptance: BLOCKED.** Current local implementation/tests are green evidence, but no surviving contemporaneous independent Phase 6 review record or focused Phase 6 four-command root-gate transcript/checkpoint was found. The single Phase 25 review, consolidated correction, deterministic architecture QA, local E2E, and parent-owned root gate are complete. A later rerun cannot be represented as the missing historical Phase 6 review.
+- **Local MVP process acceptance: BLOCKED.** [`phase-6-acceptance-evidence.md`](phase-6-acceptance-evidence.md) now preserves the original final independent `ACCEPT`, parent-owned 51-test root gate, and acceptance-ledger checkpoint. The same archive records split backend/frontend reviews plus a post-fix final review and proves that the repository had no `HEAD`, so neither the current exactly-one-review topology nor focused Git-checkpoint rule was satisfied. Current runs are not relabeled as historical evidence.
 - **Production launch: BLOCKED.** Browser/accessibility, live GitHub OAuth/App, remote D1/R2/edge, real Graphify/protected Actions, live MCP/Pi plus OS secret store, privacy/account deletion, approved metrics policy, backups/restore, free-tier telemetry and deployment evidence are absent.
 - **Confirmed implementation deviations:** no local P0/P1 code deviation is asserted after this correction; evidence/process and live-operation blockers remain exactly as listed.
 
@@ -57,7 +57,7 @@ Each normative item has exactly one authoritative row below. `Implementation` na
 | PRD-F-037 | PRD §39 | Selective retrieval and token efficiency | PASS | ContextEngine.search; MCP_LIMITS | 0005_context.sql | npm run audit:mcp-tokens -w @context-hub/api |
 | PRD-F-038 | PRD §40 | Token-awareness measurements | PASS | measureMcpTokenAudit; measurePiTokenAudit | N/A | npm run audit:mcp-tokens -w @context-hub/api; npm run audit:pi-tokens -w @context-hub/context-pi |
 | PRD-F-039 | PRD §41 | Free-tier bounded operation | BLOCKED | rate, size and pagination limits are coded | 0014_free_tier_quotas.sql | npm run audit:free-tier passes locally; live telemetry/alerts missing |
-| PRD-F-040 | PRD §42 | MVP scope as a complete launch claim | BLOCKED | Local implementation exists | 0001_initial.sql-0020_audit_event_aggregate_invariants.sql | missing historical Phase 6 review/gate evidence and live gates |
+| PRD-F-040 | PRD §42 | MVP scope as a complete launch claim | BLOCKED | Local implementation exists | 0001_initial.sql-0020_audit_event_aggregate_invariants.sql | Phase 6 review topology/Git checkpoint and live gates |
 | PRD-F-041 | PRD §43 | Explicitly out-of-MVP features remain absent | PASS | No billing, marketplace, enterprise SSO or hosted private models | N/A | npm run qa:architecture |
 | PRD-F-042 | PRD §44 | Future roadmap is not an MVP obligation | NICE TO HAVE | Roadmap intentionally unimplemented | N/A | docs/requirements/product-requirements.md Section 44 |
 | PRD-F-043 | PRD §45 | Recommended end-state architecture at MVP boundary | PASS | Git + immutable artifacts/graphs + selective MCP retrieval | 0001_initial.sql-0020_audit_event_aggregate_invariants.sql | npm run test:e2e:local |
@@ -128,7 +128,7 @@ Each normative item has exactly one authoritative row below. `Implementation` na
 | TA-032 | TA §32 | Observability | BLOCKED | `handleActivityRoute`; `handleGlobalActivity`; redacted audit writers; BLK-009 remains | 0001_initial.sql-0020_audit_event_aggregate_invariants.sql | approved/live metrics and alert evidence missing |
 | TA-033 | TA §33 | Performance goals | BLOCKED | Production limit constants and bounded local tests; live latency/load evidence remains blocked | N/A | live latency/load evidence missing |
 | TA-034 | TA §34 | MVP development principle | PASS | Accepted ADRs 0001-0008 and one-implementation provider inventory | N/A | npm run qa:architecture |
-| TA-035 | TA §35 | Technical acceptance criteria | BLOCKED | This 134-row matrix plus `npm run qa:architecture`; BLK-001, BLK-002 and live blockers remain | N/A | aggregate review/root/live evidence missing |
+| TA-035 | TA §35 | Technical acceptance criteria | BLOCKED | This 134-row matrix plus `npm run qa:architecture`; BLK-001 and live blockers remain | N/A | Phase 6 phase-protocol and live evidence missing |
 | TA-036 | TA Multi-project | Tenant hierarchy | PASS | `workspaces`; `projects`; direct `workspace_members` and `project_members` | 0001_initial.sql-0020_audit_event_aggregate_invariants.sql | npm run qa:architecture |
 | TA-037 | TA Multi-project | Workspace data model | PASS | `workspaces`; `workspace_members`; migration `0011_multi_project_context.sql` | 0001_initial.sql-0020_audit_event_aggregate_invariants.sql | npm run qa:architecture |
 | TA-038 | TA Multi-project | Repository identity data model | PASS | `repository_identities`; `project_repositories`; `normalizeGithubRepository` | 0001_initial.sql-0020_audit_event_aggregate_invariants.sql | npm run qa:architecture |
@@ -155,9 +155,11 @@ Each normative item has exactly one authoritative row below. `Implementation` na
 
 ## Phase 6 Historical Evidence Reconciliation
 
-- `cad3dce` contains the integrated backend implementation, migrations and tests later described as Phase 6; the current suite can verify those artifacts.
-- Repository history and archived session material do **not** provide a surviving, independently attributable Phase 6 diff-review verdict or a focused Phase 6 `test/typecheck/lint/build` transcript and checkpoint. Therefore the old unchecked acceptance boxes are not promoted to PASS and local MVP acceptance remains `BLOCKED`.
-- No new run is called an historical independent review. The single Phase 25 review produced this consolidated correction; no second review is requested.
+- The original parent-session archive and reviewer artifacts are hash-identified and excerpted in [`phase-6-acceptance-evidence.md`](phase-6-acceptance-evidence.md); no current run is called historical evidence.
+- The archive establishes fresh read-only final reviewer run `bdc01112-08b3-444a-a3d4-c1396e4d5db9`, returning `ACCEPT` with no P0/P1 findings at `2026-09-11T16:55:48.499Z`. It also establishes preceding split backend/frontend reviews, a consolidated correction, and this post-fix review, so the historical topology does not match the current exactly-one-review rule.
+- The parent then ran migrations, migration integrity, `npm test`, typecheck, lint, build, production dependency audit, and `git diff --check`; all passed at `2026-09-11T16:57:32.848Z`, including 41 API and 10 web tests.
+- The parent marked Phase 6 task 2 complete after that gate and before Phase 7 began. This is the recovered acceptance-ledger checkpoint.
+- Reviewer metadata records `fatal: bad revision 'HEAD'`, and both Phase 6 and Phase 7 writers reported an entirely untracked repository. No focused contemporaneous Git phase checkpoint existed. First commit `cad3dce` is only the later integrated Phase 6-through-9 code anchor, so local MVP process acceptance remains `BLOCKED` on the historical review-topology deviation and absent Git checkpoint.
 
 ## Section 37 Local-First Disposition
 
@@ -194,7 +196,8 @@ Latest correction evidence (local only):
 
 | ID | Item | Result | Owner / exact unblock condition | Launch effect |
 | --- | --- | --- | --- | --- |
-| BLK-001 | Historical Phase 6 independent review/root-gate evidence | BLOCKED | Process owner: locate an authentic contemporaneous review verdict and focused gate/checkpoint; current reruns must not be relabeled | Blocks local MVP acceptance |
+| BLK-001 | Phase 6 historical phase-protocol compliance | BLOCKED | Process owner: retain the recovered final review/root-gate/ledger evidence; the split/post-fix reviews and missing historical `HEAD` cannot be repaired by another review or a backdated commit | Blocks local MVP process acceptance |
+| GATE-006 | Phase 6 final review and parent root gate | PASS | Final reviewer run returned `ACCEPT`; migrations, 51 tests, typecheck, lint, builds, audit, and diff check then passed; see recovered evidence | Does not cure the historical review topology, supply the absent Git checkpoint, or provide live evidence |
 | GATE-025 | Phase 25 canonical root gate | PASS | Deterministic architecture QA, local E2E, migration integrity, 342 tests, typecheck, Biome lint, and all builds passed | Does not resolve BLK-001 or production live gates |
 | BLK-003 | Browser and accessibility validation | BLOCKED | Product QA: complete real desktop/mobile keyboard, screen-reader and accessibility checks | Blocks production launch |
 | BLK-004 | Live GitHub OAuth/App | BLOCKED | Platform/security: configure sandbox credentials and verify identity, installation and exact-repository flows | Blocks production launch |
@@ -217,6 +220,6 @@ Latest correction evidence (local only):
 
 Local commands demonstrate deterministic implementation behavior only. They do not prove external-provider configuration, browser behavior, production performance/cost, recovery, privacy operations or deployment. No deployment, production resource creation, product metrics collection, second review or commit is performed by this correction.
 
-Phase 26 subsequently implements preparation-only runbook, canonical nonsecret manifest, offline preflight, and synthetic tests from checkpoint `dd65ff6`; see [`deployment-evidence.md`](deployment-evidence.md). Its only review, consolidated correction, offline preflight, and 342-test root gate are complete; no live action ran, and none of BLK-001 or BLK-003 through BLK-012 is promoted by preparation evidence.
+Phase 26 subsequently implements preparation-only runbook, canonical nonsecret manifest, offline preflight, and synthetic tests from checkpoint `dd65ff6`; see [`deployment-evidence.md`](deployment-evidence.md). Its only review, consolidated correction, offline preflight, and 342-test root gate are complete; no live action ran, and neither Phase 6's historical protocol gaps nor BLK-003 through BLK-012 is promoted by preparation evidence.
 
-Phase 27 subsequently defines the minimized metric registry, local/synthetic audit, response-local Context counters, and bounded D1-derived project aggregate in [`metrics.md`](metrics.md) and [`metrics-evidence.md`](metrics-evidence.md). This narrows BLK-009 to missing approved/live aggregate receipts, studies, and alert verification; it does not promote any live matrix row or resolve BLK-001.
+Phase 27 subsequently defines the minimized metric registry, local/synthetic audit, response-local Context counters, and bounded D1-derived project aggregate in [`metrics.md`](metrics.md) and [`metrics-evidence.md`](metrics-evidence.md). This narrows BLK-009 to missing approved/live aggregate receipts, studies, and alert verification; it does not promote any live matrix row or cure Phase 6's historical protocol gaps.

@@ -97,7 +97,7 @@ The order below is binding. Multi-project Task A must finish before MCP; Task B 
 - [x] Add contract tests covering success, malformed/provider failure for `AuthProvider`, and create-only collision, metadata/head/get, failure, and compensation-delete behavior for `ObjectStorage`; retain existing route-level tests.
 - [x] Acceptance includes the two named minimal contracts, exactly one current implementation each, the accepted ADR, passing contract and regression tests, and the phase stop gate.
 
-### 6. GitHub repository connection (Prompt 6) — `PARTIAL`
+### 6. GitHub repository connection (Prompt 6) — `PARTIAL: HISTORICAL PROTOCOL GAPS`
 
 - [x] Pass the architecture-decision and provider-contract gates with accepted [`adr/0002-github-app-repository-credentials.md`](adr/0002-github-app-repository-credentials.md) for the minimal `GitProvider`, GitHub App access, project/repository binding, revocation, and failure handling.
 - [x] Define `GitProvider` only for GitHub App authorization/proof and live normalized repository/default-branch/current-commit inspection; ship exactly one GitHub implementation and keep project authorization, D1 references, and publication in domain code.
@@ -111,9 +111,12 @@ The order below is binding. Multi-project Task A must finish before MCP; Task B 
 - [x] Replace seed-only project-repository trust with one active link per project backed by a consistent verified connection; preserve one repository mapping to many projects and none/unique/ambiguous authorized resolution.
 - [x] Add focused provider and route tests for cross-session state rejection, two-state callback/PKCE replay, stale callback/disconnect interleavings, optimistic replacement races, strict callback origins, specific-installation proof beyond one-page listing, verified repository resolution, provider mechanics, and secret exposure while preserving existing tests.
 - [x] Implement the repository connection UI with role-aware controls, bounded callback handling, project stale-response protection, accessible confirmation/form behavior, and responsive system-theme styling.
-- [ ] Historical Phase 6 acceptance is `BLOCKED`: no surviving independently attributable Phase 6 review verdict was found, and a current review must not be presented as contemporaneous evidence.
+- [x] Recovered the contemporaneous independent final review: run `bdc01112-08b3-444a-a3d4-c1396e4d5db9` returned `ACCEPT` with no P0/P1 findings after the consolidated corrections; exact archive hashes, timestamps, excerpts, and boundaries are retained in [`phase-6-acceptance-evidence.md`](phase-6-acceptance-evidence.md).
+- [x] Recovered the parent-owned Phase 6 root gate: migrations, migration integrity, 51 tests (41 API and 10 web), typecheck, Biome lint, Worker/Vite builds, production dependency audit, and `git diff --check` all passed before Phase 7 began.
+- [x] Recovered the historical acceptance-ledger checkpoint: task 2 was marked complete after the gate and before Graphify research started.
+- [ ] The current exactly-one-independent-review protocol is `BLOCKED / NOT SATISFIED`: the archive records split backend/frontend reviews, one consolidated correction, and a post-fix final review. No current review can repair that historical topology.
+- [ ] A focused contemporaneous Git phase checkpoint is `BLOCKED / ABSENT`: reviewer metadata records `fatal: bad revision 'HEAD'`, the repository was entirely untracked, and first commit `cad3dce` later integrated Phase 6 through Phase 9 rather than checkpointing Phase 6 alone.
 - [ ] Complete live browser/GitHub App/Cloudflare verification as an external release blocker; local implementation evidence does not claim this deployment evidence.
-- [ ] Historical Phase 6 gate acceptance is `BLOCKED`: current checks can revalidate the implementation, but no focused Phase 6 test/typecheck/lint/build transcript and checkpoint survives.
 
 ### 7. Graphify research (Prompt 7) — `COMPLETE`
 
@@ -211,7 +214,7 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Test user in two workspaces, user in multiple projects, workspace-only denial, unauthorized query denial, correct remote resolution, and ambiguous explicit-selection requirement.
 - [x] Create repository identities/links through the real Git connection flow rather than seeds.
 - [x] Re-run migration, authorization, isolation, and phase stop gates after completing the backend real-link flow.
-- [~] The Task A real-link flow exists through the Phase 6 UI. Historical Phase 6 acceptance is `BLOCKED` on the missing contemporaneous independent-review and focused gate/checkpoint evidence; live provider/browser verification remains an external release blocker.
+- [~] The Task A real-link flow exists through the Phase 6 UI. The contemporaneous review, root gate, and acceptance-ledger checkpoint are recovered in [`phase-6-acceptance-evidence.md`](phase-6-acceptance-evidence.md); local process acceptance remains `BLOCKED` because the historical review topology and focused Git checkpoint do not satisfy the current phase protocol. Live provider/browser verification remains an external release blocker.
 
 ### 14/B. Universal multi-project MCP (Prompt 14 + Task B) — `COMPLETE LOCALLY`
 
@@ -392,7 +395,7 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Added dependency-free `npm run qa:architecture`, deriving provider implementations, runtime MCP/Pi invariants, storage layouts, routes/auth predicates, fresh migration schema, limits, workflows, and documentation state from production sources/exports.
 - [x] Identified each deviation once with severity, rationale, owner/unblock condition, and launch impact without speculative redesign.
 - [x] Product QA maps create/connect/artifacts/team/roles/graphs/sync/search/query/Pi/snapshots/Activity/Settings/navigation to local executable or explicitly blocked live evidence.
-- [x] Reported every requirement as exact `PASS`, `FAIL`, `BLOCKED`, or `NICE TO HAVE`; local MVP acceptance remains `BLOCKED` only on missing historical Phase 6 review/gate evidence, and production launch remains `BLOCKED`.
+- [x] Reported every requirement as exact `PASS`, `FAIL`, `BLOCKED`, or `NICE TO HAVE`; after archive recovery, local MVP process acceptance remains `BLOCKED` on Phase 6's historical review-topology deviation and absent contemporaneous Git checkpoint, and production launch remains `BLOCKED`.
 - [x] The one independent Phase 25 review is complete and its single consolidated P0/P1 correction pass is implemented; no second review was performed.
 - [x] Passed the parent-owned root phase stop gate: deterministic architecture QA digest `3cddb373ad45292a542bcb6a7f94ca618ed543db9af586961c1435a8e4198aec`, local E2E, fresh/staged-through-0020 migration integrity, 342 tests (207 API, 42 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds.
 
@@ -419,7 +422,7 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Recorded local-only results and explicit acceptance disposition in [`metrics-evidence.md`](metrics-evidence.md); synthetic baselines are not production.
 - [x] Completed the only Phase 27 review and one consolidated six-P1 correction pass: exact artifact ownership joins, retained `CLEANED` outcomes and terminal timestamps, `[from,to)` windows, generated canonical documentation plus requirement mapping/mutation traps, finite dimension allowlists, a fresh migration-0020 Wrangler-local production-route integration, and an unmeasured graph warmup. No second review ran.
 - [ ] Collect approved consent-based relevance/developer-experience studies and first-party Cloudflare/GitHub aggregate receipts; configure and verify live alerts/retention without sensitive logs.
-- [ ] Confirm production acceptance across browser/live providers/remote services/clients/recovery/free-tier gates. Historical Phase 6 evidence remains separately blocked and is not recreated here.
+- [ ] Confirm production acceptance across browser/live providers/remote services/clients/recovery/free-tier gates. The recovered Phase 6 final-review/root-gate evidence and historical review-topology/Git-checkpoint gaps remain separately recorded; Phase 27 does not alter them.
 - [x] Passed the parent-owned final stop gate: deterministic docs/metrics audits, fresh migration-0020 real-D1 metrics integration, fresh/staged-through-0020 migration integrity, 346 tests (211 API, 42 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. Overall launch remains blocked while live gates are absent.
 
 ## Required endpoint ledger

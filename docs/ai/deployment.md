@@ -4,7 +4,7 @@ Status: **PREPARATION ONLY; PRODUCTION BLOCKED**
 Official-source access date: **2026-09-15 UTC**  
 Baseline: Phase 25 checkpoint `dd65ff65906bcfd4cd03032420ebc26c5fbae571`
 
-This runbook separates offline preparation, read-only inventory, mutation, and destructive recovery. Nothing in Phase 26 authorizes a Cloudflare or GitHub network call, resource creation, secret change, DNS/domain change, D1 export/migration/restore, R2 policy change, upload, deployment, rollback, or production traffic. Commands marked **MUTATION** or **DESTRUCTIVE** are documentation and were not run. Production remains blocked by the Phase 6 acceptance gap and all live gates in [`final-qa.md`](final-qa.md).
+This runbook separates offline preparation, read-only inventory, mutation, and destructive recovery. Nothing in Phase 26 authorizes a Cloudflare or GitHub network call, resource creation, secret change, DNS/domain change, D1 export/migration/restore, R2 policy change, upload, deployment, rollback, or production traffic. Commands marked **MUTATION** or **DESTRUCTIVE** are documentation and were not run. Production remains blocked by all live gates in [`final-qa.md`](final-qa.md); the separate local-process gaps are narrowed to Phase 6's historical review topology and absent contemporaneous Git checkpoint documented in [`phase-6-acceptance-evidence.md`](phase-6-acceptance-evidence.md).
 
 ## Approval boundary and owners
 

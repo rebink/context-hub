@@ -4,7 +4,7 @@ Date: 2026-09-16
 Baseline: `978f964e9819b6d6e1ebbf1553f5f310bb97fa5d`  
 Status: **LOCAL IMPLEMENTATION EVIDENCE PASS; OVERALL LAUNCH BLOCKED**
 
-Allowed results are `PASS | BLOCKED | NOT RUN`. A local `PASS` is not production evidence. This phase did not deploy, create a production resource, contact a production service, collect user telemetry, add analytics, or attempt to recreate historical Phase 6 evidence.
+Allowed results are `PASS | BLOCKED | NOT RUN`. A local `PASS` is not production evidence. This phase did not deploy, create a production resource, contact a production service, collect user telemetry, add analytics, or attempt to recreate Phase 6 evidence; the later archive recovery is recorded independently.
 
 ## Latest local metrics audit
 
@@ -76,8 +76,9 @@ The parent-owned root gate also passes: deterministic docs/metrics audits, fresh
 | Acceptance group | Result | Reason |
 | --- | --- | --- |
 | Phase 27 local implementation | PASS | Registry, local audit, project aggregates, response-local accounting, targeted tests and documentation are present |
-| MVP functional implementation | PASS locally except historical evidence disposition | Phase 25 matrix and Phase 24 E2E retain existing code evidence |
-| Historical Phase 6 acceptance | BLOCKED | `BLK-001` remains; this phase neither resolves nor relabels missing contemporaneous evidence |
+| MVP functional implementation | PASS locally except process-checkpoint disposition | Phase 25 matrix and Phase 24 E2E retain existing code evidence |
+| Historical Phase 6 review/root gate | PASS after separate recovery | Original reviewer/root records are preserved in `phase-6-acceptance-evidence.md`; this metrics phase is not their source |
+| Phase 6 historical protocol | BLOCKED | `BLK-001` remains because split/post-fix reviews violate the current exactly-one rule and the repository had no `HEAD`; this phase neither resolves nor relabels those facts |
 | Phase 26 production/live gates | BLOCKED / NOT RUN | No production resources/deployment, browser, live providers, remote D1/R2, protected runner, live MCP/Pi, privacy deletion, alert policy, backup/restore, or deployment evidence |
 | Free-services production suitability | BLOCKED | Bounded architecture/local audit exists; account-shared usage, remote CPU/rows/storage/operations and plan evidence do not |
 | Overall production launch | BLOCKED | Every live/study/operations prerequisite above must close for the same approved candidate and evidence period |
@@ -85,7 +86,7 @@ The parent-owned root gate also passes: deterministic docs/metrics audits, fresh
 ## Reconciliation
 
 - [`README.md`](../../README.md), [`master-plan.md`](master-plan.md), [`implementation-status.md`](implementation-status.md), [`project-discovery.md`](project-discovery.md), [`architecture.md`](architecture.md), and [`security.md`](security.md) now describe the local Phase 27 surface while retaining live blockers.
-- [`final-qa.md`](final-qa.md) retains all Phase 25 classifications and `BLK-001`; `BLK-009` is narrowed from missing metric definition to missing approved/live telemetry, studies, and alerts. No live acceptance row is promoted.
+- [`final-qa.md`](final-qa.md) retains `BLK-001` for Phase 6's historical review-topology deviation and absent Git checkpoint; `BLK-009` is narrowed from missing metric definition to missing approved/live telemetry, studies, and alerts. No live acceptance row is promoted.
 - [`deployment-evidence.md`](deployment-evidence.md) remains `BLOCKED / NOT RUN` for production metrics. Phase 26 evidence is not rewritten as Phase 27 collection.
 - [`free-tier-audit.md`](free-tier-audit.md) remains authoritative for source-derived limits and required provider receipts. This phase does not infer Worker/D1/R2/Actions analytics from D1.
 - [`e2e-report.md`](e2e-report.md) remains authoritative for local product-flow evidence; its named stages are not retroactively assigned timing values.
