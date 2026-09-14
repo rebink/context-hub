@@ -268,6 +268,12 @@ Operational signals include API errors, graph duration/failure, sync failure, ar
 
 The current web application requires the Worker. Current CLI/Pi operation is local-first for Git, status, and the verified manifest/graph cache; Pi graph queries fall back to a compact verified local projection when MCP is offline. Artifact/offline context caches remain planned. A cloud outage reports stale/offline state rather than destroying data or blocking normal development. Cloud-only mutations queue/retry only where an approved replay-safe protocol exists. Credentials never enter `.ai-context`, Git, prompts, logs, command arguments, or cache payloads.
 
+## Local end-to-end verification
+
+Phase 24 adds one fail-fast local system scenario, documented in [`e2e-report.md`](e2e-report.md). It applies migrations 0001-0020 to fresh Wrangler-local D1, uses local R2 through the production `ObjectStorage` adapter, executes production `createApp` HTTP/MCP routes on a dynamically reserved and run-identity-probed loopback port, creates asserted deterministic SHA-1 Git commits A/B under isolated Git/HOME/TMP configuration, and drives the actual CLI/cache and Pi extension seams. `createApp` retains production `GithubGitProvider` by default and permits an explicit E2E-only `GitProvider` factory override; OAuth/identity responses are a declared local provider seam. Graph generation runs the actual `GraphifyAdapter`, detached Git preflight/postflight, process boundary, and Python validator while injecting only a deterministic executable in place of the unavailable Graphify binary. This does not add a provider registry or alter production selection.
+
+The scenario verifies single- and multi-project authorization, bounded Context Engine retrieval, provenance, immutable graph replay, snapshot sealing, stale/current transitions, atomic cache replacement, credential revocation, the exact six-tool schema, and output secret absence. It also exposed and corrected trigger-sensitive D1 success accounting in Git connect/sync/disconnect, MCP revocation, and sync-state reporting: authoritative guarded statements use `RETURNING` and require exactly one expected base-row identity, independent of generalized-audit trigger changes. Remote D1/R2, protected Actions Graphify, browser/accessibility, live OAuth/provider, MCP/Pi host, OS secret store, and deployment remain external. The one review, consolidated six-P1 correction, repeated local E2E, and 342-test root gate are complete.
+
 ## Deployment and configuration
 
 ### Current

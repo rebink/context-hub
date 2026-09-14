@@ -11,6 +11,7 @@ import {
   githubAppSetup,
   handleGitConnection,
 } from "./git-connections.js";
+import type { GitProvider } from "./git-provider.js";
 import { GithubAuthProvider } from "./github-auth-provider.js";
 import { GithubGitProvider } from "./github-git-provider.js";
 import { GithubIdentityLookupProvider } from "./github-identity-lookup-provider.js";
@@ -462,7 +463,7 @@ async function projectDetail(
   return json(request, env, { project });
 }
 
-function gitProvider(env: Env, outboundFetch: typeof fetch): GithubGitProvider | null {
+function productionGitProvider(env: Env, outboundFetch: typeof fetch): GithubGitProvider | null {
   if (
     !env.GITHUB_APP_ID ||
     !env.GITHUB_APP_SLUG ||
@@ -518,7 +519,12 @@ function applySecurityHeaders(response: Response, env: Env): Response {
   });
 }
 
-function createRouter(outboundFetch: typeof fetch) {
+export type AppDependencies = {
+  gitProvider?: (env: Env, outboundFetch: typeof fetch) => GitProvider | null;
+};
+
+function createRouter(outboundFetch: typeof fetch, dependencies: AppDependencies) {
+  const resolveGitProvider = dependencies.gitProvider ?? productionGitProvider;
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
       try {
@@ -781,7 +787,7 @@ function createRouter(outboundFetch: typeof fetch) {
         ) {
           const user = await authenticate(request, env);
           if (!user) return error(request, env, "UNAUTHENTICATED", 401);
-          const provider = gitProvider(env, outboundFetch);
+          const provider = resolveGitProvider(env, outboundFetch);
           if (!provider || !apiOrigin(env)) return error(request, env, "GIT_UNAVAILABLE", 503);
           return pathname.endsWith("/setup")
             ? githubAppSetup(request, env, user, provider)
@@ -799,7 +805,7 @@ function createRouter(outboundFetch: typeof fetch) {
           if (!methodAllowed) return error(request, env, "METHOD_NOT_ALLOWED", 405);
           const user = await authenticate(request, env);
           if (!user) return error(request, env, "UNAUTHENTICATED", 401);
-          const provider = gitProvider(env, outboundFetch);
+          const provider = resolveGitProvider(env, outboundFetch);
           const projectId = (gitMatch ?? gitSyncMatch)?.[1] ?? "";
           if (gitMatch && request.method === "POST") {
             if (!provider) return error(request, env, "GIT_UNAVAILABLE", 503);
@@ -843,8 +849,8 @@ function createRouter(outboundFetch: typeof fetch) {
   };
 }
 
-export function createApp(outboundFetch: typeof fetch = fetch) {
-  const router = createRouter(outboundFetch);
+export function createApp(outboundFetch: typeof fetch = fetch, dependencies: AppDependencies = {}) {
+  const router = createRouter(outboundFetch, dependencies);
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
       return applySecurityHeaders(await router.fetch(request, env), env);

@@ -27,9 +27,18 @@ class Statement {
     return { success: true, results: this.db.all(this.sql, this.args), meta: {} } as D1Result<T>;
   }
   async run() {
+    const changes = this.db.run(this.sql, this.args);
     return {
       success: true,
-      meta: { changes: this.db.run(this.sql, this.args) },
+      results:
+        changes === 1
+          ? Array.from({ length: this.db.returningCopies }, () => ({
+              project_id: this.args[0],
+              principal_id: this.db.principalId,
+              client_id: this.args[1],
+            }))
+          : [],
+      meta: { changes },
     } as unknown as D1Result;
   }
 }
@@ -53,6 +62,7 @@ class SyncD1 {
   newestStatus = "READY";
   localGraphValid = true;
   afterTruth?: () => void;
+  returningCopies = 1;
   rows: Row[] = [];
 
   prepare(sql: string) {
@@ -345,6 +355,23 @@ describe("persisted local sync state", () => {
       ).status,
       404,
     );
+  });
+
+  it("fails closed unless sync-state RETURNING identifies exactly one projection row", async () => {
+    for (const [copies, expectedStatus] of [
+      [0, 404],
+      [1, 200],
+      [2, 404],
+    ] as const) {
+      db = new SyncD1();
+      db.secretHash = await sha256(tokenSecret);
+      db.returningCopies = copies;
+      env = { DB: db as unknown as D1Database, WEB_ORIGIN: "https://app.example" };
+      assert.equal(
+        (await handleSyncStateWrite(writeRequest(report()), env, "p")).status,
+        expectedStatus,
+      );
+    }
   });
 
   it("enforces Authorization-only local principals, current membership, operation, and exact repository binding", async () => {

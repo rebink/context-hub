@@ -1055,6 +1055,11 @@ async function rotateMcpCredential(
   });
 }
 
+function returnedCredential(result: D1Result | undefined, credentialId: string): boolean {
+  const rows = result?.results as Array<Record<string, unknown>> | undefined;
+  return rows?.length === 1 && rows[0]?.id === credentialId;
+}
+
 async function revokeMcpCredential(
   request: Request,
   env: McpEnv,
@@ -1071,15 +1076,16 @@ async function revokeMcpCredential(
            WHERE scope.principal_id=mp.id AND (NOT EXISTS (SELECT 1 FROM project_members pm
              WHERE pm.project_id=scope.project_id AND pm.user_id=? AND pm.role='ADMIN')
              OR NOT EXISTS (SELECT 1 FROM workspace_members wm
-               WHERE wm.workspace_id=p.workspace_id AND wm.user_id=?))))`,
+               WHERE wm.workspace_id=p.workspace_id AND wm.user_id=?))))
+       RETURNING id`,
     ).bind(user.id, credentialId, user.id, user.id, user.id),
     env.DB.prepare(
       `UPDATE mcp_principals SET status='REVOKED',revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
-       WHERE id=(SELECT principal_id FROM mcp_credentials WHERE id=? AND revoked_at IS NOT NULL)
+       WHERE status='ACTIVE' AND id=(SELECT principal_id FROM mcp_credentials WHERE id=? AND revoked_at IS NOT NULL)
          AND NOT EXISTS (SELECT 1 FROM mcp_credentials active WHERE active.principal_id=mcp_principals.id AND active.revoked_at IS NULL)`,
     ).bind(credentialId),
   ]);
-  if ((results[0]?.meta.changes ?? 0) !== 1)
+  if (!returnedCredential(results[0], credentialId))
     return humanJson(request, env, { error: "NOT_FOUND" }, 404);
   return new Response(null, { status: 204, headers: humanHeaders(request, env) });
 }

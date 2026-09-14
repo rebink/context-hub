@@ -55,7 +55,15 @@ class Statement {
   }
   async run() {
     this.db.consumeQuery?.();
-    return { success: true, meta: { changes: this.db.run(this.sql, this.args) } } as D1Result;
+    const changes = this.db.run(this.sql, this.args);
+    const returning = this.db as McpD1 & {
+      returning?: (sql: string, args: unknown[], changes: number) => Record<string, unknown>[];
+    };
+    return {
+      success: true,
+      results: returning.returning?.(this.sql, this.args, changes) ?? [],
+      meta: { changes },
+    } as D1Result;
   }
 }
 
@@ -359,6 +367,7 @@ class LifecycleD1 {
   principal: { id: string; name: string; revoked: boolean } | null = null;
   credentials: LifecycleCredential[] = [];
   revokeAuditCount = 0;
+  returningCopies = 1;
   prepare(sql: string) {
     return new Statement(this as unknown as McpD1, sql);
   }
@@ -443,6 +452,11 @@ class LifecycleD1 {
     if (sql.includes("INSERT INTO mcp_audit_events")) return 1;
     return 0;
   }
+  returning(sql: string, args: unknown[], changes: number) {
+    if (changes !== 1 || !sql.includes("RETURNING id")) return [];
+    const id = args[1];
+    return Array.from({ length: this.returningCopies }, () => ({ id }));
+  }
   private row(credential: LifecycleCredential) {
     return {
       id: this.principal?.id,
@@ -522,6 +536,35 @@ describe("MCP credential lifecycle", () => {
     assert.deepEqual(concurrentRevokes.map((response) => response.status).sort(), [204, 404]);
     assert.equal(db.credentials[1]?.revoked, true);
     assert.equal(db.revokeAuditCount, 1);
+  });
+
+  it("fails closed unless revoke RETURNING identifies exactly one credential", async () => {
+    for (const [returningCopies, expectedStatus] of [
+      [0, 404],
+      [1, 204],
+      [2, 404],
+    ] as const) {
+      const db = new LifecycleD1();
+      const issue = await handleMcpCredentialRoute(
+        lifecycleRequest("POST", "/mcp-credentials", {
+          name: `Cardinality ${returningCopies}`,
+          projectIds: ["project-one"],
+          operations: ["project_info"],
+          expiresInDays: 1,
+        }),
+        { DB: db as unknown as D1Database, WEB_ORIGIN: "https://web.example" },
+        { id: "admin" },
+      );
+      const issued = (await issue.json()) as { credential: { credentialId: string } };
+      db.returningCopies = returningCopies;
+      const revoked = await handleMcpCredentialRoute(
+        lifecycleRequest("DELETE", `/mcp-credentials/${issued.credential.credentialId}`),
+        { DB: db as unknown as D1Database, WEB_ORIGIN: "https://web.example" },
+        { id: "admin" },
+        issued.credential.credentialId,
+      );
+      assert.equal(revoked.status, expectedStatus);
+    }
   });
 
   it("requires exact Origin and current ADMIN authority at the issuance statement", async () => {

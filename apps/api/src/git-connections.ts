@@ -127,6 +127,11 @@ function callbackRedirect(
   });
 }
 
+function returnedExactly(result: D1Result | undefined, key: string, expected: string): boolean {
+  const rows = result?.results as Array<Record<string, unknown>> | undefined;
+  return rows?.length === 1 && rows[0]?.[key] === expected;
+}
+
 async function publishConnection(
   env: GitRouteEnv,
   userId: string,
@@ -175,7 +180,8 @@ async function publishConnection(
         created_at, updated_at)
        SELECT ?, ?, ri.id, 'github', ?, ?, ?, ?, 'VERIFIED', ?, ?, ?
        FROM repository_identities ri
-       WHERE ri.provider = 'github' AND ri.canonical_url = ? AND ${publicationPredicate}`,
+       WHERE ri.provider = 'github' AND ri.canonical_url = ? AND ${publicationPredicate}
+       RETURNING connection_id`,
     ).bind(
       connectionId,
       projectId,
@@ -199,13 +205,15 @@ async function publishConnection(
     env.DB.prepare(
       `INSERT INTO project_repositories (project_id, repository_identity_id)
        SELECT gc.project_id, gc.repository_identity_id FROM git_connections gc
-       WHERE gc.project_id = ? AND gc.connection_id = ?`,
+       WHERE gc.project_id = ? AND gc.connection_id = ?
+       RETURNING project_id`,
     ).bind(projectId, connectionId),
     env.DB.prepare(
       `INSERT INTO git_audit_events
        (id, project_id, repository_identity_id, event_type, actor_id, metadata)
        SELECT ?, gc.project_id, gc.repository_identity_id, 'git-connected', ?, ?
-       FROM git_connections gc WHERE gc.project_id = ? AND gc.connection_id = ?`,
+       FROM git_connections gc WHERE gc.project_id = ? AND gc.connection_id = ?
+       RETURNING id`,
     ).bind(
       auditId,
       userId,
@@ -220,9 +228,9 @@ async function publishConnection(
     ).bind(projectId, auditId, projectId),
   ]);
   return (
-    Number(results[1]?.meta.changes ?? 0) === 1 &&
-    Number(results[2]?.meta.changes ?? 0) === 1 &&
-    Number(results[3]?.meta.changes ?? 0) === 1
+    returnedExactly(results[1], "connection_id", connectionId) &&
+    returnedExactly(results[2], "project_id", projectId) &&
+    returnedExactly(results[3], "id", auditId)
   );
 }
 
@@ -486,7 +494,8 @@ export async function handleGitConnection(
            AND EXISTS (
              SELECT 1 FROM project_repositories
              WHERE project_id = ? AND repository_identity_id = ?
-           )`,
+           )
+         RETURNING id`,
       ).bind(
         auditId,
         projectId,
@@ -500,14 +509,16 @@ export async function handleGitConnection(
       ),
       env.DB.prepare(
         `DELETE FROM project_repositories WHERE project_id = ? AND repository_identity_id = ?
-         AND ${adminPredicate} AND ${exactConnectionPredicate}`,
+         AND ${adminPredicate} AND ${exactConnectionPredicate}
+         RETURNING project_id`,
       ).bind(projectId, connection.repository_identity_id, projectId, user.id, ...exactArgs),
       env.DB.prepare(
         `DELETE FROM git_connections WHERE project_id = ? AND connection_id IS ?
          AND repository_identity_id = ? AND installation_id = ? AND provider_repository_id = ?
          AND ${adminPredicate} AND EXISTS (
            SELECT 1 FROM git_audit_events WHERE id = ? AND project_id = ?
-         )`,
+         )
+         RETURNING project_id`,
       ).bind(...exactArgs, projectId, user.id, auditId, projectId),
       env.DB.prepare(
         `DELETE FROM github_connection_states WHERE project_id = ? AND EXISTS (
@@ -516,9 +527,9 @@ export async function handleGitConnection(
       ).bind(projectId, auditId, projectId),
     ]);
     if (
-      Number(results[0]?.meta.changes ?? 0) !== 1 ||
-      Number(results[1]?.meta.changes ?? 0) !== 1 ||
-      Number(results[2]?.meta.changes ?? 0) !== 1
+      !returnedExactly(results[0], "id", auditId) ||
+      !returnedExactly(results[1], "project_id", projectId) ||
+      !returnedExactly(results[2], "project_id", projectId)
     ) {
       const currentMember = await membership(env, user.id, projectId);
       if (!currentMember) return failure(request, env, "NOT_FOUND", 404);
@@ -573,7 +584,8 @@ export async function handleGitConnection(
         env.DB.prepare(
           `UPDATE git_connections SET default_branch = ?, last_known_commit_sha = ?,
            status = 'VERIFIED', verified_at = ?, updated_at = ?
-           WHERE ${exactConnection} AND ${adminPredicate}`,
+           WHERE ${exactConnection} AND ${adminPredicate}
+           RETURNING project_id`,
         ).bind(
           inspection.defaultBranch,
           inspection.headSha,
@@ -593,7 +605,8 @@ export async function handleGitConnection(
                  AND provider_repository_id = ? AND default_branch = ?
                  AND last_known_commit_sha = ? AND status = 'VERIFIED'
                  AND verified_at = ? AND updated_at = ?
-             )`,
+             )
+           RETURNING id`,
         ).bind(
           auditId,
           projectId,
@@ -624,8 +637,8 @@ export async function handleGitConnection(
       return failure(request, env, "GIT_PERSISTENCE_FAILED", 500);
     }
     if (
-      Number(results[0]?.meta.changes ?? 0) !== 1 ||
-      Number(results[1]?.meta.changes ?? 0) !== 1
+      !returnedExactly(results[0], "project_id", projectId) ||
+      !returnedExactly(results[1], "id", auditId)
     ) {
       const currentMember = await membership(env, user.id, projectId);
       if (!currentMember) return failure(request, env, "NOT_FOUND", 404);

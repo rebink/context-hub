@@ -368,22 +368,23 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Completed the one independent review and its consolidated four-P1 correction pass.
 - [x] Passed the root phase stop gate: fresh/staged-through-0020 migration integrity plus 340 tests (205 API, 42 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. External Cloudflare/GitHub usage and plan/visibility, remote D1 plans, and Graphify benchmarks remain blockers.
 
-### 24. End-to-end verification (Prompt 24) — `PENDING`
+### 24. End-to-end verification (Prompt 24) — `COMPLETE LOCALLY; EXTERNAL/LIVE CHECKS BLOCKED`
 
-- [ ] Admin signs in and creates Payments Platform.
-- [ ] Admin connects GitHub, uploads architecture, and uploads the refund ADR.
-- [ ] Graph v1 is generated from commit A, validated, published, and shown as current.
-- [ ] Admin invites developer; developer accepts with the intended role.
-- [ ] Developer syncs local context and connects Pi.
-- [ ] Refund retry question returns only targeted, bounded, source-backed context.
-- [ ] Developer implements the feature and creates commit B.
-- [ ] Graph v2 is generated/published; stale v1 is detected and v2 syncs safely.
-- [ ] Graph v1 remains intact and retrievable.
-- [ ] Snapshot records the exact Git, graph, and artifact versions.
-- [ ] Write an automated E2E test/report with every step `PASS`, `FAIL`, or `BLOCKED`.
-- [ ] Run multi-project E2E: Acme has Payments/Identity/Mobile; Alice accesses only Payments/Identity; remotes auto-resolve; explicit switch works; authorized combined query is bounded; Payments+Mobile fails without leakage; tool count is unchanged.
-- [ ] Run browser, live OAuth, remote D1/R2, CI graph publication, local/offline sync, MCP, and Pi integration checks in safe environments.
-- [ ] Run the phase stop gate.
+- [x] Admin signs in through the injected OAuth provider seam and creates Payments Platform through production HTTP routes on fresh local D1.
+- [x] Admin connects normalized GitHub through the injected `GitProvider`, then uploads immutable architecture and refund ADR versions to local private R2.
+- [x] Graph v1 is deterministically generated at real commit A by the actual `GraphifyAdapter`/detached-Git/Python-validator path with an injected executable seam, production-format validated, machine-published, and shown current. Protected Actions and the real Graphify binary remain BLOCKED.
+- [x] Admin invites the current provider identity; developer accepts the intended EDITOR role.
+- [x] Actual `context-cli` sync/cache, exact `REPORTED` telemetry persistence/audit, and native `context-pi` registration/connect execute against production HTTP/MCP entry points.
+- [x] Refund retry returns bounded, Payments-only, source-backed Context Engine evidence through Pi and MCP.
+- [x] Developer changes the isolated real repository and creates commit B.
+- [x] Graph v2 is validated/published; actual CLI detects `REMOTE_GRAPH_AHEAD` and atomically syncs v2.
+- [x] Exact graph v1 bytes/checksum remain immutable and are revalidated by same-attempt replay plus authorized explorer retrieval after supersession.
+- [x] Snapshot raw bytes/checksum seal and revalidate exact commit-B Git/repository, graph-v2 generator/publication, and complete active artifact-v1 provenance; audit/freshness/team evidence is asserted.
+- [x] Added fail-fast `npm run test:e2e:local` and [`e2e-report.md`](e2e-report.md), with every local and external step classified.
+- [x] Multi-project local E2E creates Acme Payments/Identity/Mobile; limits Alice to Payments/Identity; exercises actual CLI remote resolution/switching, isolated and globally bounded combined retrieval, nonleaking Payments+Mobile denial, and the unchanged six-tool digest.
+- [ ] Browser/accessibility, live OAuth/provider, remote D1/R2/private bucket, protected Actions Graphify, live MCP/Pi host, OS secret store, and deployment checks remain explicitly BLOCKED with prerequisites in the report.
+- [x] Completed the one independent Phase 24 review and its consolidated six-P1 correction pass without a second review: exact D1 `RETURNING` cardinality/identity checks, bounded isolated harness lifecycle, deterministic Git/Python execution, actual identity/CLI auto-resolution and reporting, structural isolation/snapshot assertions, and exact audit/revocation evidence.
+- [x] Passed the parent-owned root phase stop gate: `npm run test:e2e:local`, fresh/staged-through-0020 migration integrity, 342 tests (207 API, 42 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds.
 
 ### 25. Final architecture and product QA (Prompt 25) — `PENDING`
 

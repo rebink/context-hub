@@ -538,7 +538,8 @@ export async function handleSyncStateWrite(request: Request, env: SyncStateEnv, 
      WHERE excluded.observation_sequence>sync_states.observation_sequence OR
        (excluded.observation_sequence=sync_states.observation_sequence AND
         excluded.local_git_sha=sync_states.local_git_sha AND excluded.sync_status=sync_states.sync_status AND
-        excluded.report_outcome=sync_states.report_outcome AND excluded.failure_code IS sync_states.failure_code)`,
+        excluded.report_outcome=sync_states.report_outcome AND excluded.failure_code IS sync_states.failure_code)
+     RETURNING project_id,principal_id,client_id`,
   )
     .bind(
       ...fields,
@@ -562,7 +563,16 @@ export async function handleSyncStateWrite(request: Request, env: SyncStateEnv, 
     )
     .run()
     .catch(() => null);
-  if (!result || Number(result.meta.changes ?? 0) !== 1)
+  const returned = result?.results as
+    | Array<{ project_id?: unknown; principal_id?: unknown; client_id?: unknown }>
+    | undefined;
+  if (
+    returned?.length !== 1 ||
+    returned[0]?.project_id !== projectId ||
+    typeof returned[0]?.principal_id !== "string" ||
+    returned[0].principal_id.length < 1 ||
+    returned[0]?.client_id !== report.clientId
+  )
     return fail(request, env, "NOT_FOUND", 404);
   const row = await env.DB.prepare(
     `SELECT ss.* FROM sync_states ss JOIN mcp_credentials mc ON mc.principal_id=ss.principal_id
@@ -570,6 +580,7 @@ export async function handleSyncStateWrite(request: Request, env: SyncStateEnv, 
   )
     .bind(projectId, report.clientId, credential.credentialId)
     .first<SyncRow>();
-  if (!row) return fail(request, env, "NOT_FOUND", 404);
+  if (!row || row.principal_id !== returned[0].principal_id)
+    return fail(request, env, "NOT_FOUND", 404);
   return response(request, env, { syncState: mapRow(row) }, 200);
 }

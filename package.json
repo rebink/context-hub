@@ -14,6 +14,7 @@
     "lint": "biome check .",
     "build": "npm run build --workspaces --if-present",
     "audit:free-tier": "npm run build -w @context-hub/api && npm run build -w @context-hub/web && node scripts/free-tier-audit.mjs",
+    "test:e2e:local": "tsx scripts/e2e-local.ts",
     "format": "biome check --write .",
     "db:migrate:local": "npm run db:migrate:local -w @context-hub/api",
     "db:migrate:remote": "npm run db:migrate:remote -w @context-hub/api"

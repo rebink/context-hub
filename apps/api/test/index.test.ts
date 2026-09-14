@@ -22,7 +22,11 @@ class FakeStatement {
   }
   async run(): Promise<D1Result> {
     const changes = this.db.run(this.sql, this.args);
-    return { success: true, meta: { changes } } as D1Result;
+    return {
+      success: true,
+      results: this.db.returning(this.sql, this.args, changes),
+      meta: { changes },
+    } as D1Result;
   }
   async all<T>(): Promise<D1Result<T>> {
     return {
@@ -51,6 +55,7 @@ class FakeD1 {
   beforeMutation?: (sql: string) => void;
   projectUpdateError?: Error;
   failAuditInsert = false;
+  returningCopies = 1;
 
   prepare(sql: string) {
     return new FakeStatement(this, sql);
@@ -601,6 +606,17 @@ class FakeD1 {
       audits: this.gitAuditEvents,
     });
     return before === after ? 0 : 1;
+  }
+  returning(sql: string, args: unknown[], changes: number): Row[] {
+    if (changes !== 1 || !sql.includes("RETURNING")) return [];
+    let row: Row;
+    if (this.has(sql, "RETURNING connection_id")) row = { connection_id: args[0] };
+    else if (this.has(sql, "UPDATE git_connections SET") && this.has(sql, "RETURNING project_id"))
+      row = { project_id: args[4] };
+    else if (this.has(sql, "RETURNING project_id")) row = { project_id: args[0] };
+    else if (this.has(sql, "RETURNING id")) row = { id: args[0] };
+    else return [];
+    return Array.from({ length: this.returningCopies }, () => ({ ...row }));
   }
   all(sql: string, args: unknown[]): Row[] {
     if (this.has(sql, "FROM workspaces w JOIN workspace_members")) {
@@ -1540,6 +1556,15 @@ describe("Git repository connection routes", () => {
     assert.equal(db.gitAuditEvents[2]?.event_type, "git-synced");
     assert.equal(JSON.parse(String(db.gitAuditEvents[2]?.metadata)).changed, false);
 
+    headSha = "c".repeat(40);
+    db.returningCopies = 2;
+    const duplicateReturned = await gitApp.fetch(
+      request("/projects/p/git/sync", "admin-token", { method: "POST" }),
+      env,
+    );
+    assert.equal(duplicateReturned.status, 409);
+    db.returningCopies = 1;
+
     const preserved = JSON.stringify(db.gitConnections[0]);
     failProvider = true;
     const failed = await gitApp.fetch(
@@ -1549,7 +1574,7 @@ describe("Git repository connection routes", () => {
     assert.equal(failed.status, 502);
     assert.deepEqual(await body(failed), { error: "GIT_PROVIDER_FAILED" });
     assert.equal(JSON.stringify(db.gitConnections[0]), preserved);
-    assert.equal(db.gitAuditEvents.length, 3);
+    assert.equal(db.gitAuditEvents.length, 4);
     failProvider = false;
 
     repositoryId = 88;
@@ -1559,7 +1584,7 @@ describe("Git repository connection routes", () => {
     );
     assert.equal(mismatched.status, 502);
     assert.equal(JSON.stringify(db.gitConnections[0]), preserved);
-    assert.equal(db.gitAuditEvents.length, 3);
+    assert.equal(db.gitAuditEvents.length, 4);
     repositoryId = 77;
 
     const disconnected = await gitApp.fetch(
@@ -1569,7 +1594,7 @@ describe("Git repository connection routes", () => {
     assert.equal(disconnected.status, 200);
     assert.equal(db.gitConnections.length, 0);
     assert.equal(db.projectRepositories.length, 0);
-    assert.equal(db.gitAuditEvents[3]?.event_type, "git-disconnected");
+    assert.equal(db.gitAuditEvents[4]?.event_type, "git-disconnected");
     assert.equal(db.repositories.length, 1, "canonical identity remains as audit provenance");
     const afterDisconnect = await body(
       await gitApp.fetch(
