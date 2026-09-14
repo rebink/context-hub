@@ -1,5 +1,6 @@
 import { ApiError, api } from "./api.js";
 import {
+  canManageGit,
   type GitCallback,
   gitLoadAnnouncement,
   isCurrentGitRequest,
@@ -93,7 +94,7 @@ export function mountGit(
   let currentProjectId = project.id;
   let connection: GitConnection | null = null;
   let pendingCallback = callback;
-  const canMutate = project.role === "ADMIN";
+  const canMutate = canManageGit(project.role);
 
   container.replaceChildren();
   container.classList.add("git-region");

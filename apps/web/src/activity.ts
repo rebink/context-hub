@@ -97,9 +97,10 @@ function eventCard(event: ActivityEvent): HTMLElement {
 }
 
 export function mountActivity(host: HTMLElement, project: Project, options: Options): () => void {
-  const controller = new AbortController();
+  let controller = new AbortController();
+  let generation = 0;
+  let mounted = true;
   let cursor: string | null = null;
-  let loading = false;
   host.innerHTML = `
     <section class="activity-shell reveal" aria-labelledby="activity-title">
       <div class="activity-heading">
@@ -129,8 +130,18 @@ export function mountActivity(host: HTMLElement, project: Project, options: Opti
   }
 
   async function load(append: boolean): Promise<void> {
-    if (!form || !list || !status || !more || loading) return;
-    loading = true;
+    if (!form || !list || !status || !more || !mounted) return;
+    const requestGeneration = ++generation;
+    controller.abort();
+    controller = new AbortController();
+    const requestController = controller;
+    form
+      .querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>(
+        "button,input,select",
+      )
+      .forEach((control) => {
+        control.disabled = true;
+      });
     more.disabled = true;
     status.textContent = append ? "Loading older activity..." : "Loading project activity...";
     const data = new FormData(form);
@@ -139,7 +150,13 @@ export function mountActivity(host: HTMLElement, project: Project, options: Opti
     const actorId = String(data.get("actorId") ?? "").trim();
     if ((actorKind === "") !== (actorId === "")) {
       status.textContent = "Choose both an actor kind and actor ID, or leave both empty.";
-      loading = false;
+      form
+        .querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>(
+          "button,input,select",
+        )
+        .forEach((control) => {
+          control.disabled = false;
+        });
       more.disabled = false;
       return;
     }
@@ -152,8 +169,9 @@ export function mountActivity(host: HTMLElement, project: Project, options: Opti
     if (append && cursor) query.set("cursor", cursor);
     try {
       const page = await api<ActivityPage>(`/projects/${project.id}/activity?${query}`, {
-        signal: controller.signal,
+        signal: requestController.signal,
       });
+      if (!mounted || requestGeneration !== generation) return;
       if (!page.events.every((event) => isProjectAuditAction(event.action))) {
         throw new Error("Invalid activity action");
       }
@@ -166,7 +184,7 @@ export function mountActivity(host: HTMLElement, project: Project, options: Opti
           ? "No activity was recorded in the last 30 days for these filters."
           : `${list.childElementCount} event${list.childElementCount === 1 ? "" : "s"} shown${page.projectStatus === "ARCHIVED" ? " / archived project" : ""}.`;
     } catch (cause) {
-      if (controller.signal.aborted) return;
+      if (requestController.signal.aborted || !mounted || requestGeneration !== generation) return;
       if (cause instanceof ApiError && cause.status === 401) {
         options.onUnauthorized();
         return;
@@ -176,8 +194,16 @@ export function mountActivity(host: HTMLElement, project: Project, options: Opti
           ? "Project activity is unavailable."
           : "Activity could not be loaded. Try again.";
     } finally {
-      loading = false;
-      more.disabled = false;
+      if (mounted && requestGeneration === generation) {
+        form
+          .querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>(
+            "button,input,select",
+          )
+          .forEach((control) => {
+            control.disabled = false;
+          });
+        more.disabled = false;
+      }
     }
   }
   form?.addEventListener("submit", (event) => {
@@ -187,5 +213,9 @@ export function mountActivity(host: HTMLElement, project: Project, options: Opti
   });
   more?.addEventListener("click", () => void load(true));
   void load(false);
-  return () => controller.abort();
+  return () => {
+    mounted = false;
+    ++generation;
+    controller.abort();
+  };
 }

@@ -332,18 +332,20 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Passed the root phase stop gate: fresh/staged-through-0020 migration integrity plus 318 tests (193 API, 32 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. Remote D1/R2 and twenty-project performance evidence remain external.
 - **P2 backlog (non-blocking):** reconcile ADR deduplication wording with boundary duplicate rejection; add route-specific `405 Allow: POST` and narrow global preflight behavior; broaden race/R2/minimum-budget coverage beyond the consolidated P1 fixes.
 
-### Management UI completion — `PENDING`
+### Management UI completion — `COMPLETE LOCALLY`
 
-- [ ] Global navigation: Projects, Activity, Settings.
-- [ ] Global Activity is only a bounded, paginated/time-limited aggregate of audit events from projects where the caller has direct current membership; its route/API must apply per-project authorization before aggregation, return no inaccessible project identifiers/counts, and have mixed-access isolation and pagination/bound tests.
-- [ ] Global Settings minimally shows real account/session data and a real connection/configuration overview for directly authorized projects; it must not invent provider, connection, or preference data. Its route/API needs unauthenticated-denial and mixed-access isolation tests. Project settings mutation remains the separate ADMIN-only Phase 20A seam.
-- [ ] Project navigation: Overview, Context, Graphify, Git, Team, Snapshots, Activity, Settings.
-- [ ] Git management: repository, branch, current commit, connection/verification/error state, connect/disconnect/sync controls by role.
-- [ ] Graphify management and focused Graph Explorer surfaces from Phase 9; never expose graph editing.
-- [ ] Team management: pending invites, acceptance, member list, role changes/removal, and final-admin-safe controls.
-- [ ] Snapshot list/create/inspect, freshness and sync warnings, project activity/audit history, and the Phase 20A project settings/lifecycle UI.
-- [ ] Enforce read-only viewer presentation while retaining server authorization; include loading, empty, error, conflict, stale, offline, and nonleaking denial states.
-- [ ] Add UI validation/role/isolation tests and browser E2E coverage; run the phase stop gate.
+- [x] Global navigation: Projects, Activity, Settings, with URL-backed deep links and history restoration.
+- [x] Global Activity is only a bounded, paginated/time-limited aggregate of audit events from projects where the caller has direct current membership; every aggregate query joins current project and workspace membership, returns authorized project metadata only, exposes no inaccessible counts/order gaps, and explicitly supports active/archived filtering.
+- [x] Global Settings minimally shows real account/session data and a bounded read-only connection/configuration overview for directly authorized projects; it returns no provider payload, credential, secret, or invented preference. Project settings mutation remains the separate ADMIN-only Phase 20A seam.
+- [x] Project navigation: Overview, Context, Graphify, Git, Team, Snapshots, Activity, Settings.
+- [x] Git management: repository, branch, current commit, connection/verification/error state, connect/disconnect/sync controls by role.
+- [x] Graphify management and focused Graph Explorer surfaces from Phase 9; graph editing remains absent.
+- [x] Team management: pending invites, acceptance, member list, role changes/removal, and final-admin-safe controls.
+- [x] Snapshot list/create/inspect with exact provenance, real Overview freshness/sync status, project Activity history, and the Phase 20A project Settings/lifecycle UI are wired.
+- [x] Viewer controls remain read-only while server authorization stays authoritative; loading, empty, error, conflict, stale, offline, integrity, and nonleaking denial copy is explicit, and async view transitions are abortable/generation-fenced.
+- [x] The single independent review is complete and its six P1 findings are fixed in one consolidated pass: authenticated teardown/history fail closed without retained private state; every project route refreshes current list/detail authorization behind an abortable generation fence; snapshot inspection renders the complete API provenance contract; invalid routes canonicalize while project selection exposes `aria-current` only in project context; create/dialog flows restore focus; and SQL-sensitive plus coordinator/history acceptance contracts cover mixed authorization, cursors, demotion/removal, stale completion, teardown, and listener cleanup.
+- [x] Passed the root phase stop gate: fresh/staged-through-0020 migration integrity plus 330 tests (197 API, 40 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. No browser runtime is installed, so live browser, keyboard, responsive, accessibility, and back/forward execution remain an explicit external Phase 24 gate.
+- [ ] Management UI P2 backlog only: replace global Activity append failures with append-specific retry/error handling; replace stale Graphify copy that says local sync is not implemented; explicitly classify whether the account provider user ID belongs in the Settings response; add snapshot pagination or an explicit truncation/load-more state beyond the current bounded first page.
 
 ### 22. Security audit (Prompt 22) — `PENDING`
 
@@ -423,13 +425,13 @@ All project endpoints inherit authenticate -> resolve -> direct membership -> ro
 - [x] `GET /projects/:id/team`, invite/accept/revoke, role `PATCH`, and member `DELETE` routes.
 - [x] ADMIN-only `PATCH /projects/:id` with exact expected settings revision and deterministic conflict behavior.
 - [x] ADMIN-only logical `DELETE /projects/:id/artifacts/:artifactId` with exact expected current version plus lifecycle revision and immutable version-history preservation.
-- [ ] `GET/POST /projects/:id/snapshots` and snapshot detail retrieval.
-- [ ] `GET /projects/:id/activity`.
-- [ ] Bounded `GET /activity` aggregate over directly authorized projects only, with pagination/time bounds and nonleaking isolation.
-- [ ] `GET /settings` (or documented account route) for real account/session and authorized connection/configuration overview; no fabricated values or project mutation.
-- [ ] `GET/POST /mcp` universal authenticated transport.
+- [x] `GET/POST /projects/:id/snapshots` and snapshot detail retrieval.
+- [x] `GET /projects/:id/activity`.
+- [x] Bounded `GET /activity` aggregate over directly authorized projects only, with pagination/time bounds and nonleaking isolation.
+- [x] `GET /settings` for real account/session and authorized connection/configuration overview; no fabricated values or project mutation.
+- [x] `GET/POST /mcp` universal authenticated transport.
 - [x] `POST /context/cross-project/search` with independent active/current direct-member/current workspace-member authorization for the complete explicit set before source reads.
-- [ ] Local sync/graph publication machine endpoints required by the researched Graphify/CI protocol, with scoped credentials and replay protection.
+- [x] Local sync/graph publication machine endpoints required by the Graphify/CI protocol, with scoped credentials and replay protection.
 
 ## Required data model and index ledger
 
@@ -441,12 +443,12 @@ All project endpoints inherit authenticate -> resolve -> direct membership -> ro
 - [x] Migration 0019 extends `projects` with approved mutable settings revision/evidence and `artifacts` with logical archive status/actor/time/reason/revision while preserving immutable `artifact_versions` and active/archive indexes.
 - [x] Generalized immutable `project_audit_events` materialization for required targets/actions with deterministic source identities and project/time plus actor/action indexes; root gate pending.
 - [~] `graph_versions` and `graph_events` exist with complete build-identity uniqueness, project/version and status/version indexes, one current READY row, lease expiry lookup, constrained lifecycle payloads, and immutable transition events; Phase 9 acceptance additionally requires ADR 0004's additive `graph_build_attempts`, storage-layout marker, selected-publication metadata, and project-first cleanup indexes.
-- [ ] `context_snapshots`, `snapshot_artifacts` with project and exact-version constraints/indexes.
-- [ ] `sync_states` with project/client uniqueness/index and local/remote Git/graph state.
-- [ ] Team invitation records with secure token hash, project/role/inviter/status/expiry and lookup/expiry indexes.
-- [ ] `machine_principals` for purpose (`MCP_LOCAL_CLIENT | CI_GRAPH_PUBLICATION`), owner, status, allowed operations, direct project scope, optional exact repository binding, and creation/revocation metadata.
-- [ ] `machine_credentials` with principal, SHA-256 (or stronger approved one-way) secret hash only, issued/expiry/last-used/revoked/rotation metadata and indexes; never store or log plaintext credentials.
-- [ ] Bounded nonce/idempotency records bound to principal, project, repository, operation, commit/version, and expiry for MCP/local requests and CI graph publication replay prevention.
+- [x] `context_snapshots`, `snapshot_artifacts` with project and exact-version constraints/indexes.
+- [x] `sync_states` with project/client uniqueness/index and local/remote Git/graph state.
+- [x] Exact-existing-user team invitation records with project/role/inviter/status/expiry and lookup/expiry indexes; no bearer token or email is stored.
+- [x] Separate `machine_principals` and `mcp_principals` with owner, status, allowed operations, direct project scope, optional exact repository binding, and creation/revocation metadata.
+- [x] Machine and MCP credentials store only SHA-256 secret hashes with issued/expiry/last-used/revoked/rotation metadata and indexes; plaintext credentials are shown once and never persisted or logged.
+- [x] Bounded nonce/idempotency records bind principal, project/repository scope, operation, request identity, and expiry for MCP/local requests and CI graph publication replay prevention.
 - [ ] Webhook delivery/idempotency records if webhook flows are enabled.
 - [ ] Usage/metrics records only if needed after evaluating privacy and free-tier cost; do not store sensitive payloads.
 

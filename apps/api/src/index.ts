@@ -15,6 +15,7 @@ import { GithubGitProvider } from "./github-git-provider.js";
 import { GithubIdentityLookupProvider } from "./github-identity-lookup-provider.js";
 import { handleGraphRoute } from "./graphs.js";
 import { handleCredentialRoute, handleMachineGraphRoute } from "./machine-graphs.js";
+import { handleGlobalActivity, handleGlobalSettings } from "./management.js";
 import { handleMcpCredentialRoute, handleMcpRoute } from "./mcp.js";
 import type { ObjectStorage } from "./object-storage.js";
 import { handleProjectAdministration } from "./project-administration.js";
@@ -488,11 +489,15 @@ function gitProvider(env: Env, outboundFetch: typeof fetch): GithubGitProvider |
   );
 }
 
-async function options(request: Request, env: Env): Promise<Response> {
+async function options(
+  request: Request,
+  env: Env,
+  methods = "GET, POST, PATCH, DELETE, OPTIONS",
+): Promise<Response> {
   const origin = request.headers.get("origin");
   if (!origin || origin !== env.WEB_ORIGIN) return error(request, env, "ORIGIN_NOT_ALLOWED", 403);
   const headers = corsHeaders(request, env);
-  headers.set("access-control-allow-methods", "GET, POST, PATCH, DELETE, OPTIONS");
+  headers.set("access-control-allow-methods", methods);
   headers.set("access-control-allow-headers", "content-type");
   headers.set("access-control-max-age", "86400");
   return new Response(null, { status: 204, headers });
@@ -504,7 +509,13 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
       try {
         const { pathname } = new URL(request.url);
         const storage = new R2ObjectStorage(env.OBJECTS);
-        if (request.method === "OPTIONS") return options(request, env);
+        if (request.method === "OPTIONS") {
+          return options(
+            request,
+            env,
+            pathname === "/activity" || pathname === "/settings" ? "GET, OPTIONS" : undefined,
+          );
+        }
 
         if (pathname === "/mcp") return handleMcpRoute(request, env, storage);
 
@@ -562,6 +573,14 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
           const user = await authenticate(request, env);
           if (!user) return error(request, env, "UNAUTHENTICATED", 401);
           return handleInvitationInbox(request, env, user, invitationAccept?.[1]);
+        }
+
+        if (pathname === "/activity" || pathname === "/settings") {
+          const user = await authenticate(request, env);
+          if (!user) return error(request, env, "UNAUTHENTICATED", 401);
+          return pathname === "/activity"
+            ? handleGlobalActivity(request, env, user)
+            : handleGlobalSettings(request, env, user);
         }
 
         const teamInvitation = /^\/projects\/([^/]+)\/team\/invitations\/([^/]+)$/.exec(pathname);

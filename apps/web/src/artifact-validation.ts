@@ -23,6 +23,10 @@ export const CONTENT_TYPES = [
   "application/x-yaml",
 ] as const;
 
+export function canManageArtifacts(role: "ADMIN" | "EDITOR" | "VIEWER"): boolean {
+  return role !== "VIEWER";
+}
+
 export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
 export type FieldErrors = Record<string, string>;
 

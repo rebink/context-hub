@@ -76,6 +76,45 @@ const MAX_LIMIT = 100;
 const MAX_ARTIFACTS = 100;
 const MANIFEST_CONTENT_TYPE = "application/json";
 
+export const SNAPSHOT_GRAPH_RESPONSE_FIELDS = [
+  "version",
+  "sourceCommitSha",
+  "storageLayout",
+  "publicationId",
+  "publishedAttempt",
+  "publishedLeaseId",
+  "uploadId",
+  "checksum",
+  "byteSize",
+  "contentType",
+  "repository.provider",
+  "repository.providerRepositoryId",
+  "repository.owner",
+  "repository.name",
+  "repository.canonicalUrl",
+  "graphifyVersion",
+  "adapterVersion",
+  "profile",
+  "formatVersion",
+  "generator",
+  "generatedBy",
+  "generatedAt",
+] as const;
+export const SNAPSHOT_ARTIFACT_RESPONSE_FIELDS = [
+  "artifactId",
+  "version",
+  "type",
+  "checksum",
+  "byteSize",
+  "contentType",
+  "uploadId",
+  "sourceCommitSha",
+  "changeNote",
+  "createdBy",
+  "createdAt",
+] as const;
+export const SNAPSHOT_MANIFEST_RESPONSE_FIELDS = ["checksum", "byteSize", "contentType"] as const;
+
 function responseHeaders(request: Request, env: SnapshotEnv) {
   const headers = new Headers({ "content-type": "application/json; charset=utf-8" });
   const origin = request.headers.get("origin");

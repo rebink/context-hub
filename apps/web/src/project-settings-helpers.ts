@@ -1,3 +1,7 @@
+export function canManageProjectSettings(role: "ADMIN" | "EDITOR" | "VIEWER"): boolean {
+  return role === "ADMIN";
+}
+
 export type ProjectSettingsDraft = {
   name: string;
   slug: string;

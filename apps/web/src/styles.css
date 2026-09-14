@@ -1947,3 +1947,272 @@ dialog::backdrop {
     margin-bottom: 7px;
   }
 }
+
+.global-nav {
+  display: flex;
+  align-self: stretch;
+}
+
+.global-nav button {
+  min-width: 92px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.global-nav button:hover,
+.global-nav--active {
+  border-bottom-color: var(--accent);
+  background: var(--panel);
+}
+
+.management-shell,
+.snapshots-view {
+  max-width: 1080px;
+}
+
+.management-heading h1,
+.snapshots-view h1 {
+  margin: 4px 0 12px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3.2rem, 8vw, 7rem);
+  font-weight: 400;
+  letter-spacing: -0.055em;
+  line-height: 0.9;
+}
+
+.management-heading > p:last-child {
+  max-width: 720px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.project-catalog,
+.snapshot-list {
+  margin-top: 42px;
+  display: grid;
+  border-top: 1px solid var(--ink);
+}
+
+.project-card,
+.snapshot-row {
+  width: 100%;
+  min-height: 92px;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1.2fr) auto;
+  align-items: center;
+  gap: 20px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.project-card:hover,
+.snapshot-row:hover {
+  background: var(--panel);
+}
+
+.project-card > span,
+.snapshot-row > span,
+.snapshot-row time {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.metric-link,
+.management-project-link {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.metric-link {
+  margin-top: 14px;
+  text-transform: uppercase;
+  font-size: 0.62rem;
+}
+
+.management-project-link {
+  margin-top: 12px;
+}
+
+.management-panel,
+.snapshot-inspector,
+.snapshot-create {
+  margin-top: 38px;
+  padding: 24px;
+  border: 1px solid var(--ink);
+  background: color-mix(in srgb, var(--panel) 52%, transparent);
+}
+
+.management-panel h2,
+.snapshot-inspector h2 {
+  margin: 0 0 22px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-weight: 400;
+}
+
+.configuration-card {
+  padding: 24px 0;
+  border-top: 1px solid var(--line);
+}
+
+.configuration-heading,
+.snapshot-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.configuration-heading h3 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.5rem;
+  font-weight: 400;
+}
+
+.management-details,
+.snapshot-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.management-detail,
+.snapshot-detail {
+  min-width: 0;
+  padding: 12px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.management-detail dt,
+.snapshot-detail dt {
+  color: var(--muted);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+}
+
+.management-detail dd,
+.snapshot-detail dd {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.snapshot-create summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.snapshot-form {
+  margin-top: 22px;
+  display: grid;
+  gap: 18px;
+}
+
+.snapshot-form > label,
+.snapshot-artifact-options label {
+  display: grid;
+  gap: 8px;
+}
+
+.snapshot-form input,
+.snapshot-form select {
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.snapshot-artifact-options {
+  max-height: 300px;
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  border: 1px solid var(--line);
+}
+
+.snapshot-artifact-options label {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.snapshot-artifact-options input {
+  min-height: auto;
+}
+
+.snapshot-references {
+  display: grid;
+  gap: 18px;
+}
+
+.snapshot-artifact-provenance {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.git-region:not(.metric) {
+  padding: 28px;
+  border: 1px solid var(--ink);
+}
+
+.git-region:not(.metric) .git-state,
+.git-region:not(.metric) .git-repository {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-weight: 400;
+}
+
+@media (max-width: 760px) {
+  .app-header {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 14px;
+  }
+
+  .global-nav {
+    order: 3;
+    width: 100%;
+    min-height: 42px;
+    overflow-x: auto;
+  }
+
+  .global-nav button {
+    flex: 1;
+  }
+
+  .project-tabs {
+    overflow-x: auto;
+  }
+
+  .project-card,
+  .snapshot-row,
+  .management-details,
+  .snapshot-detail-grid,
+  .snapshot-artifact-provenance {
+    grid-template-columns: 1fr;
+  }
+
+  .configuration-heading,
+  .snapshot-heading {
+    display: block;
+  }
+}

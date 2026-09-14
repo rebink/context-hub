@@ -4,6 +4,7 @@ import {
   ARTIFACT_TYPES,
   type ArtifactType,
   CONTENT_TYPES,
+  canManageArtifacts,
   type FieldErrors,
   type UploadDraft,
   validateUpload,
@@ -197,7 +198,7 @@ export function mountArtifacts(
   let selectedVersion = 0;
   let requestGeneration = 0;
   let controller = new AbortController();
-  const canMutate = project.role !== "VIEWER";
+  const canMutate = canManageArtifacts(project.role);
 
   container.replaceChildren();
   const shell = element("section", "artifacts-view reveal");

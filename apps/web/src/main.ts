@@ -5,7 +5,20 @@ import { mountArtifacts } from "./artifacts.js";
 import { mountGit } from "./git.js";
 import { callbackFreeUrl, matchGitCallbackProject, parseGitCallback } from "./git-helpers.js";
 import { mountGraphs } from "./graphs.js";
+import {
+  type AuthorizedProjectConfiguration,
+  mountGlobalActivity,
+  mountGlobalSettings,
+} from "./management.js";
+import {
+  ManagementCoordinator,
+  resolveCurrentProject,
+  restoreFocusAfterDialog,
+} from "./management-coordinator.js";
+import type { AppRoute, ProjectView } from "./navigation.js";
+import { mountOverview } from "./overview.js";
 import { mountProjectSettings } from "./project-settings.js";
+import { mountSnapshots } from "./snapshots.js";
 import { mountInvitationInbox, mountTeam } from "./team.js";
 
 type User = {
@@ -40,12 +53,20 @@ let workspaces: Workspace[] = [];
 let projects: Project[] = [];
 let activeWorkspaceId = "";
 let activeProjectId = localStorage.getItem("context-hub-project") ?? "";
-let activeProjectView: "overview" | "artifacts" | "graphify" | "team" | "activity" | "settings" =
-  "overview";
 let unmountProjectView: (() => void) | null = null;
 let refreshGeneration = 0;
 let refreshController = new AbortController();
+let projectRouteController = new AbortController();
 let gitCallback = parseGitCallback(window.location.search);
+const coordinator = new ManagementCoordinator(window.location.pathname, history, () => {
+  user = null;
+  workspaces = [];
+  projects = [];
+  activeWorkspaceId = "";
+  activeProjectId = "";
+  gitCallback = null;
+  localStorage.removeItem("context-hub-project");
+});
 
 function setText(selector: string, value: string): void {
   const target = root?.querySelector<HTMLElement>(selector);
@@ -72,6 +93,9 @@ function validImage(value: string | null): string | null {
 
 function renderLoggedOut(message = "Sign in to open your project context."): void {
   if (!root) return;
+  coordinator.clearAuthentication();
+  refreshController.abort();
+  projectRouteController.abort();
   unmountProjectView?.();
   unmountProjectView = null;
   root.innerHTML = `
@@ -106,72 +130,116 @@ function projectForWorkspace(): Project | null {
   return selected;
 }
 
-function renderProject(project: Project): void {
+function showDialog(dialog: HTMLDialogElement | null, opener: HTMLElement): void {
+  if (!dialog) return;
+  dialog.addEventListener(
+    "close",
+    () => {
+      restoreFocusAfterDialog(opener);
+    },
+    { once: true },
+  );
+  dialog.showModal();
+}
+
+function focusCurrentView(): void {
+  queueMicrotask(() => {
+    const focusTarget =
+      root?.querySelector<HTMLElement>("h1") ??
+      root?.querySelector<HTMLElement>("[aria-current='page']");
+    if (focusTarget) {
+      if (focusTarget.tagName === "H1") focusTarget.tabIndex = -1;
+      focusTarget.focus({ preventScroll: true });
+    }
+  });
+}
+
+function navigate(route: AppRoute, replace = false): void {
+  coordinator.navigate(route, replace);
+  if (route.kind === "project") {
+    activeProjectId = route.projectId;
+    activeWorkspaceId =
+      projects.find((project) => project.id === route.projectId)?.workspace_id ?? activeWorkspaceId;
+    localStorage.setItem("context-hub-project", route.projectId);
+  }
+  renderDashboard();
+  focusCurrentView();
+}
+
+function renderProject(project: Project, projectView: ProjectView): void {
   const content = root?.querySelector<HTMLElement>("[data-content]");
   if (!content) return;
   unmountProjectView?.();
   unmountProjectView = null;
-  content.innerHTML = `
-    <nav class="project-tabs" aria-label="Project views">
-      <button type="button" data-project-tab="overview">Overview</button>
-      <button type="button" data-project-tab="artifacts">Artifacts</button>
-      <button type="button" data-project-tab="graphify">Graphify</button>
-      <button type="button" data-project-tab="team">Team</button>
-      <button type="button" data-project-tab="activity">Activity</button>
-      <button type="button" data-project-tab="settings">Settings</button>
-    </nav>
-    <div data-project-view></div>`;
-  content.querySelectorAll<HTMLButtonElement>("[data-project-tab]").forEach((tab) => {
-    const view = tab.dataset.projectTab as
-      | "overview"
-      | "artifacts"
-      | "graphify"
-      | "team"
-      | "activity"
-      | "settings";
-    const active = view === activeProjectView;
+  const tabs = document.createElement("nav");
+  tabs.className = "project-tabs";
+  tabs.setAttribute("aria-label", "Project navigation");
+  const labels: Array<[ProjectView, string]> = [
+    ["overview", "Overview"],
+    ["context", "Context"],
+    ["graphify", "Graphify"],
+    ["git", "Git"],
+    ["team", "Team"],
+    ["snapshots", "Snapshots"],
+    ["activity", "Activity"],
+    ["settings", "Settings"],
+  ];
+  for (const [routeView, label] of labels) {
+    const tab = button(label);
+    const active = routeView === projectView;
     tab.classList.toggle("project-tab--active", active);
-    tab.setAttribute("aria-current", active ? "page" : "false");
-    tab.addEventListener("click", () => {
-      activeProjectView = view;
-      renderProject(project);
-    });
-  });
-  const view = content.querySelector<HTMLElement>("[data-project-view]");
-  if (!view) return;
-  if (activeProjectView === "artifacts") {
+    if (active) tab.setAttribute("aria-current", "page");
+    tab.addEventListener("click", () =>
+      navigate({ kind: "project", projectId: project.id, view: routeView }),
+    );
+    tabs.append(tab);
+  }
+  const view = document.createElement("div");
+  content.replaceChildren(tabs, view);
+  const unauthorized = () => renderLoggedOut("Your session expired. Sign in again.");
+  if (projectView === "context") {
     unmountProjectView = mountArtifacts(view, project, {
-      onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again."),
+      onUnauthorized: unauthorized,
       onCountChange: (count) => {
         project.artifact_count = count;
       },
     });
-    return;
-  }
-  if (activeProjectView === "graphify") {
-    unmountProjectView = mountGraphs(view, project, {
-      onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again."),
-    });
-    return;
-  }
-  if (activeProjectView === "team") {
+  } else if (projectView === "graphify") {
+    unmountProjectView = mountGraphs(view, project, { onUnauthorized: unauthorized });
+  } else if (projectView === "git") {
+    const shell = document.createElement("section");
+    shell.className = "management-shell reveal";
+    const heading = document.createElement("div");
+    heading.className = "management-heading";
+    const kicker = document.createElement("p");
+    kicker.className = "kicker";
+    kicker.textContent = "Source identity / verified";
+    const title = document.createElement("h1");
+    title.textContent = "Git";
+    const copy = document.createElement("p");
+    copy.textContent =
+      "Repository, default branch, current commit, verification state, and role-aware connection controls.";
+    heading.append(kicker, title, copy);
+    const region = document.createElement("div");
+    shell.append(heading, region);
+    view.replaceChildren(shell);
+    const callback = gitCallback;
+    gitCallback = null;
+    unmountProjectView = mountGit(region, project, { onUnauthorized: unauthorized }, callback);
+  } else if (projectView === "team") {
     unmountProjectView = mountTeam(view, project, user?.id ?? "", {
-      onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again."),
+      onUnauthorized: unauthorized,
       onCountChange: (count) => {
         project.member_count = count;
       },
     });
-    return;
-  }
-  if (activeProjectView === "activity") {
-    unmountProjectView = mountActivity(view, project, {
-      onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again."),
-    });
-    return;
-  }
-  if (activeProjectView === "settings") {
+  } else if (projectView === "snapshots") {
+    unmountProjectView = mountSnapshots(view, project, { onUnauthorized: unauthorized });
+  } else if (projectView === "activity") {
+    unmountProjectView = mountActivity(view, project, { onUnauthorized: unauthorized });
+  } else if (projectView === "settings") {
     unmountProjectView = mountProjectSettings(view, project, {
-      onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again."),
+      onUnauthorized: unauthorized,
       onUpdated: (updated) => {
         Object.assign(project, updated);
         const projectLink = root?.querySelector<HTMLButtonElement>(
@@ -180,51 +248,11 @@ function renderProject(project: Project): void {
         if (projectLink) projectLink.textContent = project.name;
       },
     });
-    return;
-  }
-  view.innerHTML = `
-    <div class="project-heading reveal">
-      <p class="kicker" data-project-slug></p>
-      <div class="title-row">
-        <h1 data-project-name></h1>
-        <span class="role" data-project-role></span>
-      </div>
-      <p class="project-description" data-project-description></p>
-    </div>
-    <section class="metrics reveal" aria-label="Project status">
-      <article class="metric metric--primary">
-        <p>Members</p><strong data-members></strong><span>Direct project access</span>
-      </article>
-      <article class="metric">
-        <p>Artifacts</p><strong data-artifacts></strong><span>Published context records</span>
-      </article>
-      <article class="metric metric--wide" data-git-region></article>
-      <article class="metric">
-        <p>Graphify</p><strong>Project graph</strong><span>Open the Graphify tab for live status, provenance, and bounded queries</span>
-      </article>
-      <article class="metric">
-        <p>Sync</p><strong>Not configured</strong><span>No local client</span>
-      </article>
-    </section>`;
-  setText("[data-project-slug]", `${project.slug} / ${project.status.toLowerCase()}`);
-  setText("[data-project-name]", project.name);
-  setText("[data-project-role]", project.role);
-  setText(
-    "[data-project-description]",
-    project.description ?? "No project description has been added.",
-  );
-  setText("[data-members]", String(project.member_count));
-  setText("[data-artifacts]", String(project.artifact_count));
-  const gitRegion = view.querySelector<HTMLElement>("[data-git-region]");
-  if (gitRegion) {
-    const callback = gitCallback;
-    gitCallback = null;
-    unmountProjectView = mountGit(
-      gitRegion,
-      project,
-      { onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again.") },
-      callback,
-    );
+  } else {
+    unmountProjectView = mountOverview(view, project, {
+      onUnauthorized: unauthorized,
+      onNavigate: (next) => navigate({ kind: "project", projectId: project.id, view: next }),
+    });
   }
 }
 
@@ -264,7 +292,7 @@ function renderEmpty(): void {
       const dialog = root.querySelector<HTMLDialogElement>(
         hasWorkspace ? "[data-project-dialog]" : "[data-workspace-dialog]",
       );
-      dialog?.showModal();
+      showDialog(dialog, action);
     });
     section.append(action);
   }
@@ -287,12 +315,11 @@ function populateNavigation(): void {
   for (const project of projects.filter((item) => item.workspace_id === activeWorkspaceId)) {
     const item = button(project.name);
     item.dataset.projectId = project.id;
-    item.classList.toggle("project-link--active", project.id === activeProjectId);
-    item.setAttribute("aria-current", project.id === activeProjectId ? "page" : "false");
+    const ariaCurrent = coordinator.projectAriaCurrent(project.id);
+    item.classList.toggle("project-link--active", ariaCurrent === "page");
+    if (ariaCurrent) item.setAttribute("aria-current", ariaCurrent);
     item.addEventListener("click", () => {
-      activeProjectId = project.id;
-      localStorage.setItem("context-hub-project", project.id);
-      renderDashboard();
+      navigate({ kind: "project", projectId: project.id, view: "overview" });
     });
     projectList.append(item);
   }
@@ -300,7 +327,7 @@ function populateNavigation(): void {
   workspaceSelect.addEventListener("change", () => {
     activeWorkspaceId = workspaceSelect.value;
     activeProjectId = "";
-    renderDashboard();
+    navigate({ kind: "global", view: "projects" });
   });
 }
 
@@ -313,18 +340,32 @@ async function refreshData(): Promise<void> {
   const generation = ++refreshGeneration;
   refreshController.abort();
   refreshController = new AbortController();
-  const [workspaceReply, projectReply] = await Promise.all([
-    api<{ workspaces: Workspace[] }>("/workspaces", { signal: refreshController.signal }),
-    api<{ projects: Project[] }>("/projects", { signal: refreshController.signal }),
-  ]);
+  let workspaceReply: { workspaces: Workspace[] };
+  let projectReply: { projects: Project[] };
+  try {
+    [workspaceReply, projectReply] = await Promise.all([
+      api<{ workspaces: Workspace[] }>("/workspaces", { signal: refreshController.signal }),
+      api<{ projects: Project[] }>("/projects", { signal: refreshController.signal }),
+    ]);
+  } catch (cause) {
+    if (cause instanceof ApiError && cause.status === 401) {
+      renderLoggedOut("Your session expired. Sign in again.");
+    }
+    throw cause;
+  }
   if (generation !== refreshGeneration) return;
   workspaces = workspaceReply.workspaces;
   projects = projectReply.projects;
+  if (coordinator.route.kind === "project") activeProjectId = coordinator.route.projectId;
   if (!workspaces.some((workspace) => workspace.id === activeWorkspaceId)) {
     activeWorkspaceId =
       projects.find((project) => project.id === activeProjectId)?.workspace_id ??
       workspaces[0]?.id ??
       "";
+  }
+  const routedProjectId = coordinator.route.kind === "project" ? coordinator.route.projectId : null;
+  if (routedProjectId && !projects.some((project) => project.id === routedProjectId)) {
+    coordinator.navigate({ kind: "global", view: "projects" }, true);
   }
   if (gitCallback) {
     const matchedCallback = matchGitCallbackProject(
@@ -339,7 +380,7 @@ async function refreshData(): Promise<void> {
         activeProjectId = callbackProject.id;
         activeWorkspaceId = callbackProject.workspace_id;
         localStorage.setItem("context-hub-project", callbackProject.id);
-        activeProjectView = "overview";
+        coordinator.navigate({ kind: "project", projectId: callbackProject.id, view: "git" }, true);
       }
     }
   }
@@ -353,6 +394,7 @@ function bindForms(): void {
   const workspaceForm = root?.querySelector<HTMLFormElement>("[data-workspace-form]");
   workspaceForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const viewGeneration = coordinator.generation;
     const submit = workspaceForm.querySelector<HTMLButtonElement>("[type=submit]");
     if (submit) submit.disabled = true;
     formError(workspaceForm, "");
@@ -362,9 +404,12 @@ function bindForms(): void {
         method: "POST",
         body: JSON.stringify({ name: data.get("name"), slug: data.get("slug") }),
       });
+      if (!coordinator.isCurrent(viewGeneration)) return;
       activeWorkspaceId = reply.workspace.id;
       await refreshData();
+      if (!coordinator.isCurrent(viewGeneration)) return;
       renderDashboard();
+      focusCurrentView();
     } catch (cause) {
       formError(
         workspaceForm,
@@ -379,6 +424,7 @@ function bindForms(): void {
   const projectForm = root?.querySelector<HTMLFormElement>("[data-project-form]");
   projectForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const viewGeneration = coordinator.generation;
     const submit = projectForm.querySelector<HTMLButtonElement>("[type=submit]");
     if (submit) submit.disabled = true;
     formError(projectForm, "");
@@ -393,10 +439,16 @@ function bindForms(): void {
           description: data.get("description"),
         }),
       });
+      if (!coordinator.isCurrent(viewGeneration)) return;
       activeProjectId = reply.project.id;
       localStorage.setItem("context-hub-project", reply.project.id);
+      coordinator.navigate(
+        { kind: "project", projectId: reply.project.id, view: "overview" },
+        false,
+      );
       await refreshData();
       renderDashboard();
+      focusCurrentView();
     } catch (cause) {
       formError(
         projectForm,
@@ -409,14 +461,142 @@ function bindForms(): void {
   });
 }
 
+function applyAuthorizedProjectConfiguration(project: AuthorizedProjectConfiguration): void {
+  const current = projects.find((item) => item.id === project.id);
+  if (!current) return;
+  current.name = project.name;
+  current.slug = project.slug;
+  current.status = project.status;
+  current.settings_revision = project.settingsRevision;
+  current.role = project.role;
+}
+
+function renderProjectIndex(content: HTMLElement): void {
+  const available = projects.filter((project) => project.workspace_id === activeWorkspaceId);
+  if (!available.length) {
+    renderEmpty();
+    return;
+  }
+  const section = document.createElement("section");
+  section.className = "management-shell reveal";
+  const heading = document.createElement("div");
+  heading.className = "management-heading";
+  const kicker = document.createElement("p");
+  kicker.className = "kicker";
+  kicker.textContent = "Direct access / current";
+  const title = document.createElement("h1");
+  title.textContent = "Projects";
+  title.tabIndex = -1;
+  const copy = document.createElement("p");
+  copy.textContent = "Choose a project to open its source-backed management surfaces.";
+  heading.append(kicker, title, copy);
+  const list = document.createElement("div");
+  list.className = "project-catalog";
+  for (const project of available) {
+    const open = button(project.name, "project-card");
+    const description = document.createElement("span");
+    description.textContent = project.description ?? "No project description.";
+    const facts = document.createElement("span");
+    facts.textContent = `${project.status} / ${project.role} / ${project.member_count} members / ${project.artifact_count} active artifacts`;
+    open.append(description, facts);
+    open.addEventListener("click", () =>
+      navigate({ kind: "project", projectId: project.id, view: "overview" }),
+    );
+    list.append(open);
+  }
+  section.append(heading, list);
+  content.replaceChildren(section);
+}
+
+function renderProjectAuthorizationLoading(content: HTMLElement | null): void {
+  if (!content) return;
+  const section = document.createElement("section");
+  section.className = "empty-state reveal";
+  const heading = document.createElement("h1");
+  heading.textContent = "Checking project access";
+  const status = document.createElement("p");
+  status.setAttribute("role", "status");
+  status.textContent = "Refreshing current membership and role before loading project data.";
+  section.append(heading, status);
+  content.replaceChildren(section);
+}
+
+async function authorizeAndRenderProject(
+  route: Extract<AppRoute, { kind: "project" }>,
+  renderGeneration: number,
+): Promise<void> {
+  const signal = projectRouteController.signal;
+  try {
+    const [listReply, detailReply] = await Promise.all([
+      api<{ projects: Project[] }>("/projects", { signal }),
+      api<{ project: Project }>(`/projects/${route.projectId}`, { signal }),
+    ]);
+    if (signal.aborted || !coordinator.isCurrent(renderGeneration)) return;
+    const freshProject = resolveCurrentProject(
+      route.projectId,
+      listReply.projects,
+      detailReply.project,
+    );
+    if (!freshProject) throw new ApiError(404, "NOT_FOUND");
+    projects = listReply.projects.map((project) =>
+      project.id === freshProject.id ? freshProject : project,
+    );
+    activeProjectId = freshProject.id;
+    activeWorkspaceId = freshProject.workspace_id;
+    localStorage.setItem("context-hub-project", freshProject.id);
+    populateNavigation();
+    renderProject(freshProject, route.view);
+    focusCurrentView();
+  } catch (cause) {
+    if (signal.aborted || !coordinator.isCurrent(renderGeneration)) return;
+    if (cause instanceof ApiError && cause.status === 401) {
+      renderLoggedOut("Your session expired. Sign in again.");
+      return;
+    }
+    if (cause instanceof ApiError && (cause.status === 403 || cause.status === 404)) {
+      projects = projects.filter((project) => project.id !== route.projectId);
+      if (activeProjectId === route.projectId) {
+        activeProjectId = "";
+        localStorage.removeItem("context-hub-project");
+      }
+      coordinator.navigate({ kind: "global", view: "projects" }, true);
+      renderDashboard();
+      focusCurrentView();
+      return;
+    }
+    const content = root?.querySelector<HTMLElement>("[data-content]");
+    if (!content) return;
+    const section = document.createElement("section");
+    section.className = "empty-state reveal";
+    const heading = document.createElement("h1");
+    heading.textContent = "Project access unavailable";
+    const copy = document.createElement("p");
+    copy.textContent =
+      "Current membership could not be verified. No cached project data or controls are shown.";
+    const retry = button("Retry authorization", "primary-action");
+    retry.addEventListener("click", renderDashboard);
+    section.append(heading, copy, retry);
+    content.replaceChildren(section);
+    queueMicrotask(() => retry.focus());
+  }
+}
+
 function renderDashboard(): void {
   if (!root || !user) return;
+  const renderGeneration = coordinator.beginRender();
+  projectRouteController.abort();
+  projectRouteController = new AbortController();
   unmountProjectView?.();
   unmountProjectView = null;
   root.innerHTML = `
     <main class="app-shell">
       <header class="app-header">
-        <a class="wordmark" href="/" aria-label="Context Hub home">CH<span>/</span>02</a>
+        <a class="wordmark" href="/projects" aria-label="Context Hub projects">CH<span>/</span>02</a>
+        <nav class="global-nav" aria-label="Global navigation">
+          <button type="button" data-global-view="projects">Projects</button>
+          <button type="button" data-global-view="activity">Activity</button>
+          <button type="button" data-global-view="settings">Settings</button>
+        </nav>
         <div class="identity">
           <span class="avatar" data-avatar-fallback aria-hidden="true"></span>
           <img class="avatar" data-avatar alt="" hidden>
@@ -467,25 +647,55 @@ function renderDashboard(): void {
     root.querySelector<HTMLElement>("[data-avatar-fallback]")?.setAttribute("hidden", "");
   }
 
-  const activeProject = projectForWorkspace();
-  populateNavigation();
-  if (activeProject) renderProject(activeProject);
-  else renderEmpty();
+  if (coordinator.route.kind === "global") {
+    projectForWorkspace();
+    populateNavigation();
+  }
+  root.querySelectorAll<HTMLButtonElement>("[data-global-view]").forEach((control) => {
+    const globalView = control.dataset.globalView as "projects" | "activity" | "settings";
+    const active = coordinator.route.kind === "global" && coordinator.route.view === globalView;
+    if (active) control.setAttribute("aria-current", "page");
+    control.classList.toggle("global-nav--active", active);
+    control.addEventListener("click", () => navigate({ kind: "global", view: globalView }));
+  });
+  const content = root.querySelector<HTMLElement>("[data-content]");
+  if (coordinator.route.kind === "project") {
+    renderProjectAuthorizationLoading(content);
+    void authorizeAndRenderProject(coordinator.route, renderGeneration);
+  } else if (coordinator.route.view === "activity" && content) {
+    unmountProjectView = mountGlobalActivity(content, {
+      onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again."),
+      onOpenProject: (projectId) => navigate({ kind: "project", projectId, view: "activity" }),
+    });
+  } else if (coordinator.route.view === "settings" && content) {
+    unmountProjectView = mountGlobalSettings(content, {
+      onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again."),
+      onProjectConfiguration: applyAuthorizedProjectConfiguration,
+      onOpenProject: (projectId) => navigate({ kind: "project", projectId, view: "settings" }),
+    });
+  } else if (content) {
+    renderProjectIndex(content);
+  }
 
   const newProject = root.querySelector<HTMLButtonElement>("[data-new-project]");
   const canCreateProject =
     workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.role === "ADMIN";
   if (newProject) newProject.hidden = !canCreateProject;
   newProject?.addEventListener("click", () => {
-    root.querySelector<HTMLDialogElement>("[data-project-dialog]")?.showModal();
+    showDialog(root.querySelector<HTMLDialogElement>("[data-project-dialog]"), newProject);
   });
-  root.querySelector<HTMLButtonElement>("[data-new-workspace]")?.addEventListener("click", () => {
-    root.querySelector<HTMLDialogElement>("[data-workspace-dialog]")?.showModal();
+  const newWorkspace = root.querySelector<HTMLButtonElement>("[data-new-workspace]");
+  newWorkspace?.addEventListener("click", () => {
+    showDialog(root.querySelector<HTMLDialogElement>("[data-workspace-dialog]"), newWorkspace);
   });
   root.querySelector<HTMLButtonElement>("[data-logout]")?.addEventListener("click", async () => {
-    await api("/auth/logout", { method: "POST" });
-    localStorage.removeItem("context-hub-project");
-    renderLoggedOut("Session closed.");
+    let message = "Session closed.";
+    try {
+      await api("/auth/logout", { method: "POST" });
+    } catch {
+      message = "Private data cleared locally. Server sign-out could not be confirmed.";
+    }
+    renderLoggedOut(message);
   });
   bindForms();
   const inbox = root.querySelector<HTMLElement>("[data-invitation-inbox]");
@@ -501,6 +711,7 @@ async function bootstrap(): Promise<void> {
   try {
     const session = await api<{ user: User }>("/auth/session");
     user = session.user;
+    coordinator.markAuthenticated();
     await refreshData();
     renderDashboard();
   } catch (cause) {
@@ -508,5 +719,20 @@ async function bootstrap(): Promise<void> {
     else renderLoggedOut("The control plane is unavailable. Try again shortly.");
   }
 }
+
+coordinator.mountPopstate(
+  window,
+  () => window.location.pathname,
+  () => {
+    if (coordinator.route.kind === "project") {
+      activeProjectId = coordinator.route.projectId;
+      activeWorkspaceId =
+        projects.find((project) => project.id === activeProjectId)?.workspace_id ??
+        activeWorkspaceId;
+    }
+    renderDashboard();
+    focusCurrentView();
+  },
+);
 
 void bootstrap();

@@ -1,6 +1,6 @@
 # Context Hub
 
-A source-backed context control plane for teams and coding agents. The current boundary includes immutable artifacts, GitHub identity and repository integration, Graphify publication/exploration, local sync/offline graph cache, the bounded universal MCP endpoint, and the implemented thin Phase 16/C Pi package. The Pi review/root gate and live Pi/TUI evidence remain pending alongside remote release evidence; see the [implementation status](docs/ai/implementation-status.md), [Pi integration](docs/ai/pi-integration.md), and [architecture](docs/ai/architecture.md).
+A source-backed context control plane for teams and coding agents. The current boundary includes immutable artifacts and snapshots, GitHub identity/repository integration, Graphify publication/exploration, team and audit management, local sync/offline graph cache, the bounded universal MCP endpoint, and the thin Pi package. The management UI now provides URL-backed global/project navigation, directly authorized global Activity, real read-only account/configuration Settings, and all implemented project surfaces. Its independent review/root gate and live browser/accessibility evidence remain pending alongside remote release evidence; see the [implementation status](docs/ai/implementation-status.md), [master plan](docs/ai/master-plan.md), and [architecture](docs/ai/architecture.md).
 
 ## Local setup
 
@@ -40,7 +40,7 @@ Canonical artifact types are `architecture`, `adr`, `api-contract`, `coding-conv
 
 Every version is stored at an immutable R2 key and published to D1 only after the object write succeeds. Version-detail responses return verified historical content; artifact detail returns metadata and its current version pointer. Clients creating a version must send the artifact's `expectedVersion`; stale writers receive `409 CONFLICT` with the authorized current version.
 
-The project dashboard reports server-scoped artifact counts and provides Overview and Artifacts views. The Artifacts view supports canonical type filtering, bounded pagination, verified current and historical content, and role-aware creation/version publication. Conflicted drafts are preserved until the author explicitly reviews the latest version; the UI never retries publication automatically.
+The project dashboard uses URL-backed Overview, Context, Graphify, Git, Team, Snapshots, Activity, and Settings views. Context supports canonical artifact type filtering, bounded pagination, verified current and historical content, freshness, logical archive, and role-aware creation/version publication. Conflicted drafts are preserved until the author explicitly reviews the latest version; the UI never retries publication automatically.
 
 ## Graph API
 
@@ -59,7 +59,7 @@ New published bytes remain private in R2 at `projects/{projectId}/graphs/v/{vers
 
 Graph publication favors availability and data safety over eager cleanup. A failed attempt never blocks retry because each claim has a distinct key. Cleanup waits a five-minute grace period, takes a bounded D1 ownership lease, and freshly rechecks failed status/attempt, publication references, and exact R2 head metadata before deleting only that attempt key. R2/D1 uncertainty retains the candidate, and READY, SUPERSEDED, mismatched-attempt, or active objects are never cleanup candidates.
 
-The Graphify tab shows separate newest-attempt/current-READY state, immutable provenance and history, role-aware generation reservation, and the bounded focused explorer. Refresh, build, and query use independently cancellable operation state. GitHub Actions dispatch configuration is documented separately and is not simulated by the browser.
+The Graphify tab shows separate newest-attempt/current-READY state, immutable provenance and history, role-aware generation reservation, and the bounded focused explorer. Refresh, build, and query use independently cancellable operation state. Global navigation is exactly Projects, Activity, and Settings; global Activity is a time/page-bounded direct-member aggregate, while global Settings is a bounded read-only account/session and authorized connection overview. GitHub Actions dispatch configuration is documented separately and is not simulated by the browser.
 
 ## Pi integration
 

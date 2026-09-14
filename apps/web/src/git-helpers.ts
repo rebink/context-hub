@@ -1,3 +1,7 @@
+export function canManageGit(role: "ADMIN" | "EDITOR" | "VIEWER"): boolean {
+  return role === "ADMIN";
+}
+
 export type GitCallback = {
   projectId: string | null;
   kind: "success" | "error";

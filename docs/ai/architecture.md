@@ -44,15 +44,15 @@ The browser and future local/MCP clients are untrusted input boundaries. Only th
 ### Current
 
 - `apps/web` is a vanilla TypeScript SPA built by Vite and deployed as static Pages assets.
-- `main.ts` owns session bootstrap, workspace/project navigation, create forms, overview metrics, callback project selection, invitation inbox, and view lifecycle. `artifacts.ts` owns artifact UI; `git.ts` owns project repository status and ADMIN connection controls; `graphs.ts` owns Graphify lifecycle/provenance/version history and focused bounded explorer queries; `team.ts` owns the role-aware member/pending-invitation surface; `api.ts` is the credentialed transport wrapper; focused helper modules provide non-authoritative client validation.
-- The browser fetches only real API data. Git and Graphify states are active; local sync remains explicitly unavailable rather than fabricated.
+- `main.ts` owns session bootstrap, URL/history-backed global and project navigation, create forms, callback project selection, invitation inbox, and abortable view lifecycle. `overview.ts` loads real current Git/graph/sync status; `artifacts.ts` owns Context artifact UI; `git.ts`, `graphs.ts`, `team.ts`, `snapshots.ts`, and `activity.ts` own their project surfaces; `management.ts` owns global authorized Activity and read-only account/configuration Settings; `api.ts` remains the credentialed transport wrapper.
+- The browser fetches only real API data. The Overview reports current Git, READY graph, and persisted client sync truth, including honest absent/offline/error states; no count, connection, preference, or status is fabricated.
 - Uploaded text and provider metadata are rendered through DOM `textContent`; request generations and `AbortController` prevent stale project view responses from winning.
 - The browser stores only the selected project ID in `localStorage`; it does not store provider/session credentials or trusted roles.
 
 ### Planned
 
-- Add the Snapshot view as its UI phase lands. The role-neutral project Activity view, Team view, and Phase 20A project Settings view are current; viewer presentation is read-only, but server authorization remains authoritative.
-- Add loading, empty, error, conflict, stale, and offline states without broad data preloading. Never render an entire graph; graph UI requests bounded node/search/neighborhood/path slices.
+- Live browser execution must verify deep links, back/forward/reload, keyboard focus, labels, responsive/mobile layout, system dark mode, reduced motion, and accessibility in the external Phase 24 gate. Deterministic dependency-minimal route and role contracts do not replace this evidence.
+- Continue to keep loading, empty, error, conflict, stale, and offline states bounded without broad data preloading. Never render an entire graph; graph UI requests bounded node/search/neighborhood/path slices.
 - Reuse the one Context Engine freshness classifier rather than implementing UI-specific semantics. Framework/router adoption requires evidence and an ADR if significant; it is not part of the current plan.
 
 ## Worker/API architecture
@@ -67,7 +67,7 @@ The browser and future local/MCP clients are untrusted input boundaries. Only th
 ### Planned
 
 - Organize later route families into narrow modules without introducing a framework prematurely. Every route keeps authenticate -> resolve -> direct membership -> role -> execute and project predicates.
-- Team APIs are current through `team.ts`; `activity.ts` provides current direct-member-only project activity list/detail reads. Snapshot APIs, bounded context/sync, universal MCP, human graph metadata/build reservation, and Phase 10 machine publication routes are current. Global cross-project activity remains deferred.
+- Team APIs are current through `team.ts`; `activity.ts` provides current direct-member-only project activity list/detail reads. `management.ts` provides a 30-day-default/90-day-maximum, 50-event-page global aggregate whose event query joins direct project and current workspace membership, plus a 100-project read-only account/session/configuration overview under the same authorization boundary. Snapshot APIs, bounded context/sync, universal MCP, human graph metadata/build reservation, and machine publication routes are current.
 - Graph publication continues to accept uploads/finalization only from the exact CI machine principal; human browser sessions, MCP/local-client principals, including their ADMIN owner, cannot publish bytes.
 - Webhooks are optional; if enabled they verify the signature over raw bytes, deduplicate delivery IDs, bind the exact repository, and only schedule work.
 
@@ -249,7 +249,7 @@ Authenticated `GET /projects/:id/activity` and `GET /projects/:id/activity/:even
 
 ### Planned
 
-Metrics storage and production observability configuration remain deferred. Global activity must independently authorize every aggregated project before reading any event.
+Metrics storage and production observability configuration remain deferred. Global Activity is current locally; remote D1 and live browser behavior remain unverified.
 
 Operational signals include API errors, graph duration/failure, sync failure, artifact conflicts, MCP calls and bounded sizes, context result size, auth abuse, and storage/integrity failures. Logs redact authorization headers, callback codes, cookies, storage credential references, provider payload secrets, and artifact/graph content. Before launch, define rate limits, alerts, backups, restore exercises, and privacy-safe success metrics.
 

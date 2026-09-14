@@ -1,5 +1,6 @@
 import { ApiError, api } from "./api.js";
 import {
+  canManageProjectSettings,
   type ProjectSettingsDraft,
   type ProjectSettingsErrors,
   validateProjectSettings,
@@ -92,7 +93,7 @@ export function mountProjectSettings(
   );
   section.append(heading);
 
-  if (project.role !== "ADMIN") {
+  if (!canManageProjectSettings(project.role)) {
     section.append(
       node(
         "p",
