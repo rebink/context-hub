@@ -185,9 +185,9 @@ async function issueCredential(
     ).bind(credentialId, secretHash, expiresInDays, user.id, principalId, projectId),
     env.DB.prepare(
       `INSERT INTO machine_audit_events
-       (id,project_id,principal_id,credential_id,actor_user_id,action,outcome)
-       SELECT ?,mp.project_id,NULL,mc.id,?,'CREDENTIAL_ISSUED','SUCCEEDED'
-       FROM machine_credentials mc JOIN machine_principals mp ON mp.id=mc.principal_id
+        (id,project_id,principal_id,credential_id,actor_user_id,action,outcome,created_at)
+        SELECT ?,mp.project_id,NULL,mc.id,?,'CREDENTIAL_ISSUED','SUCCEEDED',mc.created_at
+        FROM machine_credentials mc JOIN machine_principals mp ON mp.id=mc.principal_id
        WHERE mc.id=? AND mp.id=?`,
     ).bind(auditId, user.id, credentialId, principalId),
   ]);
@@ -238,15 +238,15 @@ async function rotateCredential(
   const results = await env.DB.batch([
     env.DB.prepare(
       `UPDATE machine_credentials SET revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),
-         replaced_by_credential_id=?
+         replaced_by_credential_id=?,revoked_by_user_id=?
        WHERE id=? AND revoked_at IS NULL AND EXISTS (
          SELECT 1 FROM machine_principals mp JOIN project_members pm ON pm.project_id=mp.project_id
          WHERE mp.id=machine_credentials.principal_id AND mp.project_id=? AND mp.status='ACTIVE'
            AND pm.user_id=? AND pm.role='ADMIN')`,
-    ).bind(newId, oldId, projectId, user.id),
+    ).bind(newId, user.id, oldId, projectId, user.id),
     env.DB.prepare(
-      `INSERT INTO machine_credentials (id,principal_id,secret_hash,expires_at,created_by)
-       SELECT ?,mc.principal_id,?,strftime('%Y-%m-%dT%H:%M:%fZ','now','+' || ? || ' days'),?
+      `INSERT INTO machine_credentials (id,principal_id,secret_hash,expires_at,created_by,created_at)
+       SELECT ?,mc.principal_id,?,strftime('%Y-%m-%dT%H:%M:%fZ','now','+' || ? || ' days'),?,mc.revoked_at
        FROM machine_credentials mc JOIN machine_principals mp ON mp.id=mc.principal_id
        JOIN project_members pm ON pm.project_id=mp.project_id
        WHERE mc.id=? AND mc.revoked_at IS NOT NULL AND mc.replaced_by_credential_id=?
@@ -254,8 +254,8 @@ async function rotateCredential(
     ).bind(newId, await sha256(secret), expiresInDays, user.id, oldId, newId, projectId, user.id),
     env.DB.prepare(
       `INSERT INTO machine_audit_events
-       (id,project_id,principal_id,credential_id,actor_user_id,action,outcome)
-       SELECT ?,mp.project_id,NULL,mc.id,?,'CREDENTIAL_ROTATED','SUCCEEDED'
+       (id,project_id,principal_id,credential_id,actor_user_id,action,outcome,created_at)
+       SELECT ?,mp.project_id,NULL,mc.id,?,'CREDENTIAL_ROTATED','SUCCEEDED',mc.created_at
        FROM machine_credentials mc JOIN machine_principals mp ON mp.id=mc.principal_id
        WHERE mc.id=? AND mp.project_id=?`,
     ).bind(crypto.randomUUID(), user.id, newId, projectId),
@@ -278,12 +278,12 @@ async function revokeCredential(
 ): Promise<Response> {
   const results = await env.DB.batch([
     env.DB.prepare(
-      `UPDATE machine_credentials SET revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+      `UPDATE machine_credentials SET revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),revoked_by_user_id=?
        WHERE id=? AND revoked_at IS NULL AND EXISTS (
          SELECT 1 FROM machine_principals mp JOIN project_members pm ON pm.project_id=mp.project_id
          WHERE mp.id=machine_credentials.principal_id AND mp.project_id=?
            AND pm.user_id=? AND pm.role='ADMIN')`,
-    ).bind(credentialId, projectId, user.id),
+    ).bind(user.id, credentialId, projectId, user.id),
     env.DB.prepare(
       `UPDATE machine_principals SET status='REVOKED',
          revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
@@ -296,8 +296,8 @@ async function revokeCredential(
     ).bind(projectId, credentialId),
     env.DB.prepare(
       `INSERT INTO machine_audit_events
-       (id,project_id,principal_id,credential_id,actor_user_id,action,outcome)
-       SELECT ?,mp.project_id,NULL,mc.id,?,'CREDENTIAL_REVOKED','SUCCEEDED'
+       (id,project_id,principal_id,credential_id,actor_user_id,action,outcome,created_at)
+       SELECT ?,mp.project_id,NULL,mc.id,?,'CREDENTIAL_REVOKED','SUCCEEDED',mc.revoked_at
        FROM machine_credentials mc JOIN machine_principals mp ON mp.id=mc.principal_id
        WHERE mc.id=? AND mp.project_id=? AND mc.revoked_at IS NOT NULL`,
     ).bind(crypto.randomUUID(), user.id, credentialId, projectId),

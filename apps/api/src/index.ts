@@ -1,3 +1,4 @@
+import { handleActivityRoute } from "./activity.js";
 import { apiOrigin, callbackUrl } from "./api-origin.js";
 import { handleArtifactRoute } from "./artifacts.js";
 import { type AuthProviderIdentity, AuthProviderResponseError } from "./auth-provider.js";
@@ -578,6 +579,21 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
             new GithubIdentityLookupProvider(outboundFetch),
             teamMember?.[2],
             teamInvitation?.[2],
+          );
+        }
+
+        const activityCollection = /^\/projects\/([^/]+)\/activity$/.exec(pathname);
+        const activityDetail = /^\/projects\/([^/]+)\/activity\/([^/]+)$/.exec(pathname);
+        const activityRoute = activityDetail ?? activityCollection;
+        if (activityRoute) {
+          const user = await authenticate(request, env);
+          if (!user) return error(request, env, "UNAUTHENTICATED", 401);
+          return handleActivityRoute(
+            request,
+            env,
+            user,
+            activityRoute[1] ?? "",
+            activityDetail?.[2],
           );
         }
 

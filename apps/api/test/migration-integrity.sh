@@ -276,8 +276,9 @@ if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CON
   echo "expected transactional batch failure" >&2
   exit 1
 fi
-fresh_check=$("$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "SELECT COUNT(*) AS audit_rows FROM git_audit_events WHERE id='rollback-proof'; SELECT COUNT(*) AS hardening_indexes FROM sqlite_master WHERE type='index' AND name IN ('project_repositories_one_per_project_idx','github_connection_states_session_project_idx','git_connections_connection_id_idx');")
+fresh_check=$("$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "SELECT COUNT(*) AS audit_rows FROM git_audit_events WHERE id='rollback-proof'; SELECT COUNT(*) AS generalized_rollback_rows FROM project_audit_events WHERE source_transition_id='rollback-proof'; SELECT COUNT(*) AS hardening_indexes FROM sqlite_master WHERE type='index' AND name IN ('project_repositories_one_per_project_idx','github_connection_states_session_project_idx','git_connections_connection_id_idx');")
 grep -Eq '"audit_rows": 0' <<<"$fresh_check"
+grep -Eq '"generalized_rollback_rows": 0' <<<"$fresh_check"
 grep -Eq '"hardening_indexes": 3' <<<"$fresh_check"
 
 cat >"$TEMP/machine.sql" <<'SQL'
@@ -289,7 +290,7 @@ INSERT INTO machine_request_nonces(credential_id,nonce_hash,operation,project_id
 VALUES('mc','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','CLAIM','p',1,'2099-01-01');
 INSERT INTO machine_audit_events(id,project_id,principal_id,credential_id,action,outcome,graph_version)
 VALUES('ma','p','mp','mc','GRAPH_CLAIMED','SUCCEEDED',1);
-UPDATE machine_credentials SET revoked_at='2026-01-02',replaced_by_credential_id='mc2' WHERE id='mc';
+UPDATE machine_credentials SET revoked_at='2026-01-02',replaced_by_credential_id='mc2',revoked_by_user_id='u' WHERE id='mc';
 INSERT INTO machine_credentials(id,principal_id,secret_hash,expires_at,created_by)
 VALUES('mc2','mp','cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc','2099-01-01','u');
 SQL
@@ -561,7 +562,9 @@ cp "$ROOT"/apps/api/migrations/0018_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
 cp "$ROOT"/apps/api/migrations/0019_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
-v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS mcp_tables FROM sqlite_master WHERE type='table' AND name IN ('mcp_principals','mcp_principal_projects','mcp_principal_operations','mcp_credentials','mcp_request_nonces','mcp_audit_events'); SELECT COUNT(*) AS snapshot_tables FROM sqlite_master WHERE type='table' AND name IN ('context_snapshots','snapshot_artifacts','snapshot_events'); SELECT COUNT(*) AS sync_tables FROM sqlite_master WHERE type='table' AND name='sync_states'; SELECT COUNT(*) AS team_tables FROM sqlite_master WHERE type='table' AND name IN ('project_invitations','team_member_removals','team_events'); SELECT COUNT(*) AS administration_tables FROM sqlite_master WHERE type='table' AND name='project_administration_events'; SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql','0015_mcp_principals.sql','0016_context_snapshots.sql','0017_sync_states.sql','0018_team_management.sql','0019_project_administration.sql');")
+cp "$ROOT"/apps/api/migrations/0020_*.sql "$upgrade_project/migrations/"
+"$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
+v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS mcp_tables FROM sqlite_master WHERE type='table' AND name IN ('mcp_principals','mcp_principal_projects','mcp_principal_operations','mcp_credentials','mcp_request_nonces','mcp_audit_events'); SELECT COUNT(*) AS snapshot_tables FROM sqlite_master WHERE type='table' AND name IN ('context_snapshots','snapshot_artifacts','snapshot_events'); SELECT COUNT(*) AS sync_tables FROM sqlite_master WHERE type='table' AND name='sync_states'; SELECT COUNT(*) AS team_tables FROM sqlite_master WHERE type='table' AND name IN ('project_invitations','team_member_removals','team_events'); SELECT COUNT(*) AS administration_tables FROM sqlite_master WHERE type='table' AND name='project_administration_events'; SELECT COUNT(*) AS generalized_audit_tables FROM sqlite_master WHERE type='table' AND name='project_audit_events'; SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql','0015_mcp_principals.sql','0016_context_snapshots.sql','0017_sync_states.sql','0018_team_management.sql','0019_project_administration.sql','0020_generalized_project_audit.sql');")
 grep -Eq '"legacy_rows": 2' <<<"$v2_upgrade_check"
 grep -Eq '"attempt_table": 1' <<<"$v2_upgrade_check"
 grep -Eq '"retry_rows": 1' <<<"$v2_upgrade_check"
@@ -572,7 +575,8 @@ grep -Eq '"snapshot_tables": 3' <<<"$v2_upgrade_check"
 grep -Eq '"sync_tables": 1' <<<"$v2_upgrade_check"
 grep -Eq '"team_tables": 3' <<<"$v2_upgrade_check"
 grep -Eq '"administration_tables": 1' <<<"$v2_upgrade_check"
-grep -Eq '"applied": 10' <<<"$v2_upgrade_check"
+grep -Eq '"generalized_audit_tables": 1' <<<"$v2_upgrade_check"
+grep -Eq '"applied": 11' <<<"$v2_upgrade_check"
 
 cat >"$TEMP/sync-states.sql" <<'SQL'
 INSERT INTO workspace_members(workspace_id,user_id,role) VALUES('w','u','ADMIN');
@@ -731,4 +735,93 @@ done
 migration_retry_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS queued_retry FROM graph_versions WHERE id='legacy-building' AND status='QUEUED' AND attempt=2")
 grep -Eq '"queued_retry": 1' <<<"$migration_retry_check"
 
-echo "fresh and staged-through-0019 upgrade migrations, project administration lifecycle, bounded team/sync transitions, immutable outcome constraints, separate CI/MCP credential models, exact graph lifecycle evidence, restored bounds, reconciliation, foreign keys, and transactional rollback passed"
+"$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "INSERT INTO audit_events(id,project_id,artifact_id,artifact_version,event_type,actor_id,created_at) SELECT 'audit-artifact-created',a.project_id,a.id,v.version,'artifact-created',a.created_by,a.created_at FROM artifacts a JOIN artifact_versions v ON v.artifact_id=a.id AND v.version=1 WHERE a.id='snapshot-artifact'; INSERT INTO audit_events(id,project_id,artifact_id,artifact_version,event_type,actor_id,created_at) SELECT 'audit-version-created',a.project_id,a.id,v.version,'version-created',v.created_by,v.created_at FROM artifacts a JOIN artifact_versions v ON v.artifact_id=a.id AND v.version=1 WHERE a.id='snapshot-artifact'; INSERT INTO git_audit_events(id,project_id,repository_identity_id,event_type,actor_id,metadata) VALUES('audit-git-sync','p','r1','git-synced','u','{}'); INSERT INTO snapshot_events(id,project_id,snapshot_id,actor_id,action,outcome,reason,created_at) VALUES('audit-snapshot-failed','p',NULL,'u','snapshot-create','FAILED','STORAGE_FAILED','2026-01-02T00:00:00.000Z'); INSERT INTO graph_versions(id,project_id,version,repository_provider,provider_repository_id,repository_owner,repository_name,repository_canonical_url,source_commit_sha,graphify_version,adapter_version,profile,format_version,generator,status,attempt,queued_at,updated_at,transition_actor_user_id) VALUES('audit-reservation','p',101,'github','1','o','one','github.com/o/one','abababababababababababababababababababab','0.9.58','1.0.0','audit-profile',1,'audit-generator','QUEUED',1,'2026-01-01','2026-01-01','u');" >/dev/null
+fresh_audit_check=$("$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "SELECT COUNT(*) AS artifact_actions FROM project_audit_events WHERE action IN ('ARTIFACT_CREATED','ARTIFACT_VERSION_CREATED') AND actor_id='u' AND target_id LIKE 'snapshot-artifact%'; SELECT COUNT(*) AS git_action FROM project_audit_events WHERE action='GIT_SYNCED' AND target_id='r1'; SELECT COUNT(*) AS graph_actions FROM project_audit_events WHERE action IN ('GRAPH_BUILD_RESERVED','GRAPH_CLAIMED','GRAPH_PUBLISHED','GRAPH_FAILED'); SELECT COUNT(*) AS mcp_actions FROM project_audit_events WHERE source_kind='MCP'; SELECT COUNT(*) AS snapshot_outcomes FROM project_audit_events WHERE source_kind='SNAPSHOT';")
+grep -Eq '"artifact_actions": 2' <<<"$fresh_audit_check"
+grep -Eq '"git_action": 1' <<<"$fresh_audit_check"
+grep -Eq '"graph_actions": [4-9]' <<<"$fresh_audit_check"
+grep -Eq '"mcp_actions": [1-9]' <<<"$fresh_audit_check"
+grep -Eq '"snapshot_outcomes": [2-9]' <<<"$fresh_audit_check"
+
+audit_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS project_backfill FROM project_audit_events WHERE action='PROJECT_CREATED' AND actor_kind='HUMAN' AND actor_id='u' AND target_id='p' AND outcome='SUCCEEDED'; SELECT COUNT(*) AS team_bridge FROM project_audit_events WHERE source_kind='TEAM'; SELECT COUNT(*) AS admin_bridge FROM project_audit_events WHERE source_kind='ADMINISTRATION'; SELECT COUNT(*) AS sync_bridge FROM project_audit_events WHERE source_kind='SYNC_STATE' AND actor_kind='MCP'; SELECT COUNT(*) AS required_indexes FROM sqlite_master WHERE type='index' AND name IN ('project_audit_events_project_time_idx','project_audit_events_project_actor_time_idx','project_audit_events_project_action_time_idx');")
+grep -Eq '"project_backfill": 1' <<<"$audit_check"
+grep -Eq '"team_bridge": [1-9]' <<<"$audit_check"
+grep -Eq '"admin_bridge": 2' <<<"$audit_check"
+grep -Eq '"sync_bridge": 2' <<<"$audit_check"
+grep -Eq '"required_indexes": 3' <<<"$audit_check"
+for invalid_audit_sql in \
+  "UPDATE project_audit_events SET outcome='FAILED' WHERE project_id='p'" \
+  "DELETE FROM project_audit_events WHERE project_id='p'" \
+  "INSERT INTO project_audit_events(id,source_kind,source_transition_id,project_id,actor_kind,actor_id,action,target_type,target_id,outcome,metadata_json,occurred_at) VALUES('project:forged','PROJECT','forged','p','HUMAN','u','PROJECT_CREATED','PROJECT','p','SUCCEEDED','{}','2026-01-01')" \
+  "INSERT INTO project_audit_events(id,source_kind,source_transition_id,project_id,actor_kind,actor_id,action,target_type,target_id,outcome,metadata_json,occurred_at) VALUES('project:p2','PROJECT','p2','p','HUMAN','u','PROJECT_CREATED','PROJECT','p','SUCCEEDED','{\"token\":\"secret\"}','2026-01-01')"; do
+  if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "$invalid_audit_sql" >/dev/null 2>&1; then
+    echo "expected generalized audit seal/redaction rejection: $invalid_audit_sql" >&2
+    exit 1
+  fi
+done
+
+# The BEFORE guard, rather than uniqueness or broad table checks, rejects every forged
+# generalized field for an otherwise real authoritative project transition.
+for forged_generalized_sql in \
+  "INSERT INTO project_audit_events VALUES('project:p','PROJECT','p','p','SYSTEM','p','PROJECT_CREATED','PROJECT','p','SUCCEEDED','{}',(SELECT created_at FROM projects WHERE id='p'))" \
+  "INSERT INTO project_audit_events VALUES('project:p','PROJECT','p','p','HUMAN','u','GIT_SYNCED','PROJECT','p','SUCCEEDED','{}',(SELECT created_at FROM projects WHERE id='p'))" \
+  "INSERT INTO project_audit_events VALUES('project:p','PROJECT','p','p','HUMAN','u','PROJECT_CREATED','MEMBER','p','SUCCEEDED','{}',(SELECT created_at FROM projects WHERE id='p'))" \
+  "INSERT INTO project_audit_events VALUES('project:p','PROJECT','p','p','HUMAN','u','PROJECT_CREATED','PROJECT','wrong','SUCCEEDED','{}',(SELECT created_at FROM projects WHERE id='p'))" \
+  "INSERT INTO project_audit_events VALUES('project:p','PROJECT','p','p','HUMAN','u','PROJECT_CREATED','PROJECT','p','FAILED','{}',(SELECT created_at FROM projects WHERE id='p'))" \
+  "INSERT INTO project_audit_events VALUES('project:p','PROJECT','p','p','HUMAN','u','PROJECT_CREATED','PROJECT','p','SUCCEEDED','{\"extra\":1}',(SELECT created_at FROM projects WHERE id='p'))" \
+  "INSERT INTO project_audit_events VALUES('project:p','PROJECT','p','p','HUMAN','u','PROJECT_CREATED','PROJECT','p','SUCCEEDED','{}','2099-01-01')"; do
+  forged_output=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "$forged_generalized_sql" 2>&1 || true)
+  grep -q 'invalid project audit source contract' <<<"$forged_output"
+done
+
+for forged_source_sql in \
+  "INSERT INTO audit_events(id,project_id,artifact_id,artifact_version,event_type,actor_id) VALUES('forged-artifact','p','artifact-admin',1,'version-created','u2')" \
+  "INSERT INTO git_audit_events(id,project_id,repository_identity_id,event_type,actor_id,metadata) VALUES('forged-git','p','r1','git-synced','u2','{}')" \
+  "INSERT INTO machine_audit_events(id,project_id,credential_id,actor_user_id,action,outcome,created_at) VALUES('forged-machine','p','mc2','u','CREDENTIAL_ISSUED','SUCCEEDED','2099-01-01')" \
+  "INSERT INTO graph_reservation_events(id,project_id,graph_version,attempt,actor_user_id,occurred_at) VALUES('graph:p:101:reserved:1','p',101,1,'u','2099-01-01')"; do
+  if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "$forged_source_sql" >/dev/null 2>&1; then
+    echo "expected authoritative source forgery rejection: $forged_source_sql" >&2
+    exit 1
+  fi
+done
+if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "INSERT INTO sync_state_events(id,project_id,principal_id,client_id,observation_sequence,report_outcome,sync_status,occurred_at) SELECT id||':forged',project_id,principal_id,client_id,observation_sequence,report_outcome,'GRAPH_FAILED',occurred_at FROM sync_state_events LIMIT 1" >/dev/null 2>&1; then
+  echo "expected sync-state source forgery rejection" >&2
+  exit 1
+fi
+
+# Stage through 0019 once, clone that D1 state, then prove the 0020 migration accepts
+# exactly 100,000 materialized rows and atomically rejects 100,001.
+capacity_project="$TEMP/capacity-project"
+capacity_base="$TEMP/capacity-base"
+capacity_exact="$TEMP/capacity-exact"
+capacity_overflow="$TEMP/capacity-overflow"
+mkdir -p "$capacity_project/migrations" "$capacity_base"
+for migration_number in $(seq -w 1 19); do
+  cp "$ROOT"/apps/api/migrations/00"$migration_number"_*.sql "$capacity_project/migrations/"
+done
+cp "$SOURCE_CONFIG" "$capacity_project/wrangler.toml"
+"$WRANGLER" d1 migrations apply DB --local --persist-to "$capacity_base" --config "$capacity_project/wrangler.toml" >/dev/null
+cat >"$TEMP/capacity-seed.sql" <<'SQL'
+INSERT INTO users(id,provider,provider_user_id,username) VALUES('cap-user','github','cap-user','cap-user');
+INSERT INTO workspaces(id,name,slug,created_by) VALUES('cap-workspace','Capacity','capacity','cap-user');
+INSERT INTO projects(id,workspace_id,name,slug,created_by) VALUES('cap-project','cap-workspace','Capacity','capacity','cap-user');
+INSERT INTO artifacts(id,project_id,type,name,current_version,status,created_by,created_at) VALUES('cap-artifact','cap-project','architecture','Capacity',1,'ACTIVE','cap-user','2026-01-01T00:00:00.000Z');
+INSERT INTO artifact_versions(artifact_id,version,storage_key,checksum,content_type,byte_size,created_by,created_at) VALUES('cap-artifact',1,'projects/cap-project/artifacts/cap-artifact/v/1/content','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','text/plain',1,'cap-user','2026-01-01T00:00:00.000Z');
+WITH RECURSIVE n(value) AS (SELECT 1 UNION ALL SELECT value+1 FROM n WHERE value<99999)
+INSERT INTO audit_events(id,project_id,artifact_id,artifact_version,event_type,actor_id,created_at)
+SELECT 'cap-'||value,'cap-project','cap-artifact',1,'version-created','cap-user','2026-01-01T00:00:00.000Z' FROM n;
+SQL
+"$WRANGLER" d1 execute DB --local --persist-to "$capacity_base" --config "$capacity_project/wrangler.toml" --file "$TEMP/capacity-seed.sql" >/dev/null
+cp -R "$capacity_base" "$capacity_exact"
+cp -R "$capacity_base" "$capacity_overflow"
+"$WRANGLER" d1 execute DB --local --persist-to "$capacity_overflow" --config "$capacity_project/wrangler.toml" --command "INSERT INTO audit_events(id,project_id,artifact_id,artifact_version,event_type,actor_id,created_at) VALUES('cap-100000','cap-project','cap-artifact',1,'version-created','cap-user','2026-01-01T00:00:00.000Z')" >/dev/null
+cp "$ROOT"/apps/api/migrations/0020_*.sql "$capacity_project/migrations/"
+"$WRANGLER" d1 migrations apply DB --local --persist-to "$capacity_exact" --config "$capacity_project/wrangler.toml" >/dev/null
+capacity_count=$("$WRANGLER" d1 execute DB --local --persist-to "$capacity_exact" --config "$capacity_project/wrangler.toml" --command "SELECT event_count FROM project_audit_event_counts WHERE project_id='cap-project'")
+grep -Eq '"event_count": 100000' <<<"$capacity_count"
+if "$WRANGLER" d1 migrations apply DB --local --persist-to "$capacity_overflow" --config "$capacity_project/wrangler.toml" >/dev/null 2>&1; then
+  echo "expected 100,001-event migration rejection" >&2
+  exit 1
+fi
+
+echo "fresh and staged-through-0020 upgrade migrations, exact 100000-event capacity boundary, generalized immutable audit bridges, authoritative source forgery rejection, project administration lifecycle, bounded team/sync transitions, immutable outcome constraints, separate CI/MCP credential models, exact graph lifecycle evidence, restored bounds, reconciliation, foreign keys, and transactional rollback passed"

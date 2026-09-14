@@ -1042,9 +1042,11 @@ async function rotateMcpCredential(
        FROM mcp_credentials WHERE id=? AND revoked_at IS NOT NULL AND replaced_by_credential_id=?`,
     ).bind(newId, await sha256(secret), expiresInDays, user.id, credentialId, newId),
     env.DB.prepare(
-      `INSERT INTO mcp_audit_events(id,principal_id,credential_id,actor_user_id,action,outcome)
-       SELECT ?,principal_id,?,?,'CREDENTIAL_ROTATED','SUCCEEDED' FROM mcp_credentials WHERE id=?`,
-    ).bind(crypto.randomUUID(), newId, user.id, newId),
+      `INSERT INTO mcp_audit_events(id,principal_id,credential_id,actor_user_id,project_id,action,outcome)
+       SELECT ? || ':' || scope.project_id,mc.principal_id,mc.id,?,scope.project_id,'CREDENTIAL_ROTATED','SUCCEEDED'
+       FROM mcp_credentials mc JOIN mcp_principal_projects scope ON scope.principal_id=mc.principal_id
+       WHERE mc.id=?`,
+    ).bind(crypto.randomUUID(), user.id, newId),
   ]);
   if ((results[1]?.meta.changes ?? 0) !== 1)
     return humanJson(request, env, { error: "NOT_FOUND" }, 404);

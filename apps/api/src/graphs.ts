@@ -227,19 +227,19 @@ type ReserveResult =
   | { error: "NOT_FOUND" | "FORBIDDEN" | "CONFLICT"; status: 404 | 403 | 409 };
 
 async function reserve(env: GraphEnv, projectId: string, actorId: string): Promise<ReserveResult> {
-  const now = new Date().toISOString();
   try {
     const inserted = await env.DB.prepare(
       `INSERT INTO graph_versions (
            id, project_id, version, repository_provider, provider_repository_id,
            repository_owner, repository_name, repository_canonical_url, source_commit_sha,
            graphify_version, adapter_version, profile, format_version, generator,
-           status, attempt, queued_at, updated_at
+           status, attempt, queued_at, updated_at, transition_actor_user_id
          )
          SELECT ?, gc.project_id,
            COALESCE((SELECT MAX(gv.version) + 1 FROM graph_versions gv WHERE gv.project_id = gc.project_id), 1),
            gc.provider, gc.provider_repository_id, ri.owner, ri.repository_name, ri.canonical_url,
-           gc.last_known_commit_sha, ?, ?, ?, ?, ?, 'QUEUED', 1, ?, ?
+           gc.last_known_commit_sha, ?, ?, ?, ?, ?, 'QUEUED', 1,
+           strftime('%Y-%m-%dT%H:%M:%fZ','now'), strftime('%Y-%m-%dT%H:%M:%fZ','now'), ?
          FROM git_connections gc
          JOIN repository_identities ri ON ri.id = gc.repository_identity_id
          JOIN project_repositories pr ON pr.project_id = gc.project_id
@@ -256,8 +256,7 @@ async function reserve(env: GraphEnv, projectId: string, actorId: string): Promi
         GRAPH_BUILD_IDENTITY.profile,
         GRAPH_BUILD_IDENTITY.formatVersion,
         GRAPH_BUILD_IDENTITY.generator,
-        now,
-        now,
+        actorId,
         actorId,
         projectId,
       )
@@ -300,13 +299,14 @@ async function reserve(env: GraphEnv, projectId: string, actorId: string): Promi
   if (existing.status !== "FAILED") return { row: existing };
   const retried = await env.DB.prepare(
     `UPDATE graph_versions SET status = 'QUEUED', attempt = attempt + 1,
-         failure_category = NULL, failed_at = NULL, build_started_at = NULL, updated_at = ?
+         failure_category = NULL, failed_at = NULL, build_started_at = NULL,
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), transition_actor_user_id = ?
        WHERE project_id = ? AND version = ? AND status = 'FAILED' AND attempt = ?
          AND EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = graph_versions.project_id
            AND pm.user_id = ? AND pm.role = 'ADMIN')
        RETURNING *`,
   )
-    .bind(now, projectId, existing.version, existing.attempt, actorId)
+    .bind(actorId, projectId, existing.version, existing.attempt, actorId)
     .first<GraphRow>();
   if (retried) return { row: retried };
   const currentRole = await membership(env, projectId, actorId);

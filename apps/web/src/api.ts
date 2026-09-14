@@ -10,7 +10,7 @@ export class ApiError extends Error {
   }
 }
 
-const apiUrl = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+const apiUrl = (import.meta.env?.VITE_API_URL ?? "").replace(/\/$/, "");
 
 export function loginUrl(): string {
   return `${apiUrl}/auth/github`;

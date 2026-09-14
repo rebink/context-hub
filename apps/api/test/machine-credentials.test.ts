@@ -80,7 +80,7 @@ class AdminD1 {
       sql.includes("UPDATE machine_credentials SET revoked_at=") &&
       sql.includes("replaced_by_credential_id=?")
     ) {
-      const old = this.credentials.find((row) => row.id === args[1] && !row.revokedAt);
+      const old = this.credentials.find((row) => row.id === args[2] && !row.revokedAt);
       if (!old || this.role !== "ADMIN") return 0;
       old.revokedAt = "now";
       old.replacedBy = args[0] as string;
@@ -102,7 +102,7 @@ class AdminD1 {
       return 1;
     }
     if (sql.includes("UPDATE machine_credentials SET revoked_at=")) {
-      const credential = this.credentials.find((row) => row.id === args[0] && !row.revokedAt);
+      const credential = this.credentials.find((row) => row.id === args[1] && !row.revokedAt);
       if (!credential || this.role !== "ADMIN") return 0;
       credential.revokedAt = "now";
       return 1;

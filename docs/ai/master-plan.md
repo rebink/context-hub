@@ -308,13 +308,18 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Passed the root phase stop gate: fresh/staged-through-0019 migration integrity plus 302 tests (178 API, 31 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds.
 - **P2 backlog (non-blocking):** add a project-path method branch so unsupported methods on `/projects/:id` return `405 Method Not Allowed` with `Allow: GET, PATCH`, plus router coverage; add browser/DOM E2E coverage for artifact archive confirmation, stale-conflict draft preservation, and focus behavior when a browser harness exists while retaining the external browser/accessibility gate.
 
-### 21. Audit coverage (Prompt 21) — `PARTIAL`
+### 21. Audit coverage (Prompt 21) — `COMPLETE LOCALLY`
 
-- [x] Record artifact creation and artifact-version creation without payloads/secrets.
-- [ ] Record project creation/update/settings, artifact archive/delete, Git connect/disconnect, member invite/accept, role change, member removal, graph build/publish/failure, snapshot creation, and sync.
-- [ ] Store project, actor, action/event, target type/ID, bounded redacted metadata, and timestamp; index project/time.
-- [ ] Test event presence, actor/project/target correctness, immutable history, denial/failure policy, and secret/content redaction.
-- [ ] Run the phase stop gate.
+- [x] Record project creation/settings, artifact creation/version/archive, Git connect/sync/disconnect, invitation create/accept/revoke, role change/removal, future actor-bound graph reserve/retry plus machine claim/publish/failure, snapshot creation/outcomes, sync-state reports, and machine/MCP credential/request lifecycle without payloads or secrets.
+- [x] Add migration 0020's immutable `project_audit_events` materialization with deterministic unique source transition identity, exact project and `HUMAN | MACHINE | MCP | SYSTEM` actor, action, target, outcome, canonical allowlisted metadata capped at 2 KiB, D1-authoritative time, project/time plus actor/action indexes, 100,000-event project capacity, and indefinite no-pruning retention.
+- [x] Backfill only exact truthful narrow evidence and preserve legacy domain tables as transition truth. Historical graph reservations without actors and project-less multi-project MCP lifecycle rows are omitted rather than inferred; future covered success events are trigger-derived in the authoritative transaction.
+- [x] Record safely identified existing machine/MCP denials/failures, snapshot rejected/failed outcomes, and failed sync reports with bounded codes. Intentionally omit ordinary human authorization/validation denials and uncontrolled infrastructure exceptions when a safe project/target is unavailable.
+- [x] Add authenticated direct-member-only `GET /projects/:id/activity` and detail reads with 30-day default/90-day maximum windows, 50-row pages, filter-bound stable cursors, action/actor filters, archived-project reads, exact CORS/method behavior, and no global aggregate.
+- [x] Add a role-neutral responsive Activity UI with exact actor/action/target/outcome/time/metadata presentation, filters, bounded pagination, empty/error/archive states, inert text rendering, keyboard focus, dark-mode inheritance, mobile layout, and reduced-motion inheritance.
+- [x] Add targeted migration/API/web evidence for bounds, cursors, filters, backfill/bridge truth, indexes, immutability/forgery/duplicate/redaction guards, and sync/admin/team transition materialization. Broader touched-domain regressions and external remote/browser evidence remain pending.
+- [x] Complete the one independent Phase 21 review and its consolidated four-item P1 correction without a second review: exact authoritative generalized/source seals, immutable graph reservation and sync-report evidence, migration-time 100,000-event enforcement, and one finite shared TypeScript/SQL action contract.
+- [x] Passed the root phase stop gate: fresh/staged-through-0020 migration integrity plus 309 tests (184 API, 32 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. Remote D1 and live browser/accessibility evidence remain external.
+- **P2 backlog (non-blocking):** retain Phase 20A's method-branch and browser/focus items; make route-specific Activity `OPTIONS` advertise only its GET-only surface; generation-fence Activity loads or disable the complete filter form while loading; add broader router/auth/exact-preflight and per-required-event-class migration coverage.
 
 ### D. Explicit cross-project context (Task D) — `PENDING`
 
@@ -432,7 +437,7 @@ All project endpoints inherit authenticate -> resolve -> direct membership -> ro
 - [x] `github_connection_states`, `git_connections`, and `git_audit_events` with hashed expiring connection state, project/provider/repository/default branch/installation reference/known commit/metadata/timestamps, normalized repository identity joins, and project/time audit indexes.
 - [x] `artifacts`, `artifact_versions` with immutable checksummed payload metadata and project/type/version indexes.
 - [x] Migration 0019 extends `projects` with approved mutable settings revision/evidence and `artifacts` with logical archive status/actor/time/reason/revision while preserving immutable `artifact_versions` and active/archive indexes.
-- [ ] Generalized `audit_events` for all required targets/actions with project/time index (current artifact-only schema is partial).
+- [x] Generalized immutable `project_audit_events` materialization for required targets/actions with deterministic source identities and project/time plus actor/action indexes; root gate pending.
 - [~] `graph_versions` and `graph_events` exist with complete build-identity uniqueness, project/version and status/version indexes, one current READY row, lease expiry lookup, constrained lifecycle payloads, and immutable transition events; Phase 9 acceptance additionally requires ADR 0004's additive `graph_build_attempts`, storage-layout marker, selected-publication metadata, and project-first cleanup indexes.
 - [ ] `context_snapshots`, `snapshot_artifacts` with project and exact-version constraints/indexes.
 - [ ] `sync_states` with project/client uniqueness/index and local/remote Git/graph state.

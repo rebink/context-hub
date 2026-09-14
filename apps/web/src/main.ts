@@ -1,4 +1,5 @@
 import "./styles.css";
+import { mountActivity } from "./activity.js";
 import { ApiError, api, loginUrl } from "./api.js";
 import { mountArtifacts } from "./artifacts.js";
 import { mountGit } from "./git.js";
@@ -39,7 +40,8 @@ let workspaces: Workspace[] = [];
 let projects: Project[] = [];
 let activeWorkspaceId = "";
 let activeProjectId = localStorage.getItem("context-hub-project") ?? "";
-let activeProjectView: "overview" | "artifacts" | "graphify" | "team" | "settings" = "overview";
+let activeProjectView: "overview" | "artifacts" | "graphify" | "team" | "activity" | "settings" =
+  "overview";
 let unmountProjectView: (() => void) | null = null;
 let refreshGeneration = 0;
 let refreshController = new AbortController();
@@ -115,6 +117,7 @@ function renderProject(project: Project): void {
       <button type="button" data-project-tab="artifacts">Artifacts</button>
       <button type="button" data-project-tab="graphify">Graphify</button>
       <button type="button" data-project-tab="team">Team</button>
+      <button type="button" data-project-tab="activity">Activity</button>
       <button type="button" data-project-tab="settings">Settings</button>
     </nav>
     <div data-project-view></div>`;
@@ -124,6 +127,7 @@ function renderProject(project: Project): void {
       | "artifacts"
       | "graphify"
       | "team"
+      | "activity"
       | "settings";
     const active = view === activeProjectView;
     tab.classList.toggle("project-tab--active", active);
@@ -156,6 +160,12 @@ function renderProject(project: Project): void {
       onCountChange: (count) => {
         project.member_count = count;
       },
+    });
+    return;
+  }
+  if (activeProjectView === "activity") {
+    unmountProjectView = mountActivity(view, project, {
+      onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again."),
     });
     return;
   }

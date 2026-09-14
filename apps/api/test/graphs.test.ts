@@ -67,31 +67,33 @@ class GraphD1 {
       );
     }
     if (this.has(sql, "INSERT INTO graph_versions")) {
+      const projectId = args.at(-1);
+      const actorId = args.at(-2);
       if (this.demoteBeforeGraphMutation) {
         const member = this.memberships.find(
-          (row) => row.project_id === args[9] && row.user_id === args[8],
+          (row) => row.project_id === projectId && row.user_id === actorId,
         );
         if (member) member.role = "VIEWER";
         this.demoteBeforeGraphMutation = false;
       }
       if (this.removeBeforeGraphMutation) {
         this.memberships = this.memberships.filter(
-          (row) => row.project_id !== args[9] || row.user_id !== args[8],
+          (row) => row.project_id !== projectId || row.user_id !== actorId,
         );
         this.removeBeforeGraphMutation = false;
       }
       if (
         !this.connection ||
-        this.connection.project_id !== args[9] ||
+        this.connection.project_id !== projectId ||
         !this.memberships.some(
-          (row) => row.project_id === args[9] && row.user_id === args[8] && row.role === "ADMIN",
+          (row) => row.project_id === projectId && row.user_id === actorId && row.role === "ADMIN",
         ) ||
         this.connection.status !== "VERIFIED"
       )
         return null;
       const identity = this.graphs.find(
         (row) =>
-          row.project_id === args[9] &&
+          row.project_id === projectId &&
           row.repository_provider === this.connection?.provider &&
           row.provider_repository_id === this.connection?.provider_repository_id &&
           row.repository_owner === this.connection?.owner &&
@@ -104,13 +106,13 @@ class GraphD1 {
           row.format_version === args[4],
       );
       if (identity) throw new Error("UNIQUE constraint failed: graph_versions identity");
-      const now = args[6];
+      const now = "2026-01-01T00:00:00.000Z";
       const projectVersions = this.graphs
-        .filter((item) => item.project_id === args[9])
+        .filter((item) => item.project_id === projectId)
         .map((item) => item.version);
       const row = graphRow({
         id: args[0],
-        project_id: args[9],
+        project_id: projectId,
         version: Math.max(0, ...projectVersions) + 1,
         repository_provider: this.connection.provider,
         provider_repository_id: this.connection.provider_repository_id,
@@ -262,7 +264,7 @@ class GraphD1 {
         failure_category: null,
         failed_at: null,
         build_started_at: null,
-        updated_at: args[0],
+        updated_at: "2026-01-01T00:00:00.000Z",
       });
       return row;
     }
