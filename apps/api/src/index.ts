@@ -2,6 +2,7 @@ import { apiOrigin, callbackUrl } from "./api-origin.js";
 import { handleArtifactRoute } from "./artifacts.js";
 import { type AuthProviderIdentity, AuthProviderResponseError } from "./auth-provider.js";
 import { handleContextRoute } from "./context-route.js";
+import { corsJsonHeaders } from "./cors.js";
 import {
   beginGitConnection,
   githubAppCallback,
@@ -10,6 +11,7 @@ import {
 } from "./git-connections.js";
 import { GithubAuthProvider } from "./github-auth-provider.js";
 import { GithubGitProvider } from "./github-git-provider.js";
+import { GithubIdentityLookupProvider } from "./github-identity-lookup-provider.js";
 import { handleGraphRoute } from "./graphs.js";
 import { handleCredentialRoute, handleMachineGraphRoute } from "./machine-graphs.js";
 import { handleMcpCredentialRoute, handleMcpRoute } from "./mcp.js";
@@ -31,6 +33,7 @@ import {
 import { handleSnapshotRoute } from "./snapshots.js";
 import { handleSyncRoute } from "./sync.js";
 import { handleSyncStateRead, handleSyncStateWrite } from "./sync-states.js";
+import { handleInvitationInbox, handleTeamRoute } from "./team.js";
 
 export interface Env {
   DB: D1Database;
@@ -70,21 +73,12 @@ type Project = {
 const STATE_TTL_SECONDS = 600;
 const MAX_ACTIVE_OAUTH_STATES = 10_000;
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
-const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
-
 function secureCookies(env: Env): boolean {
   return env.APP_ENV === "production";
 }
 
 function corsHeaders(request: Request, env: Env): Headers {
-  const headers = new Headers(JSON_HEADERS);
-  const origin = request.headers.get("origin");
-  if (origin && env.WEB_ORIGIN && origin === env.WEB_ORIGIN) {
-    headers.set("access-control-allow-origin", origin);
-    headers.set("access-control-allow-credentials", "true");
-    headers.set("vary", "origin");
-  }
-  return headers;
+  return corsJsonHeaders(request, env);
 }
 
 function json(
@@ -494,7 +488,7 @@ async function options(request: Request, env: Env): Promise<Response> {
   const origin = request.headers.get("origin");
   if (!origin || origin !== env.WEB_ORIGIN) return error(request, env, "ORIGIN_NOT_ALLOWED", 403);
   const headers = corsHeaders(request, env);
-  headers.set("access-control-allow-methods", "GET, POST, DELETE, OPTIONS");
+  headers.set("access-control-allow-methods", "GET, POST, PATCH, DELETE, OPTIONS");
   headers.set("access-control-allow-headers", "content-type");
   headers.set("access-control-max-age", "86400");
   return new Response(null, { status: 204, headers });
@@ -556,6 +550,31 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
             credentialRoute[1] ?? "",
             credentialRoute[2],
             Boolean(credentialRotate),
+          );
+        }
+
+        const invitationAccept = /^\/invitations\/([^/]+)\/accept$/.exec(pathname);
+        if (pathname === "/invitations" || invitationAccept) {
+          const user = await authenticate(request, env);
+          if (!user) return error(request, env, "UNAUTHENTICATED", 401);
+          return handleInvitationInbox(request, env, user, invitationAccept?.[1]);
+        }
+
+        const teamInvitation = /^\/projects\/([^/]+)\/team\/invitations\/([^/]+)$/.exec(pathname);
+        const teamMember = /^\/projects\/([^/]+)\/team\/members\/([^/]+)$/.exec(pathname);
+        const teamCollection = /^\/projects\/([^/]+)\/team$/.exec(pathname);
+        const teamRoute = teamInvitation ?? teamMember ?? teamCollection;
+        if (teamRoute) {
+          const user = await authenticate(request, env);
+          if (!user) return error(request, env, "UNAUTHENTICATED", 401);
+          return handleTeamRoute(
+            request,
+            env,
+            user,
+            teamRoute[1] ?? "",
+            new GithubIdentityLookupProvider(outboundFetch),
+            teamMember?.[2],
+            teamInvitation?.[2],
           );
         }
 

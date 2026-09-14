@@ -547,7 +547,9 @@ cp "$ROOT"/apps/api/migrations/0016_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
 cp "$ROOT"/apps/api/migrations/0017_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
-v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS mcp_tables FROM sqlite_master WHERE type='table' AND name IN ('mcp_principals','mcp_principal_projects','mcp_principal_operations','mcp_credentials','mcp_request_nonces','mcp_audit_events'); SELECT COUNT(*) AS snapshot_tables FROM sqlite_master WHERE type='table' AND name IN ('context_snapshots','snapshot_artifacts','snapshot_events'); SELECT COUNT(*) AS sync_tables FROM sqlite_master WHERE type='table' AND name='sync_states'; SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql','0015_mcp_principals.sql','0016_context_snapshots.sql','0017_sync_states.sql');")
+cp "$ROOT"/apps/api/migrations/0018_*.sql "$upgrade_project/migrations/"
+"$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
+v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS mcp_tables FROM sqlite_master WHERE type='table' AND name IN ('mcp_principals','mcp_principal_projects','mcp_principal_operations','mcp_credentials','mcp_request_nonces','mcp_audit_events'); SELECT COUNT(*) AS snapshot_tables FROM sqlite_master WHERE type='table' AND name IN ('context_snapshots','snapshot_artifacts','snapshot_events'); SELECT COUNT(*) AS sync_tables FROM sqlite_master WHERE type='table' AND name='sync_states'; SELECT COUNT(*) AS team_tables FROM sqlite_master WHERE type='table' AND name IN ('project_invitations','team_member_removals','team_events'); SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql','0015_mcp_principals.sql','0016_context_snapshots.sql','0017_sync_states.sql','0018_team_management.sql');")
 grep -Eq '"legacy_rows": 2' <<<"$v2_upgrade_check"
 grep -Eq '"attempt_table": 1' <<<"$v2_upgrade_check"
 grep -Eq '"retry_rows": 1' <<<"$v2_upgrade_check"
@@ -556,7 +558,8 @@ grep -Eq '"machine_tables": 4' <<<"$v2_upgrade_check"
 grep -Eq '"mcp_tables": 6' <<<"$v2_upgrade_check"
 grep -Eq '"snapshot_tables": 3' <<<"$v2_upgrade_check"
 grep -Eq '"sync_tables": 1' <<<"$v2_upgrade_check"
-grep -Eq '"applied": 8' <<<"$v2_upgrade_check"
+grep -Eq '"team_tables": 3' <<<"$v2_upgrade_check"
+grep -Eq '"applied": 9' <<<"$v2_upgrade_check"
 
 cat >"$TEMP/sync-states.sql" <<'SQL'
 INSERT INTO workspace_members(workspace_id,user_id,role) VALUES('w','u','ADMIN');
@@ -595,8 +598,83 @@ if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_
   exit 1
 fi
 
+cat >"$TEMP/team.sql" <<'SQL'
+INSERT INTO users(id,provider,provider_user_id,username) VALUES
+  ('u2','github','2','teammate'),('u3','github','3','second-admin'),
+  ('u4','github','4','reinvite'),('u5','github','5','expires'),('u6','github','6','archive-race');
+INSERT INTO project_invitations(id,project_id,invitee_user_id,role,inviter_user_id,expires_at)
+VALUES('invite-u2','p','u2','EDITOR','u',strftime('%Y-%m-%dT%H:%M:%fZ','now','+7 days'));
+UPDATE project_invitations SET status='ACCEPTED',accepted_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),accepted_by_user_id='u2'
+WHERE id='invite-u2';
+INSERT INTO workspace_members(workspace_id,user_id,role) VALUES('w','u3','VIEWER');
+INSERT INTO project_members(project_id,user_id,role,invited_by) VALUES('p','u3','ADMIN','u');
+UPDATE project_members SET previous_role=role,role='VIEWER',revision=revision+1,role_updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),role_updated_by='u'
+WHERE project_id='p' AND user_id='u2' AND role='EDITOR' AND revision=1;
+INSERT INTO project_invitations(id,project_id,invitee_user_id,role,inviter_user_id,expires_at)
+VALUES('invite-revoked','p','u4','VIEWER','u',strftime('%Y-%m-%dT%H:%M:%fZ','now','+7 days'));
+UPDATE project_invitations SET status='REVOKED',revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),revoked_by_user_id='u'
+WHERE id='invite-revoked';
+INSERT INTO project_invitations(id,project_id,invitee_user_id,role,inviter_user_id,expires_at)
+VALUES('invite-reissued','p','u4','EDITOR','u',strftime('%Y-%m-%dT%H:%M:%fZ','now','+7 days'));
+INSERT INTO project_invitations(id,project_id,invitee_user_id,role,inviter_user_id,expires_at)
+VALUES('invite-expires','p','u5','VIEWER','u',strftime('%Y-%m-%dT%H:%M:%fZ','now','+1 second'));
+SQL
+"$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --file "$TEMP/team.sql" >/dev/null
+team_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS accepted_member FROM project_members WHERE project_id='p' AND user_id='u2' AND role='VIEWER' AND revision=2; SELECT COUNT(*) AS team_audit FROM team_events WHERE project_id='p' AND outcome='SUCCEEDED'; SELECT COUNT(*) AS invite_replay FROM project_invitations WHERE id='invite-u2' AND status='ACCEPTED';")
+grep -Eq '"accepted_member": 1' <<<"$team_check"
+grep -Eq '"team_audit": 7' <<<"$team_check"
+grep -Eq '"invite_replay": 1' <<<"$team_check"
+if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "INSERT INTO team_events(id,transition_key,transition_revision,project_id,actor_user_id,action,invitation_id,target_user_id,to_role,outcome) VALUES('fabricated','fabricated',1,'p','u','MEMBER_INVITED','invite-u2','u2','EDITOR','SUCCEEDED')" >/dev/null 2>&1; then
+  echo "expected fabricated team event rejection" >&2
+  exit 1
+fi
+if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "INSERT INTO team_events SELECT * FROM team_events WHERE id='invite:invite-u2:issued'" >/dev/null 2>&1; then
+  echo "expected duplicate team transition rejection" >&2
+  exit 1
+fi
+"$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE project_members SET revision=revision+1,role_updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),role_updated_by='u' WHERE project_id='p' AND user_id='u2'; UPDATE projects SET status='ARCHIVED' WHERE id='p';" >/dev/null
+for archived_team_sql in \
+  "INSERT INTO project_invitations(id,project_id,invitee_user_id,role,inviter_user_id,expires_at) VALUES('archived-invite','p','u6','VIEWER','u',strftime('%Y-%m-%dT%H:%M:%fZ','now','+7 days'))" \
+  "UPDATE project_invitations SET status='ACCEPTED',accepted_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),accepted_by_user_id='u4' WHERE id='invite-reissued'" \
+  "UPDATE project_invitations SET status='REVOKED',revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),revoked_by_user_id='u' WHERE id='invite-reissued'" \
+  "UPDATE project_members SET previous_role=role,role='EDITOR',revision=revision+1,role_updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),role_updated_by='u' WHERE project_id='p' AND user_id='u2'" \
+  "DELETE FROM project_members WHERE project_id='p' AND user_id='u2'"; do
+  if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "$archived_team_sql" >/dev/null 2>&1; then
+    echo "expected archived project team transition rejection: $archived_team_sql" >&2
+    exit 1
+  fi
+done
+"$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE projects SET status='ACTIVE' WHERE id='p'" >/dev/null
+if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "INSERT INTO project_invitations(id,project_id,invitee_user_id,role,inviter_user_id,expires_at) VALUES('invite-duplicate','p','u4','ADMIN','u',strftime('%Y-%m-%dT%H:%M:%fZ','now','+7 days'))" >/dev/null 2>&1; then
+  echo "expected duplicate pending invitation rejection" >&2
+  exit 1
+fi
+if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE project_invitations SET status='ACCEPTED',accepted_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),accepted_by_user_id='u4' WHERE id='invite-revoked'" >/dev/null 2>&1; then
+  echo "expected revoked invitation acceptance rejection" >&2
+  exit 1
+fi
+sleep 2
+"$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE project_invitations SET status='EXPIRED' WHERE id='invite-expires'" >/dev/null
+if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE project_invitations SET status='ACCEPTED',accepted_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),accepted_by_user_id='u5' WHERE id='invite-expires'" >/dev/null 2>&1; then
+  echo "expected expired invitation acceptance rejection" >&2
+  exit 1
+fi
+if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE project_invitations SET status='ACCEPTED' WHERE id='invite-u2'" >/dev/null 2>&1; then
+  echo "expected invitation replay rejection" >&2
+  exit 1
+fi
+if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE project_members SET previous_role=role,role='VIEWER',revision=revision+1,role_updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),role_updated_by='u' WHERE project_id='p' AND user_id='u'" >/dev/null 2>&1; then
+  echo "expected self-role mutation rejection" >&2
+  exit 1
+fi
+"$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE project_members SET revision=revision+1,role_updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),role_updated_by='u' WHERE project_id='p' AND user_id='u3'; DELETE FROM project_members WHERE project_id='p' AND user_id='u3' AND revision=2;" >/dev/null
+if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE project_members SET revision=revision+1,role_updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),role_updated_by='u' WHERE project_id='p' AND user_id='u'; DELETE FROM project_members WHERE project_id='p' AND user_id='u' AND revision=2;" >/dev/null 2>&1; then
+  echo "expected final admin removal rejection" >&2
+  exit 1
+fi
+
 "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE graph_versions SET status='QUEUED',attempt=attempt+1,failure_category=NULL,failed_at=NULL,build_started_at=NULL,updated_at='2099-01-02' WHERE id='legacy-building'" >/dev/null
 migration_retry_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS queued_retry FROM graph_versions WHERE id='legacy-building' AND status='QUEUED' AND attempt=2")
 grep -Eq '"queued_retry": 1' <<<"$migration_retry_check"
 
-echo "fresh and staged-through-0017 upgrade migrations, bounded monotonic sync states, immutable snapshot/reference/audit constraints, separate CI/MCP credential models, exact graph lifecycle evidence, restored bounds, reconciliation, foreign keys, and transactional rollback passed"
+echo "fresh and staged-through-0018 upgrade migrations, bounded team/sync transitions, immutable outcome constraints, separate CI/MCP credential models, exact graph lifecycle evidence, restored bounds, reconciliation, foreign keys, and transactional rollback passed"

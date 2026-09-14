@@ -4,6 +4,7 @@ import { mountArtifacts } from "./artifacts.js";
 import { mountGit } from "./git.js";
 import { callbackFreeUrl, matchGitCallbackProject, parseGitCallback } from "./git-helpers.js";
 import { mountGraphs } from "./graphs.js";
+import { mountInvitationInbox, mountTeam } from "./team.js";
 
 type User = {
   id: string;
@@ -36,7 +37,7 @@ let workspaces: Workspace[] = [];
 let projects: Project[] = [];
 let activeWorkspaceId = "";
 let activeProjectId = localStorage.getItem("context-hub-project") ?? "";
-let activeProjectView: "overview" | "artifacts" | "graphify" = "overview";
+let activeProjectView: "overview" | "artifacts" | "graphify" | "team" = "overview";
 let unmountProjectView: (() => void) | null = null;
 let refreshGeneration = 0;
 let refreshController = new AbortController();
@@ -111,10 +112,11 @@ function renderProject(project: Project): void {
       <button type="button" data-project-tab="overview">Overview</button>
       <button type="button" data-project-tab="artifacts">Artifacts</button>
       <button type="button" data-project-tab="graphify">Graphify</button>
+      <button type="button" data-project-tab="team">Team</button>
     </nav>
     <div data-project-view></div>`;
   content.querySelectorAll<HTMLButtonElement>("[data-project-tab]").forEach((tab) => {
-    const view = tab.dataset.projectTab as "overview" | "artifacts" | "graphify";
+    const view = tab.dataset.projectTab as "overview" | "artifacts" | "graphify" | "team";
     const active = view === activeProjectView;
     tab.classList.toggle("project-tab--active", active);
     tab.setAttribute("aria-current", active ? "page" : "false");
@@ -137,6 +139,15 @@ function renderProject(project: Project): void {
   if (activeProjectView === "graphify") {
     unmountProjectView = mountGraphs(view, project, {
       onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again."),
+    });
+    return;
+  }
+  if (activeProjectView === "team") {
+    unmountProjectView = mountTeam(view, project, user?.id ?? "", {
+      onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again."),
+      onCountChange: (count) => {
+        project.member_count = count;
+      },
     });
     return;
   }
@@ -380,6 +391,7 @@ function renderDashboard(): void {
         <select id="workspace" data-workspace-select></select>
         <div class="nav-heading"><span>Projects</span><button type="button" data-new-project>New</button></div>
         <nav class="project-list" data-project-list></nav>
+        <div class="invitation-inbox" data-invitation-inbox aria-live="polite"></div>
         <button class="workspace-action" type="button" data-new-workspace>New workspace</button>
       </aside>
       <section class="content" data-content></section>
@@ -438,6 +450,13 @@ function renderDashboard(): void {
     renderLoggedOut("Session closed.");
   });
   bindForms();
+  const inbox = root.querySelector<HTMLElement>("[data-invitation-inbox]");
+  if (inbox) {
+    void mountInvitationInbox(inbox, async () => {
+      await refreshData();
+      renderDashboard();
+    });
+  }
 }
 
 async function bootstrap(): Promise<void> {

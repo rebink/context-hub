@@ -285,13 +285,17 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Passed the root phase stop gate: fresh/staged-through-0017 migration integrity plus 274 tests (153 API, 28 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. External browser/accessibility and remote D1/local-client reporting evidence remain pending.
 - **P2 backlog (non-blocking):** add full real-D1 20-client/FK/identity/concurrent-race coverage; bound cursor text before `atob`.
 
-### 20. Team management (Prompt 20) — `PENDING`
+### 20. Team management (Prompt 20) — `COMPLETE LOCALLY`
 
-- [ ] Add invitation lifecycle/data: project, invitee identity/address as approved, role, inviter, expiry/status, acceptance, and timestamps.
-- [ ] Implement invite, accept, list, role change, and removal; require project `ADMIN`, except scoped acceptance by the invitee.
-- [ ] Prevent self-escalation and removal/demotion of the final admin; invalidate affected authorization/session caches and audit every mutation.
-- [ ] Test every mutation for admin/editor/viewer/outsider, replay/expired invite, cross-project isolation, final-admin safety, and immediate revocation.
-- [ ] Run the phase stop gate.
+- [x] Add migration 0018's bounded invitation lifecycle. Invitations bind one exact existing GitHub-authenticated user ID to one project and role, retain no email or bearer secret, use D1-authoritative issued/7-day expiry/accepted/revoked timestamps, allow at most 100 live pending invitations and 100 members per project, and retain terminal rows as immutable replay evidence. One pending row per project/invitee is unique; a revoked or D1-expired invitation may be reissued as a new identity.
+- [x] Implement authenticated inbox/list, ADMIN invite/revoke, exact-invitee acceptance, member list, expected-role/revision role change, and removal. Project team routes resolve active project plus direct current membership before role checks; workspace-only and cross-project access remain nonleaking.
+- [x] Prevent mass assignment, self-invite/self-role mutation, replay/expired/revoked acceptance, and final-ADMIN demotion/removal. D1 triggers and conditional writes serialize final-admin safety and couple successful invitation/membership transitions to narrow immutable `team_events` evidence.
+- [x] Reauthorize all artifact/graph/context/sync/MCP operations from D1 on every request. Role/removal transitions delete the affected user's project sync-state rows transactionally; no human role cache exists, and multi-project MCP credentials remain intact while their current direct-membership checks immediately fence the removed project only.
+- [x] Add the responsive role-aware Team surface and invitation inbox with loading/empty/error/conflict states, exact expected revision controls, final-admin-safe controls, no browser-stored invitation credential, dark-mode inheritance, and reduced-motion inheritance.
+- [x] Add targeted API and fresh/staged-through-0018 SQL migration evidence for permission boundaries, exact invitee acceptance/replay, D1 timestamps, immutable audits, self-role rejection, role transitions, and final-admin removal. Broader root regression evidence is intentionally pending the owned phase gate.
+- [x] Complete the one independent review and its full five-item P1 correction in one consolidated writer pass without a second review: exact-origin credentialed Team CORS; same-write ACTIVE/current-ADMIN fencing; deterministic revision-bound sealed team outcomes; current stable provider-identity invitation lookup; and one shared bounded streaming JSON-object reader across every mutation.
+- [x] Passed the root phase stop gate: fresh/staged-through-0018 migration integrity plus 290 tests (167 API, 30 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. Live browser/accessibility, external invitation delivery (not implemented), remote D1 contention, and remote MCP/sync revocation evidence remain external.
+- **P2 backlog (non-blocking):** add browser/focus CORS refresh coverage; collect remote real-D1 contention evidence for two-admin/final-admin, accept/revoke, archive, capacity, and actor-demotion races; add an exact seven-day expiry assertion.
 
 ### 20A. Project administration and artifact lifecycle — `PENDING`
 
@@ -407,7 +411,7 @@ All project endpoints inherit authenticate -> resolve -> direct membership -> ro
 - [x] `GET /projects/:id/graphs`, `GET /projects/:id/graphs/latest`, `GET /projects/:id/graphs/:version`, `POST /projects/:id/graphs/build` (authenticated human metadata/reservation only; dispatch remains unavailable until Phase 10).
 - [x] `POST /projects/:id/graphs/:version/query` for bounded node search/detail, neighbors, callers/callees, directed path, and sources.
 - [x] `POST /projects/:id/context/search` and bounded relevant-context retrieval (substantive search input uses a bounded JSON body, not query strings).
-- [ ] `GET /projects/:id/team`, invite/accept, role `PATCH`, and member `DELETE` routes.
+- [x] `GET /projects/:id/team`, invite/accept/revoke, role `PATCH`, and member `DELETE` routes.
 - [ ] ADMIN-only `PATCH /projects/:id` (or documented settings subroute) with expected settings revision and deterministic conflict behavior.
 - [ ] ADMIN-only logical `DELETE /projects/:id/artifacts/:artifactId` (or documented archive action) with expected artifact revision and immutable version-history preservation.
 - [ ] `GET/POST /projects/:id/snapshots` and snapshot detail retrieval.

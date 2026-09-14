@@ -16,6 +16,7 @@ The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`
 - [x] Phase 17 Pi token audit is complete locally: the canonical executable audit derives fail-closed zero permanent model-visible bytes/tokens, byte-identical registration for 1/10/100 projects, UTF-8-safe/redacted bounded formatted notification payloads, and exact digest evidence in [`pi-token-budget.md`](pi-token-budget.md). Its single review, consolidated four-item P1 correction, and 249-test root gate are complete.
 - [x] Phase 18 immutable snapshots are complete locally from checkpoint `83993d9`: additive migration 0016, sealed exact graph/artifact provenance references, one bounded canonical create-only R2 manifest, authenticated ADMIN/EDITOR create plus direct-member list/inspect/retrieve, shared integrity revalidation, ownership-safe idempotency/compensation, D1-authoritative narrow immutable outcomes, and SQL-aware acceptance/migration evidence are present. Its single review, consolidated seven-item P1 correction, and 261-test root gate are complete; remote R2 contention/deployment evidence remains external.
 - [x] Phase 19 freshness UI and sync-state persistence are complete locally from checkpoint `43ca4ef`: artifact APIs/UI reuse the shared classifier with exact provenance, migration 0017 and bounded authorized routes persist server-verified monotonic per-client state, and CLI/Pi report best-effort without weakening offline sync. The single review, consolidated four-item P1 correction, and 274-test root gate are complete; external browser/accessibility and remote D1/client evidence have not run.
+- [x] Phase 20 team management is complete locally from checkpoint `f652cea`: migration 0018, exact-existing-user 7-day invitations, exact-invitee one-time acceptance, ADMIN lifecycle APIs, expected-role/revision member changes, D1 final-admin/audit constraints, project sync-state invalidation, and the responsive Team/invitation UI are present. The single review, consolidated five-P1 correction, and 290-test root gate are complete. There is no external invitation email/delivery, browser/accessibility, remote D1 contention, or remote MCP/sync revocation evidence.
 - [!] Production D1 ID, R2 bucket, Pages origin, and Worker origin remain placeholders. GitHub OAuth credentials and live Cloudflare resources are not configured.
 - [!] No browser, live OAuth, remote D1/R2, or deployment end-to-end test has run.
 
@@ -37,7 +38,7 @@ The durable, exhaustive phase and acceptance ledger is [`docs/ai/master-plan.md`
 
 ## Partial
 
-- [~] Authentication/projects scope beyond Prompt 2: member invitation, removal, and role-management APIs/UI are deferred.
+- [x] Authentication/projects Phase 20 scope: member invitation, acceptance, removal, and role-management APIs/UI are complete locally after the single review and 290-test root gate.
 - [~] Phase 6 / remaining task #2: the backend and project repository UI fixes pass locally, including demotion/removal race rejection, every-request sync audit rollback, callback-to-authorized-project binding, verified-GET success announcements, recovery states, focus restoration, and narrow mobile styling. The overall phase remains partial pending independent final-review acceptance. Live browser/GitHub App/Cloudflare verification remains a separate external release blocker.
 - [~] Audit history: artifact and redacted Git lifecycle events plus narrow immutable snapshot creation outcomes exist, but generalized project/member/graph/sync auditing and audit UI do not.
 - [x] Artifact freshness UI and sync-state persistence are complete locally for Phase 19 after the single review, four-P1 correction, and 274-test root gate; no artifact/history rewrite, generalized audit, team, project-settings, or later-phase behavior is included.
@@ -60,7 +61,7 @@ Every significant architecture choice first needs an approved ADR. The mandatory
 10. [x] Phase 17 Pi token audit is complete locally after one review, one consolidated four-item P1 pass, and the 249-test root gate.
 11. [x] Phase 18 immutable snapshots are complete locally after one review, one consolidated seven-item P1 correction, and the 261-test root gate.
 11a. [x] Phase 19 freshness UI and sync-state persistence are complete locally after one review, one consolidated four-P1 correction, and the 274-test root gate.
-12. [ ] Add team invitations, acceptance, removal, and role changes.
+12. [x] Phase 20 team invitations, acceptance, removal, role changes, narrow audit evidence, sync-state invalidation, and Team UI are complete locally after one review, one consolidated five-P1 correction, and the 290-test root gate.
 13. [ ] Add ADMIN-only project update/settings and logical artifact archive/delete, including immutable-history preservation, expected-version conflicts, audit, UI, endpoint/data-model acceptance, and role/isolation tests.
 14. [ ] Complete generalized audit-event coverage and project audit history UI.
 15. [ ] Approve the cross-project retrieval ADR; implement explicit all-project-authorized, bounded cross-project context retrieval.

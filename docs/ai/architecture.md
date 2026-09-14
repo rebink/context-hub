@@ -44,14 +44,14 @@ The browser and future local/MCP clients are untrusted input boundaries. Only th
 ### Current
 
 - `apps/web` is a vanilla TypeScript SPA built by Vite and deployed as static Pages assets.
-- `main.ts` owns session bootstrap, workspace/project navigation, create forms, overview metrics, callback project selection, and view lifecycle. `artifacts.ts` owns artifact UI; `git.ts` owns project repository status and ADMIN connection controls; `graphs.ts` owns Graphify lifecycle/provenance/version history and focused bounded explorer queries; `api.ts` is the credentialed transport wrapper; focused helper modules provide non-authoritative client validation.
+- `main.ts` owns session bootstrap, workspace/project navigation, create forms, overview metrics, callback project selection, invitation inbox, and view lifecycle. `artifacts.ts` owns artifact UI; `git.ts` owns project repository status and ADMIN connection controls; `graphs.ts` owns Graphify lifecycle/provenance/version history and focused bounded explorer queries; `team.ts` owns the role-aware member/pending-invitation surface; `api.ts` is the credentialed transport wrapper; focused helper modules provide non-authoritative client validation.
 - The browser fetches only real API data. Git and Graphify states are active; local sync remains explicitly unavailable rather than fabricated.
 - Uploaded text and provider metadata are rendered through DOM `textContent`; request generations and `AbortController` prevent stale project view responses from winning.
 - The browser stores only the selected project ID in `localStorage`; it does not store provider/session credentials or trusted roles.
 
 ### Planned
 
-- Add Graphify/focused explorer, Team, Snapshots, Activity, and Settings views as their server capabilities land. Viewer presentation is read-only, but server authorization remains authoritative.
+- Add Snapshot, Activity, and Settings views as their server capabilities land. The Team view is current; viewer presentation is read-only, but server authorization remains authoritative.
 - Add loading, empty, error, conflict, stale, and offline states without broad data preloading. Never render an entire graph; graph UI requests bounded node/search/neighborhood/path slices.
 - Reuse the one Context Engine freshness classifier rather than implementing UI-specific semantics. Framework/router adoption requires evidence and an ADR if significant; it is not part of the current plan.
 
@@ -67,7 +67,7 @@ The browser and future local/MCP clients are untrusted input boundaries. Only th
 ### Planned
 
 - Organize later route families into narrow modules without introducing a framework prematurely. Every route keeps authenticate -> resolve -> direct membership -> role -> execute and project predicates.
-- Add team, activity, and generalized audit APIs in their owning phases only. Snapshot APIs, bounded context/sync, universal MCP, human graph metadata/build reservation, and Phase 10 machine publication routes are current.
+- Team APIs are current through `team.ts`; activity and generalized audit APIs remain deferred to their owning phases. Snapshot APIs, bounded context/sync, universal MCP, human graph metadata/build reservation, and Phase 10 machine publication routes are current.
 - Graph publication continues to accept uploads/finalization only from the exact CI machine principal; human browser sessions, MCP/local-client principals, including their ADMIN owner, cannot publish bytes.
 - Webhooks are optional; if enabled they verify the signature over raw bytes, deduplicate delivery IDs, bind the exact repository, and only schedule work.
 
@@ -78,6 +78,7 @@ Provider neutrality is enforced with the smallest useful contract at the real in
 | Contract | Owning phase and initial implementation | Minimal responsibility | Status |
 | --- | --- | --- | --- |
 | `AuthProvider` | Current-provider seams; GitHub identity OAuth adapter | Build authorization request, exchange callback code, return a validated provider identity; never own app sessions/roles | Current; accepted in [`adr/0001-provider-boundaries.md`](adr/0001-provider-boundaries.md) |
+| `IdentityLookupProvider` | Team phase; one bounded GitHub public-identity lookup adapter | Resolve a normalized current login to the provider's current stable user ID/login; never create or update a local identity or decide invitation authority | Current; narrow Phase 20 identity-authority boundary |
 | `ObjectStorage` | Current-provider seams; Cloudflare R2 adapter | Create-only put, head/get, and narrowly controlled compensation delete with object metadata; D1 publication remains domain logic | Current; accepted in [`adr/0001-provider-boundaries.md`](adr/0001-provider-boundaries.md) |
 | `GitProvider` | Git connection phase; GitHub App repository adapter | Build installation/user-PKCE URLs, prove user/installation, mint transient exact-repository tokens, and read validated repository/default-branch/current-commit metadata | Current backend; accepted in [`adr/0002-github-app-repository-credentials.md`](adr/0002-github-app-repository-credentials.md) |
 | `GraphProvider` | Graphify adapter phase; one `GraphifyAdapter` | Run/validate the accepted `code-only-clustered-v1` profile and expose exact bytes, complete repository/project/build provenance, derived counts, size, generator, and SHA-256; never own project/version/R2/D1/auth | Current in isolated Node-only `packages/graphify-adapter`; ADR 0003 accepted and Phase 8 independently reviewed with final ACCEPT and no findings |
@@ -100,12 +101,12 @@ Ordered SQL migrations in `apps/api/migrations` are authoritative. Applied migra
 - **MCP/local clients:** migration 0015 adds MCP-specific principals, immutable exact project/operation scopes, optional exact repository binding, SHA-256-only expiring/rotatable/revocable credentials, bounded one-hour nonce/rate records, and immutable redacted outcomes. These identities are separate from Phase 10 CI principals.
 - **Snapshots:** migration 0016 adds immutable `context_snapshots`, `snapshot_artifacts`, and narrow `snapshot_events`. Rows capture exact Git, selected graph publication/attempt/storage/checksum identity, sealed expected artifact count, exact artifact ID/version/logical type/storage/checksum/source/change provenance, creator and D1-authoritative time, idempotency, and canonical manifest metadata. Composite foreign keys, insertion/count seals, referenced artifact/version immutability triggers, and project-first indexes preserve exact project scope and replay.
 - **Sync state:** migration 0017 adds one bounded row per project, MCP/local principal, and stable nonsecret client UUID. It stores only client kind/version, monotonic observation sequence, exact normalized repository identity, local Git and server-verified published graph version/attempt/checksum/source commit, authoritative remote Git/READY-graph identity/status, deterministic Phase 11 status, bounded failure code, and D1-clock last-seen/last-successful-sync times. Writes use one authorization-conditioned upsert after truth validation, so membership, scope, credential, and repository replacement races cannot publish state. Project/time and principal/time indexes support bounded reads; each principal may retain at most 20 clients per project.
-- **Audit:** `audit_events` is artifact-specific, `git_audit_events` records bounded Git connect/sync/disconnect metadata, and MCP/snapshots have narrow immutable lifecycle/request outcomes. These are indexed by project/principal/time as applicable; none is the generalized planned audit schema.
+- **Team:** migration 0018 adds 7-day exact-user project invitations, membership revisions, immutable removal evidence, and deterministic revision-bound `team_events`. Partial unique and project/invitee/status/time indexes enforce one live invite per identity, bounded lookup, and retained terminal replay evidence. Trigger insert guards prove exact invitation/member/removal state before accepting a unique success event; ACTIVE/current-ADMIN guards and mutation predicates fence archive and actor-demotion races. Invite lookup resolves the normalized current GitHub login through the one bounded `IdentityLookupProvider`, then matches only `(provider, provider_user_id)` already in D1 without updating identity. No invitation bearer or email address is stored. Phase 20's single review, consolidated five-item P1 correction, and 290-test root gate are complete; live browser/accessibility, delivery, and remote contention evidence remain external.
+- **Audit:** `audit_events` is artifact-specific, `git_audit_events` records bounded Git connect/sync/disconnect metadata, and MCP/snapshots/team have narrow immutable lifecycle/request outcomes. These are indexed by project/principal/time as applicable; none is the generalized planned audit schema.
 
 ### Planned owner tables/indexes
 
 - **Project/artifact administration:** project settings revision and artifact archive actor/time/revision plus active/archive indexes; immutable versions remain untouched.
-- **Team phase:** invitations own token hash, project, invitee, role, inviter, status, expiry, and indexed lookup/expiry.
 - **Audit phase:** generalized immutable `audit_events` owns project, actor/principal, action, target type/ID, bounded redacted metadata, outcome, and time with project/time index.
 - Webhook delivery records exist only if webhooks are enabled; usage records exist only after privacy/free-tier evaluation.
 
@@ -232,7 +233,7 @@ Online CLI/Pi status and successful/failed sync now optionally report through th
 
 ## Authentication and authorization
 
-Human browser sessions are opaque cookie credentials; current CI machine and MCP/local-client principals are separate from human sessions and from each other. Authentication establishes an identity, never a role or project grant. Authorization always derives current membership from D1. Inaccessible resource responses expose no project/repository/artifact/graph/path/member existence; known members lacking mutation capability receive `403` where appropriate. Cross-project operations authorize all scope before any retrieval. Role changes/removal later invalidate affected credentials/caches as required and protect the final admin.
+Human browser sessions are opaque cookie credentials; current CI machine and MCP/local-client principals are separate from human sessions and from each other. Authentication establishes an identity, never a role or project grant. Authorization always derives current membership from D1. Inaccessible resource responses expose no project/repository/artifact/graph/path/member existence; known members lacking mutation capability receive `403` where appropriate. Cross-project operations authorize all scope before any retrieval. Team writes condition on exact current role/revision, D1 serializes final-admin protection, and changed/removed members lose authority on the next request. Role/removal deletes their project sync rows transactionally. There are no hidden human role caches; MCP credentials retain unrelated project scopes and independently recheck current direct membership for every selected project.
 
 ## Audit and observability
 

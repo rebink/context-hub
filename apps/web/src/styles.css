@@ -1292,7 +1292,140 @@ dialog::backdrop {
   }
 }
 
+.team-view {
+  display: grid;
+  gap: 24px;
+}
+
+.team-view .panel {
+  border: 1px solid var(--ink);
+  background: color-mix(in srgb, var(--panel) 84%, transparent);
+}
+
+.team-status {
+  min-height: 1.4em;
+  margin: 0;
+  color: var(--muted);
+}
+
+.team-invite {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(180px, 0.8fr) 150px auto;
+  gap: 18px;
+  align-items: end;
+  padding: 22px;
+  border-left-width: 8px;
+  border-left-color: var(--accent);
+}
+
+.team-invite h2,
+.team-block h2 {
+  margin: 4px 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+}
+
+.team-invite label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.team-invite input,
+.team-invite select,
+.team-controls select {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.team-block {
+  padding: 22px;
+}
+
+.team-list {
+  border-top: 1px solid var(--line);
+}
+
+.team-row {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.team-row > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.team-row span,
+.empty-copy,
+.invite-card p {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.team-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.invitation-inbox {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+.team-inbox-title {
+  margin: 0;
+}
+
+.invite-card {
+  padding: 12px;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+}
+
+.invite-card p {
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+
+.invite-card .workspace-action {
+  width: 100%;
+}
+
+@media (max-width: 980px) {
+  .team-invite {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (max-width: 760px) {
+  .team-invite {
+    grid-template-columns: 1fr;
+  }
+
+  .team-row {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 16px 0;
+  }
+
+  .team-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .loading-shell,
   .auth-shell {
     width: min(100% - 28px, 1180px);
