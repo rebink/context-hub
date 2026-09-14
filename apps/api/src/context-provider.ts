@@ -48,6 +48,7 @@ export type ContextSourceError = "ARTIFACT_SOURCE_UNAVAILABLE" | "GRAPH_SOURCE_U
 export type ContextResult = {
   projectId: string;
   evidence: ContextEvidence[];
+  sourceCount: number;
   tokenEstimate: number;
   byteSize: number;
   truncated: boolean;
@@ -57,6 +58,7 @@ export type ContextResult = {
 export type CrossProjectContextResult = {
   projectIds: string[];
   evidence: ContextEvidence[];
+  sourceCount: number;
   tokenEstimate: number;
   byteSize: number;
   truncated: boolean;

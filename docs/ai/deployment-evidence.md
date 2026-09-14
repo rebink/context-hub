@@ -44,7 +44,7 @@ Allowed results in this report are `PASS | BLOCKED | NOT RUN`. `PASS` is local r
 | Real Graphify protected runner/publication | NOT RUN | BLK-006 remains |
 | Live MCP/Pi/OS secret helper | NOT RUN | BLK-007 remains |
 | Privacy/account deletion | BLOCKED | BLK-008 remains |
-| Approved metrics/telemetry/alerts | BLOCKED | BLK-009 remains; Phase 27 metrics are out of scope |
+| Approved metrics/telemetry/alerts | BLOCKED | Phase 27 locally defines/validates the minimized contract without collection; live provider receipts, studies, retention approval and alert verification remain absent |
 | Backup/restore | BLOCKED | BLK-010 remains |
 | Free-tier usage/query plans/benchmarks | NOT RUN | BLK-011 remains |
 | Production deployment and rollback smoke | NOT RUN | BLK-012 remains and depends on prior blockers |
@@ -55,4 +55,4 @@ Allowed results in this report are `PASS | BLOCKED | NOT RUN`. `PASS` is local r
 - Actual Phase 26 resource configuration, deployment, live checklist and release evidence remain **BLOCKED / NOT RUN**.
 - Production launch remains **BLOCKED**. Code rollback is not D1/R2/OAuth/DNS/secret rollback.
 - Historical Phase 6 acceptance remains separately **BLOCKED**; current Phase 26 checks cannot recreate its missing contemporaneous review/gate evidence.
-- No Phase 27 success metrics or final launch acceptance is implemented or claimed.
+- Phase 27 local measurement contracts and synthetic evidence are recorded separately in [`metrics-evidence.md`](metrics-evidence.md). No production metric collection, alert configuration, deployment, or final launch acceptance is claimed.

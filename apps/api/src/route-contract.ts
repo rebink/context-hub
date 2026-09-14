@@ -281,6 +281,14 @@ export const ROUTE_CONTRACTS = Object.freeze([
     "DIRECT_PROJECT_MEMBER",
   ),
   route(
+    "project-metrics",
+    /^\/projects\/[^/]+\/metrics$/,
+    "/projects/:projectId/metrics",
+    ["GET"],
+    "handleMetricsRoute",
+    "DIRECT_PROJECT_MEMBER",
+  ),
+  route(
     "project-activity",
     /^\/projects\/[^/]+\/activity$/,
     "/projects/:projectId/activity",

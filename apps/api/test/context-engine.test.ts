@@ -293,6 +293,8 @@ describe("ContextProvider contract", () => {
       false,
     );
     assert.ok(result.byteSize <= input.budget.maxBytes);
+    assert.equal(result.byteSize, new TextEncoder().encode(JSON.stringify(result)).byteLength);
+    assert.equal(result.sourceCount, result.evidence.length);
     assert.ok(result.tokenEstimate <= input.budget.maxTokens);
     const independentlyEstimated = result.evidence.reduce(
       (total, item) =>

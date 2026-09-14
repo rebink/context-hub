@@ -202,7 +202,7 @@ Latest correction evidence (local only):
 | BLK-006 | Real Graphify/protected Actions | BLOCKED | Platform: execute the pinned protected workflow with the real Graphify binary and bounded runner evidence | Blocks production launch |
 | BLK-007 | Live MCP/Pi and OS secret store | BLOCKED | Client/security: exercise real hosts with helper-injected credentials and verify output/log secrecy | Blocks production launch |
 | BLK-008 | Privacy/account deletion | BLOCKED | Product/security: approve policy and implement/verify the complete deletion lifecycle | Blocks production launch |
-| BLK-009 | Metrics policy, telemetry and alerts | BLOCKED | Product/platform: approve a minimization policy before collection, then validate required operational signals and alerts | Blocks production launch |
+| BLK-009 | Live metrics, studies and alerts | BLOCKED | Phase 27 defines and locally validates the minimized registry/derived surface without raw telemetry; Product/platform must approve study/live aggregate retention, collect same-period receipts, and verify alerts | Blocks production launch |
 | BLK-010 | Backup and restore | BLOCKED | Platform: define backups and complete an isolated restore drill | Blocks production launch |
 | BLK-011 | Free-tier live usage evidence | BLOCKED | Platform: capture account-plan/usage evidence and validate alert thresholds | Blocks production launch |
 | BLK-012 | Deployment evidence | BLOCKED | Release owner: deploy only after BLK-003 through BLK-011 close and record smoke/rollback evidence | Blocks production launch |
@@ -218,3 +218,5 @@ Latest correction evidence (local only):
 Local commands demonstrate deterministic implementation behavior only. They do not prove external-provider configuration, browser behavior, production performance/cost, recovery, privacy operations or deployment. No deployment, production resource creation, product metrics collection, second review or commit is performed by this correction.
 
 Phase 26 subsequently implements preparation-only runbook, canonical nonsecret manifest, offline preflight, and synthetic tests from checkpoint `dd65ff6`; see [`deployment-evidence.md`](deployment-evidence.md). Its only review, consolidated correction, offline preflight, and 342-test root gate are complete; no live action ran, and none of BLK-001 or BLK-003 through BLK-012 is promoted by preparation evidence.
+
+Phase 27 subsequently defines the minimized metric registry, local/synthetic audit, response-local Context counters, and bounded D1-derived project aggregate in [`metrics.md`](metrics.md) and [`metrics-evidence.md`](metrics-evidence.md). This narrows BLK-009 to missing approved/live aggregate receipts, studies, and alert verification; it does not promote any live matrix row or resolve BLK-001.

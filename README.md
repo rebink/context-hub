@@ -1,6 +1,6 @@
 # Context Hub
 
-A source-backed context control plane for teams and coding agents. The current boundary includes immutable artifacts and snapshots, GitHub identity/repository integration, Graphify publication/exploration, team and audit management, local sync/offline graph cache, the bounded universal MCP endpoint, and the thin Pi package. The management UI provides URL-backed global/project navigation, directly authorized global Activity, real read-only account/configuration Settings, and all implemented project surfaces. Phase 25 final architecture/product QA is implemented from clean Phase 24 checkpoint `174ff9d`; its single independent review, consolidated correction, deterministic architecture QA, local E2E, and 342-test root gate are complete; local MVP acceptance is blocked on missing historical Phase 6 acceptance evidence, and production launch remains blocked on live/browser/remote/operational evidence. See the [final QA](docs/ai/final-qa.md), [implementation status](docs/ai/implementation-status.md), [master plan](docs/ai/master-plan.md), [architecture](docs/ai/architecture.md), and [free-tier audit](docs/ai/free-tier-audit.md).
+A source-backed context control plane for teams and coding agents. The current boundary includes immutable artifacts and snapshots, GitHub identity/repository integration, Graphify publication/exploration, team and audit management, local sync/offline graph cache, the bounded universal MCP endpoint, and the thin Pi package. The management UI provides URL-backed global/project navigation, directly authorized global Activity, real read-only account/configuration Settings, and all implemented project surfaces. Phase 27 now has a privacy-minimized exact metric registry, executable local/synthetic audit, response-local Context accounting, and a direct-member project aggregate route without a raw telemetry table. These local measurements are not production evidence: local MVP acceptance remains blocked on missing historical Phase 6 evidence, and production launch remains blocked on live/browser/remote/study/operational gates. See the [metrics contract](docs/ai/metrics.md), [metrics evidence](docs/ai/metrics-evidence.md), [final QA](docs/ai/final-qa.md), [implementation status](docs/ai/implementation-status.md), and [master plan](docs/ai/master-plan.md).
 
 ## Local setup
 
@@ -22,6 +22,7 @@ npm run typecheck
 npm run lint
 npm run build
 npm run audit:free-tier # rebuild and measure local free-tier evidence
+npm run audit:metrics # validate registry and emit labeled local/synthetic samples
 npm run qa:architecture # derive final architecture invariants from production truth
 ```
 
@@ -92,4 +93,6 @@ Production deployment is blocked. Use the external canonical manifest and offlin
 - `docs/ai/free-tier-audit.md`: current official quotas, reproducible measurements, route budgets, and external blockers.
 - `docs/ai/deployment.md`: fail-closed production preparation, approvals, manifest, verification, incident, and rollback boundaries.
 - `docs/ai/deployment-evidence.md`: current local preparation evidence and blocked/not-run live gates.
+- `docs/ai/metrics.md`: exact metric formulas, sources, privacy/retention, targets, thresholds, and statuses.
+- `docs/ai/metrics-evidence.md`: latest local samples and explicit blocked launch acceptance.
 - `docs/requirements/`: original supplied PRD, architecture, and implementation playbook.

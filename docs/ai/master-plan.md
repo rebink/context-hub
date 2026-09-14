@@ -410,16 +410,17 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [ ] Record real live URLs/resource identifiers and approved policies in external operational configuration and complete deployment evidence.
 - [ ] Run the phase stop gate against the production candidate and stop launch on any failed security/E2E check.
 
-### 27. Success metrics and launch acceptance — `PENDING`
+### 27. Success metrics and launch acceptance — `COMPLETE LOCALLY; LIVE ACCEPTANCE BLOCKED`
 
-- [ ] Context efficiency: average context tokens/task, irrelevant-context ratio, Graphify response size, and artifact retrieval size.
-- [ ] Reliability: graph build success, sync success, failed-update preservation, artifact conflict rate, API errors, graph/sync failures, and graph duration.
-- [ ] Developer experience: time to connect a project, time to onboard a developer, and manual context-paste actions avoided.
-- [ ] Infrastructure: Worker requests/project, D1 reads/writes/project, R2 storage/project, and GitHub Actions minutes/project.
-- [ ] Performance: normal cached dashboard under 2 seconds, near-instant artifact metadata, bounded/predictable retrieval, fast local graph queries, asynchronous graph updates, and nonblocking sync/Pi use.
-- [ ] Define collection method, privacy-safe dimensions, baseline/target, review cadence, owner, and alert/action threshold without logging secrets or unnecessary private content.
-- [ ] Confirm MVP acceptance: sign-in/project/Git/artifacts/team/graphs/sync/search/query/Pi/snapshots/audit work; isolation holds; snapshots reproduce; context stays bounded; free services can operate the system.
-- [ ] Run the final stop gate and retain launch evidence.
+- [x] Defined all required context-efficiency, reliability, developer-experience, infrastructure, and performance metrics in [`metrics.md`](metrics.md), including exact formulas, inclusion/exclusion, truth source, privacy, dimensions, retention, method, baseline/target, thresholds, cadence, owner, and status.
+- [x] Added dependency-minimal `npm run audit:metrics` over production exports/encoders and synthetic fixtures, with environment/sample labels, registry/privacy/status consistency checks, and fail-closed mutation traps.
+- [x] Added direct-member `GET /projects/:id/metrics?windowDays=7|30|90` using three bounded project-predicated D1 aggregates, exact coverage/sample/null semantics, and D1-known immutable bytes separated from orphan/actual R2 billing unknowns. No telemetry table or UI is added.
+- [x] Exposed exact response-local Context `sourceCount` alongside fixed-point serialized `byteSize` and existing estimated tokens without persistence or consumer-side effects.
+- [x] Recorded local-only results and explicit acceptance disposition in [`metrics-evidence.md`](metrics-evidence.md); synthetic baselines are not production.
+- [x] Completed the only Phase 27 review and one consolidated six-P1 correction pass: exact artifact ownership joins, retained `CLEANED` outcomes and terminal timestamps, `[from,to)` windows, generated canonical documentation plus requirement mapping/mutation traps, finite dimension allowlists, a fresh migration-0020 Wrangler-local production-route integration, and an unmeasured graph warmup. No second review ran.
+- [ ] Collect approved consent-based relevance/developer-experience studies and first-party Cloudflare/GitHub aggregate receipts; configure and verify live alerts/retention without sensitive logs.
+- [ ] Confirm production acceptance across browser/live providers/remote services/clients/recovery/free-tier gates. Historical Phase 6 evidence remains separately blocked and is not recreated here.
+- [x] Passed the parent-owned final stop gate: deterministic docs/metrics audits, fresh migration-0020 real-D1 metrics integration, fresh/staged-through-0020 migration integrity, 346 tests (211 API, 42 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. Overall launch remains blocked while live gates are absent.
 
 ## Required endpoint ledger
 
@@ -440,6 +441,7 @@ All project endpoints inherit authenticate -> resolve -> direct membership -> ro
 - [x] ADMIN-only logical `DELETE /projects/:id/artifacts/:artifactId` with exact expected current version plus lifecycle revision and immutable version-history preservation.
 - [x] `GET/POST /projects/:id/snapshots` and snapshot detail retrieval.
 - [x] `GET /projects/:id/activity`.
+- [x] `GET /projects/:id/metrics?windowDays=7|30|90` for direct-member bounded D1-derived aggregates with explicit unavailable values.
 - [x] Bounded `GET /activity` aggregate over directly authorized projects only, with pagination/time bounds and nonleaking isolation.
 - [x] `GET /settings` for real account/session and authorized connection/configuration overview; no fabricated values or project mutation.
 - [x] `GET/POST /mcp` universal authenticated transport.

@@ -247,11 +247,13 @@ Migration 0020 materializes project creation/settings, artifact creation/version
 
 Authenticated `GET /projects/:id/activity` and `GET /projects/:id/activity/:eventId` recheck direct current membership for every request, including archived projects. Lists default to 30 days, permit at most a 90-day explicit window, return at most 50 events, use stable `(occurred_at,id)` cursors bound to filters, and support exact action and actor kind/ID filters. Outsiders and workspace-only callers receive nonleaking `404`; all direct roles receive the same provenance-oriented project history. There is no global aggregate.
 
+### Current metrics boundary
+
+Phase 27 defines the exact registry in [`metrics.md`](metrics.md). `GET /projects/:id/metrics?windowDays=7|30|90` authenticates, verifies current direct membership (all roles, including archived projects), and executes three bounded project-predicated aggregates over immutable audit/version/attempt metadata. It returns exact windows, coverage/sample counts, nullable rates/timing, and D1-known referenced immutable bytes while labeling orphan and actual billed R2 storage unknown. Context responses expose fixed-point serialized bytes, exact source count, and estimated tokens without persistence. No usage/telemetry table, content/path/query logging, or partial operational UI is added.
+
 ### Planned
 
-Metrics storage and production observability configuration remain deferred. Global Activity is current locally; remote D1 and live browser behavior remain unverified.
-
-Operational signals include API errors, graph duration/failure, sync failure, artifact conflicts, MCP calls and bounded sizes, context result size, auth abuse, and storage/integrity failures. Logs redact authorization headers, callback codes, cookies, storage credential references, provider payload secrets, and artifact/graph content. Before launch, define rate limits, alerts, backups, restore exercises, and privacy-safe success metrics.
+Production observability configuration, manual studies, provider aggregate receipts, alert execution, and approved aggregate retention remain blocked. Worker/D1/R2/Actions usage and billing are never inferred from D1. Operational signals include API errors, graph duration/failure, sync failure, artifact conflicts, MCP calls and bounded sizes, context result size, auth abuse, and storage/integrity failures. Logs redact authorization headers, callback codes, cookies, storage credential references, provider payload secrets, and artifact/graph content. Before launch, verify rate limits, alerts, backups, restore exercises, and the privacy-safe metric contract with live receipts.
 
 ## Security architecture
 

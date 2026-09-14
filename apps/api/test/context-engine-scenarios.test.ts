@@ -685,6 +685,7 @@ describe("Phase 13 Context Engine acceptance scenarios", () => {
       "byteSize",
       "evidence",
       "projectId",
+      "sourceCount",
       "sourceErrors",
       "tokenEstimate",
       "truncated",

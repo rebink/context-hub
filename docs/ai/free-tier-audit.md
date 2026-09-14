@@ -6,7 +6,7 @@ Status: **COMPLETE LOCALLY AFTER ONE INDEPENDENT REVIEW, ONE CONSOLIDATED FOUR-P
 
 ## Scope and method
 
-This audit covers the checked-in Worker, Pages build, D1 migrations and query shapes, immutable R2 lifecycle, GitHub Actions workflows, browser behavior, local sync, MCP, and Pi from checkpoint `5682644`. It does not perform deployment, full E2E, product-metrics, or final-QA work and does not introduce paid infrastructure.
+This audit covers the checked-in Worker, Pages build, D1 migrations and query shapes, immutable R2 lifecycle, GitHub Actions workflows, browser behavior, local sync, MCP, and Pi from checkpoint `5682644`. It does not perform deployment, full E2E, product-metrics, or final-QA work and does not introduce paid infrastructure. Phase 27 later consumes these source-derived limits in [`metrics.md`](metrics.md) but does not reinterpret them as live Worker/D1/R2/Actions usage; the required provider receipts below remain blocked.
 
 The reproducible command is:
 

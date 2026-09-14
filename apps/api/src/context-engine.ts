@@ -235,6 +235,7 @@ function ensureMinimumFits(shell: Record<string, unknown>, budget: ContextQuery[
   const minimum = measureResult({
     ...shell,
     evidence: [] as ContextEvidence[],
+    sourceCount: 0,
     tokenEstimate: 0,
     byteSize: 0,
     truncated: false,
@@ -247,13 +248,17 @@ function applyBudget<
   E,
   T extends {
     evidence: ContextEvidence[];
+    sourceCount: number;
     tokenEstimate: number;
     byteSize: number;
     truncated: boolean;
     sourceErrors: E[];
   },
 >(
-  shell: Omit<T, "evidence" | "tokenEstimate" | "byteSize" | "truncated" | "sourceErrors">,
+  shell: Omit<
+    T,
+    "evidence" | "sourceCount" | "tokenEstimate" | "byteSize" | "truncated" | "sourceErrors"
+  >,
   sourceErrors: E[],
   ranked: Ranked[],
   budget: ContextQuery["budget"],
@@ -267,6 +272,7 @@ function applyBudget<
     const candidate = measureResult({
       ...shell,
       evidence: [] as ContextEvidence[],
+      sourceCount: 0,
       tokenEstimate: 0,
       byteSize: 0,
       truncated: retrievalTruncated,
@@ -284,6 +290,7 @@ function applyBudget<
     const candidate = measureResult({
       ...shell,
       evidence: [...evidence, item],
+      sourceCount: evidence.length + 1,
       tokenEstimate: nextTokens,
       byteSize: 0,
       truncated: false,
@@ -296,6 +303,7 @@ function applyBudget<
   const result = measureResult({
     ...shell,
     evidence,
+    sourceCount: evidence.length,
     tokenEstimate,
     byteSize: 0,
     truncated: retrievalTruncated || omittedErrors || evidence.length < candidates.length,

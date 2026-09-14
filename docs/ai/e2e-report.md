@@ -76,7 +76,7 @@ The latest post-review local run passed on 2026-09-15 with deterministic commit 
 | Live Pi host/TUI/model | BLOCKED | Install the pinned Pi 0.85.1-compatible host, provide environment/secret-helper credentials, run native command/TUI lifecycle and telemetry inspection, and confirm zero prompt/model/tool mutation. No model call is needed for the local package assertion. |
 | OS secret store | BLOCKED | Configure an approved OS helper that injects the human session/MCP token without arguments/files; verify process/log/cache redaction and rotation on supported target operating systems. |
 | Deployment/edge/observability | BLOCKED | Complete Phase 26 resource/origin/secret/rate-limit/log/alert configuration and deploy a candidate before edge headers, origin behavior, privacy, rate tuning, and operational recovery can be verified. |
-| Product metrics/final QA | BLOCKED | Explicitly belongs to Phases 25/27 and is not implemented or claimed by Phase 24. |
+| Product metrics/final QA | BLOCKED | Phase 27 later adds local/synthetic measurement contracts in [`metrics-evidence.md`](metrics-evidence.md); this Phase 24 run has no structured timing and no live metric/launch claim. |
 
 ## Findings surfaced
 

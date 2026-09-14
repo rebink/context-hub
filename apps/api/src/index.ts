@@ -19,6 +19,7 @@ import { handleGraphRoute } from "./graphs.js";
 import { handleCredentialRoute, handleMachineGraphRoute } from "./machine-graphs.js";
 import { handleGlobalActivity, handleGlobalSettings } from "./management.js";
 import { handleMcpCredentialRoute, handleMcpRoute } from "./mcp.js";
+import { handleMetricsRoute } from "./metrics.js";
 import type { ObjectStorage } from "./object-storage.js";
 import { handleProjectAdministration } from "./project-administration.js";
 import { R2ObjectStorage } from "./r2-object-storage.js";
@@ -628,6 +629,13 @@ function createRouter(outboundFetch: typeof fetch, dependencies: AppDependencies
             teamMember?.[2],
             teamInvitation?.[2],
           );
+        }
+
+        const metricsRoute = /^\/projects\/([^/]+)\/metrics$/.exec(pathname);
+        if (metricsRoute) {
+          const user = await authenticate(request, env);
+          if (!user) return error(request, env, "UNAUTHENTICATED", 401);
+          return handleMetricsRoute(request, env, user, metricsRoute[1] ?? "");
         }
 
         const activityCollection = /^\/projects\/([^/]+)\/activity$/.exec(pathname);
