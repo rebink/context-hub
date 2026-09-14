@@ -467,9 +467,14 @@ export function createContextExtension(overrides: Partial<Dependencies> = {}) {
               directory: context.cwd,
               session,
               credentialApiOrigin: session ? environmentOrigin(dependencies.env) : undefined,
+              reportToken:
+                session && dependencies.env.CONTEXT_HUB_MCP_TOKEN
+                  ? environmentCredential(dependencies.env, "CONTEXT_HUB_MCP_TOKEN")
+                  : undefined,
               fetchImplementation: dependencies.fetchImplementation,
             });
-            notify(context, JSON.stringify(status));
+            const { reporting: _reporting, ...visibleStatus } = status;
+            notify(context, JSON.stringify(visibleStatus));
           } else if (subcommand === "sync") {
             const manifest = await dependencies.sync({
               directory: context.cwd,
@@ -477,9 +482,25 @@ export function createContextExtension(overrides: Partial<Dependencies> = {}) {
               credentialApiOrigin: environmentOrigin(dependencies.env),
               fetchImplementation: dependencies.fetchImplementation,
             });
+            let reporting: "REPORTED" | "FAILED" | "NOT_CONFIGURED" = "NOT_CONFIGURED";
+            if (dependencies.env.CONTEXT_HUB_MCP_TOKEN) {
+              try {
+                const status = await dependencies.status({
+                  directory: context.cwd,
+                  session: environmentCredential(dependencies.env, "CONTEXT_HUB_SESSION"),
+                  credentialApiOrigin: environmentOrigin(dependencies.env),
+                  reportToken: environmentCredential(dependencies.env, "CONTEXT_HUB_MCP_TOKEN"),
+                  reportOutcome: "SYNC_SUCCEEDED",
+                  fetchImplementation: dependencies.fetchImplementation,
+                });
+                reporting = status.reporting ?? "FAILED";
+              } catch {
+                reporting = "FAILED";
+              }
+            }
             notify(
               context,
-              `Synced project ${manifest.projectId}; graph ${manifest.graph?.version ?? "unavailable"}.`,
+              `Synced project ${manifest.projectId}; graph ${manifest.graph?.version ?? "unavailable"}; reporting ${reporting}.`,
             );
           } else if (subcommand === "search") {
             if (argument.length < 2 || argument.length > 500) throw new Error("QUERY_REQUIRED");
@@ -527,6 +548,24 @@ export function createContextExtension(overrides: Partial<Dependencies> = {}) {
           } else throw new Error("USAGE_CONTEXT_COMMAND");
         } catch (error) {
           const code = errorCode(error);
+          if (
+            subcommand === "sync" &&
+            dependencies.env.CONTEXT_HUB_SESSION &&
+            dependencies.env.CONTEXT_HUB_API &&
+            dependencies.env.CONTEXT_HUB_MCP_TOKEN
+          ) {
+            await dependencies
+              .status({
+                directory: context.cwd,
+                session: environmentCredential(dependencies.env, "CONTEXT_HUB_SESSION"),
+                credentialApiOrigin: environmentOrigin(dependencies.env),
+                reportToken: environmentCredential(dependencies.env, "CONTEXT_HUB_MCP_TOKEN"),
+                reportOutcome: "SYNC_FAILED",
+                failureCode: code,
+                fetchImplementation: dependencies.fetchImplementation,
+              })
+              .catch(() => undefined);
+          }
           const message =
             code === "PROJECT_NOT_FOUND"
               ? "Context Hub is not connected for this repository."

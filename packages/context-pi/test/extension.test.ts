@@ -208,9 +208,41 @@ test("status remains local and sync delegates to context-cli", async () => {
   const status = context();
   await app.handler("status", status);
   assert.match(status.notifications[0]!.message, /NO_LOCAL_GRAPH/);
-  await app.handler("sync", context());
+  const synced = context();
+  await app.handler("sync", synced);
   assert.equal(syncCalls, 1);
+  assert.match(synced.notifications[0]!.message, /reporting NOT_CONFIGURED/);
 });
+
+for (const reporting of ["REPORTED", "FAILED"] as const) {
+  test(`sync success remains successful when reporting is ${reporting}`, async () => {
+    const app = harness({
+      env: {
+        CONTEXT_HUB_API: "https://api.example.test",
+        CONTEXT_HUB_SESSION: "session",
+        CONTEXT_HUB_MCP_TOKEN: token,
+      },
+      sync: async () => manifest,
+      status: async () => {
+        if (reporting === "FAILED") throw new Error("REPORT_FAILED");
+        return {
+          state: "CURRENT" as const,
+          offline: false,
+          localCommitSha: "a".repeat(40),
+          localGraphVersion: 1,
+          localGraphCommitSha: "a".repeat(40),
+          remoteCommitSha: "a".repeat(40),
+          remoteGraphVersion: 1,
+          reporting: "REPORTED" as const,
+        };
+      },
+    });
+    const output = context();
+    await app.handler("sync", output);
+    assert.equal(output.notifications[0]!.level, "info");
+    assert.match(output.notifications[0]!.message, new RegExp(`reporting ${reporting}`));
+  });
+}
 
 test("MCP search uses initialize lifecycle, exact origin, authorization header, and bounded args", async () => {
   const requests: Array<{ url: string; init: RequestInit; body: Record<string, unknown> }> = [];

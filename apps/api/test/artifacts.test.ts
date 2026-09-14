@@ -37,6 +37,8 @@ class ArtifactD1 {
   artifacts: Row[] = [];
   versions: Row[] = [];
   audits: Row[] = [];
+  repositoryCommit: string | null = null;
+  repositoryStatus: "VERIFIED" | "ERROR" | null = null;
   failNextBatch = false;
 
   prepare(sql: string) {
@@ -80,8 +82,21 @@ class ArtifactD1 {
       );
       return project && membership ? { role: membership.role } : null;
     }
-    if (this.has(sql, "FROM artifacts WHERE project_id = ? AND id = ?")) {
-      return this.artifacts.find((row) => row.project_id === args[0] && row.id === args[1]) ?? null;
+    if (this.has(sql, "FROM artifacts a") && this.has(sql, "WHERE a.project_id = ? AND a.id = ?")) {
+      const artifact = this.artifacts.find(
+        (row) => row.project_id === args[0] && row.id === args[1],
+      );
+      if (!artifact) return null;
+      const version = this.versions.find(
+        (row) => row.artifact_id === artifact.id && row.version === artifact.current_version,
+      );
+      return {
+        ...artifact,
+        source_commit_sha: version?.source_commit_sha ?? null,
+        current_repository_commit_sha:
+          this.repositoryStatus === "VERIFIED" ? this.repositoryCommit : null,
+        repository_connection_status: this.repositoryStatus,
+      };
     }
     if (this.has(sql, "SELECT av.storage_key FROM artifact_versions av")) {
       const artifact = this.artifacts.find(
@@ -101,15 +116,23 @@ class ArtifactD1 {
       const artifact = this.artifacts.find(
         (row) => row.project_id === args[0] && row.id === args[1],
       );
-      return artifact
+      const version = artifact
         ? (this.versions.find((row) => row.artifact_id === args[1] && row.version === args[2]) ??
-            null)
+          null)
+        : null;
+      return version
+        ? {
+            ...version,
+            current_repository_commit_sha:
+              this.repositoryStatus === "VERIFIED" ? this.repositoryCommit : null,
+            repository_connection_status: this.repositoryStatus,
+          }
         : null;
     }
     throw new Error(`Unhandled first SQL: ${sql}`);
   }
   all(sql: string, args: any[]): Row[] {
-    if (this.has(sql, "FROM artifacts") && this.has(sql, "ORDER BY created_at DESC")) {
+    if (this.has(sql, "FROM artifacts a") && this.has(sql, "ORDER BY a.created_at DESC")) {
       const [projectId, type, , cursorAt, , , cursorId, limit] = args;
       return this.artifacts
         .filter(
@@ -121,7 +144,18 @@ class ArtifactD1 {
               (row.created_at === cursorAt && row.id < cursorId)),
         )
         .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
-        .slice(0, limit);
+        .slice(0, limit)
+        .map((artifact) => ({
+          ...artifact,
+          source_commit_sha:
+            this.versions.find(
+              (version) =>
+                version.artifact_id === artifact.id && version.version === artifact.current_version,
+            )?.source_commit_sha ?? null,
+          current_repository_commit_sha:
+            this.repositoryStatus === "VERIFIED" ? this.repositoryCommit : null,
+          repository_connection_status: this.repositoryStatus,
+        }));
     }
     if (this.has(sql, "FROM artifact_versions av") && this.has(sql, "ORDER BY av.version DESC")) {
       const [projectId, artifactId, cursor, , limit] = args;
@@ -133,7 +167,13 @@ class ArtifactD1 {
           (row) => inProject && row.artifact_id === artifactId && (!cursor || row.version < cursor),
         )
         .sort((a, b) => b.version - a.version)
-        .slice(0, limit);
+        .slice(0, limit)
+        .map((version) => ({
+          ...version,
+          current_repository_commit_sha:
+            this.repositoryStatus === "VERIFIED" ? this.repositoryCommit : null,
+          repository_connection_status: this.repositoryStatus,
+        }));
     }
     throw new Error(`Unhandled all SQL: ${sql}`);
   }
@@ -368,6 +408,57 @@ describe("artifact publication", () => {
     );
     assert.deepEqual(r2.puts[0]!.options.onlyIf, { etagDoesNotMatch: "*" });
     assert.equal(r2.puts[0]!.options.customMetadata.checksum, result.checksum);
+  });
+
+  it("reuses shared freshness semantics across commit and repository transitions without rewriting versions", async () => {
+    const token = await user("editor", "EDITOR");
+    db.repositoryStatus = "VERIFIED";
+    db.repositoryCommit = createBody.sourceCommitSha;
+    const created = await create(token);
+    const artifactId = (await responseBody(created)).artifact.id;
+    const immutableBefore = structuredClone(db.versions);
+
+    const current = await app.fetch(
+      apiRequest(`/projects/p/artifacts/${artifactId}/versions/1`, token),
+      env,
+    );
+    assert.equal((await responseBody(current)).version.freshness.state, "CURRENT");
+
+    db.repositoryCommit = "f".repeat(40);
+    const stale = await app.fetch(apiRequest("/projects/p/artifacts", token), env);
+    const staleBody = await responseBody(stale);
+    assert.equal(staleBody.artifacts[0].freshness.state, "STALE");
+    assert.equal(
+      staleBody.artifacts[0].freshness.artifactSourceCommitSha,
+      createBody.sourceCommitSha,
+    );
+    assert.equal(staleBody.artifacts[0].freshness.currentRepositoryCommitSha, "f".repeat(40));
+
+    db.repositoryStatus = "ERROR";
+    const unverified = await app.fetch(
+      apiRequest(`/projects/p/artifacts/${artifactId}/versions`, token),
+      env,
+    );
+    const unverifiedFreshness = (await responseBody(unverified)).versions[0].freshness;
+    assert.equal(unverifiedFreshness.state, "UNKNOWN");
+    assert.equal(unverifiedFreshness.repositoryStatus, "UNVERIFIED");
+    assert.equal(unverifiedFreshness.currentRepositoryCommitSha, null);
+
+    db.repositoryStatus = null;
+    const disconnected = await app.fetch(
+      apiRequest(`/projects/p/artifacts/${artifactId}`, token),
+      env,
+    );
+    assert.equal(
+      (await responseBody(disconnected)).artifact.freshness.repositoryStatus,
+      "DISCONNECTED",
+    );
+    assert.deepEqual(db.versions, immutableBefore);
+
+    db.repositoryStatus = "VERIFIED";
+    db.repositoryCommit = createBody.sourceCommitSha;
+    const unknown = await create(token, { ...createBody, sourceCommitSha: "abcdef0" });
+    assert.equal((await responseBody(unknown)).artifact.freshness.state, "UNKNOWN");
   });
 
   it("allows ADMIN and EDITOR mutation, while VIEWER can read but cannot mutate", async () => {

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   ensureLayout,
   readLocalGraph,
@@ -13,6 +13,7 @@ import {
   localRemote,
   repositoryRoot,
   SyncClient,
+  SyncStateReporter,
   validateApiOrigin,
 } from "./client.js";
 import type { LocalGraph, Manifest, RepositoryIdentity, SyncMetadata, SyncState } from "./types.js";
@@ -35,6 +36,7 @@ export type StatusResult = {
   localGraphCommitSha: string | null;
   remoteCommitSha: string | null;
   remoteGraphVersion: number | null;
+  reporting?: "REPORTED" | "FAILED";
 };
 
 export function normalizeGithubRemote(value: string): string | null {
@@ -172,6 +174,7 @@ export async function connectProject(options: {
     formatVersion: 1,
     apiOrigin: client.apiOrigin,
     projectId,
+    client: existing?.client ?? { id: randomUUID(), observationSequence: 0 },
     repository: {
       provider: metadata.repository.provider,
       providerRepositoryId: metadata.repository.providerRepositoryId,
@@ -190,6 +193,9 @@ export async function projectStatus(options: {
   directory: string;
   session?: string;
   credentialApiOrigin?: string;
+  reportToken?: string;
+  reportOutcome?: "STATUS" | "SYNC_SUCCEEDED" | "SYNC_FAILED";
+  failureCode?: string;
   fetchImplementation?: typeof fetch;
 }) {
   const root = await repositoryRoot(options.directory);
@@ -231,13 +237,57 @@ export async function projectStatus(options: {
     throw new ClientError("CREDENTIAL_ORIGIN_MISMATCH");
   const client = new SyncClient(manifest.apiOrigin, options.session, options.fetchImplementation);
   try {
-    return await deriveStatus(
-      root,
-      manifest,
-      local,
-      head,
-      await client.metadata(manifest.projectId),
-    );
+    const remote = await client.metadata(manifest.projectId);
+    const result = await deriveStatus(root, manifest, local, head, remote);
+    if (!options.reportToken) return result;
+    const identity = manifest.client ?? { id: randomUUID(), observationSequence: 0 };
+    if (identity.observationSequence >= 2147483647)
+      return { ...result, reporting: "FAILED" as const };
+    const nextManifest: Manifest = {
+      ...manifest,
+      client: { id: identity.id, observationSequence: identity.observationSequence + 1 },
+    };
+    const ready = remote.readyGraph;
+    const localHasAttempt = local?.metadata.attempt !== undefined;
+    try {
+      // Reporting owns only its local sequence update; either failure must not change status/sync outcome.
+      await writeManifest(layout, nextManifest);
+      await new SyncStateReporter(
+        manifest.apiOrigin,
+        options.reportToken,
+        options.fetchImplementation,
+      ).report(manifest.projectId, {
+        clientId: nextManifest.client?.id ?? identity.id,
+        clientKind: "CONTEXT_CLI",
+        clientVersion: "0.1.0",
+        observationSequence: nextManifest.client?.observationSequence ?? 1,
+        repository: {
+          provider: manifest.repository.provider,
+          providerRepositoryId: manifest.repository.providerRepositoryId,
+          canonicalUrl: manifest.repository.canonicalUrl,
+        },
+        localGitSha: head,
+        localGraphVersion: localHasAttempt ? (local?.metadata.version ?? null) : null,
+        localGraphAttempt: localHasAttempt ? (local?.metadata.attempt ?? null) : null,
+        localGraphChecksum: localHasAttempt ? (local?.metadata.checksum ?? null) : null,
+        localGraphSourceCommitSha: localHasAttempt
+          ? (local?.metadata.sourceCommitSha ?? null)
+          : null,
+        remoteGitSha: remote.repository.remoteCommitSha,
+        remoteGraphVersion: ready?.version ?? null,
+        remoteGraphAttempt: ready?.attempt ?? null,
+        remoteGraphChecksum: ready?.checksum ?? null,
+        remoteGraphSourceCommitSha: ready?.sourceCommitSha ?? null,
+        remoteGraphStatus: ready?.status ?? null,
+        status: result.state,
+        reportOutcome: options.reportOutcome ?? "STATUS",
+        failureCode:
+          options.reportOutcome === "SYNC_FAILED" ? (options.failureCode ?? "SYNC_FAILED") : null,
+      });
+      return { ...result, reporting: "REPORTED" as const };
+    } catch {
+      return { ...result, reporting: "FAILED" as const };
+    }
   } catch (error) {
     if (
       error instanceof ClientError &&

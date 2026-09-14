@@ -45,6 +45,7 @@ function graphMetadata(row: GraphRow | null) {
       canonicalUrl: row.repository_canonical_url,
     },
     version: row.version,
+    attempt: row.published_attempt ?? row.attempt,
     status: row.status,
     sourceCommitSha: row.source_commit_sha,
     checksum: row.checksum,

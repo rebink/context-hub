@@ -273,13 +273,17 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Passed the root phase stop gate: fresh/staged-through-0016 migration integrity plus 261 tests (148 API, 26 web, 22 CLI, 24 Pi, 41 adapter), typecheck, Biome lint, and all builds. Remote R2 create-only contention and compensation behavior remain external release evidence.
 - **P2 backlog (non-blocking):** bound cursor decoding before allocation; define infrastructure-failure audit policy; add real-D1/predicate-sensitive fake coverage and race cases beyond the seven fixed P1 findings.
 
-### 19. Freshness UI and sync-state persistence (Prompt 19) — `PENDING`
+### 19. Freshness UI and sync-state persistence (Prompt 19) — `COMPLETE LOCALLY`
 
-- [ ] Reuse Phase 12's shared `CURRENT | STALE | UNKNOWN` classifier without redefining its semantics.
-- [ ] Integrate classifier results and warnings into artifact UI while retaining the existing source-commit provenance and without rewriting artifacts; confirm Context Engine presentation remains consistent.
-- [ ] Persist/index per-project/client sync state including local Git, local graph, remote graph, status, and last sync time.
-- [ ] Test UI and persisted-sync behavior for each freshness state, provenance edge case, authorization boundary, and state transition.
-- [ ] Run the phase stop gate.
+- [x] Reuse Phase 12's exact shared `classifyArtifactFreshness` implementation and `CURRENT | STALE | UNKNOWN` semantics without a second classifier.
+- [x] Add bounded freshness/provenance fields to artifact list/detail/version APIs and non-color-only responsive UI badges/warnings for current, stale, unknown, disconnected, unverified, missing-commit, and invalid-provenance states. Immutable artifact rows/history are never rewritten, and Context Engine presentation remains on the same classifier.
+- [x] Add migration 0017's bounded project/principal/client sync state with stable nonsecret client ID, exact repository identity, verified local and observed remote Git/graph identity, deterministic Phase 11 status, monotonic observation sequence, D1-authoritative last-seen/last-sync time, project-first indexes, and a 20-client-per-principal/project retention cap.
+- [x] Add direct-member human-session list/current reads and Authorization-only scoped MCP/local-principal current-state upsert. Every query rechecks active project, workspace/direct membership, `sync_status` scope, and exact current verified repository binding; cookie/Origin-bearing local writes fail nonleaking.
+- [x] Wire CLI and Pi status plus successful/failed sync through the CLI reporting seam. Reporting is best-effort, bounded, path/credential-free, and separately identified from graph sync outcome; offline and last-valid-cache behavior remains independent.
+- [x] Add SQL-sensitive API/migration, CLI, Pi, and web coverage for freshness transitions/history immutability, provenance/repository edges, auth/isolation/repository binding, create/update/list/current, D1 time, monotonic/idempotent observations, bounds/pagination, and reporting/offline failure preservation.
+- [x] Complete the one independent Phase 19 review and its full four-item P1 correction in one consolidated pass: server-verified local/remote graph truth including attempts and deterministic-state contradictions; authorization-conditioned atomic upsert rechecks; sync-success separation from reporting/status failures in CLI/Pi; and exact bounded JSON acknowledgment validation. No second review is planned.
+- [x] Passed the root phase stop gate: fresh/staged-through-0017 migration integrity plus 274 tests (153 API, 28 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. External browser/accessibility and remote D1/local-client reporting evidence remain pending.
+- **P2 backlog (non-blocking):** add full real-D1 20-client/FK/identity/concurrent-race coverage; bound cursor text before `atob`.
 
 ### 20. Team management (Prompt 20) — `PENDING`
 

@@ -630,11 +630,70 @@ button:active,
   justify-content: space-between;
 }
 
-.artifact-type {
+.artifact-labels {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.artifact-type,
+.freshness-badge {
   padding: 3px 5px;
   border: 1px solid var(--line);
   font-size: 0.62rem;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.freshness-badge::before {
+  margin-right: 4px;
+  content: "?";
+  font-weight: 800;
+}
+
+.freshness-badge--current::before {
+  content: "=";
+}
+
+.freshness-badge--stale::before {
+  content: "!";
+}
+
+.freshness-badge--current {
+  border-color: #27704a;
+}
+
+.freshness-badge--stale {
+  border-color: #a54420;
+}
+
+.freshness-panel {
+  margin-top: 36px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--ink);
+  border-left-width: 7px;
+  background: color-mix(in srgb, var(--panel) 74%, transparent);
+}
+
+.freshness-panel--current {
+  border-left-color: #27704a;
+}
+
+.freshness-panel--stale {
+  border-left-color: #a54420;
+}
+
+.freshness-panel--unknown {
+  border-left-style: double;
+}
+
+.freshness-panel p {
+  margin: 0;
+  line-height: 1.45;
 }
 
 .artifact-row-description {
@@ -1348,8 +1407,14 @@ dialog::backdrop {
     gap: 10px;
   }
 
-  .artifact-row-meta {
+  .artifact-row-meta,
+  .artifact-labels {
     justify-content: flex-start;
+  }
+
+  .freshness-panel {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .detail-grid {

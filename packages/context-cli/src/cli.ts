@@ -25,12 +25,13 @@ export async function run(
   args = process.argv.slice(2),
   directory = process.cwd(),
   write: (value: string) => void = (value) => process.stdout.write(`${value}\n`),
+  operations = { connectProject, projectStatus, syncProject },
 ) {
   const command = args[0];
   if (command === "connect") {
     const apiOrigin = option(args, "--api");
     if (!apiOrigin) throw new Error("INVALID_ARGUMENTS");
-    const manifest = await connectProject({
+    const manifest = await operations.connectProject({
       directory,
       apiOrigin,
       projectId: option(args, "--project"),
@@ -41,25 +42,65 @@ export async function run(
   }
   if (command === "status") {
     const session = process.env.CONTEXT_HUB_SESSION;
-    const status = await projectStatus({
+    const status = await operations.projectStatus({
       directory,
       session,
       credentialApiOrigin: session ? credentialOrigin() : undefined,
+      reportToken: session ? process.env.CONTEXT_HUB_MCP_TOKEN : undefined,
     });
     write(JSON.stringify(status));
     return;
   }
   if (command === "sync") {
-    const manifest = await syncProject({
-      directory,
-      session: credential(),
-      credentialApiOrigin: credentialOrigin(),
-    });
+    const session = credential();
+    const origin = credentialOrigin();
+    let manifest: Awaited<ReturnType<typeof syncProject>>;
+    try {
+      manifest = await operations.syncProject({
+        directory,
+        session,
+        credentialApiOrigin: origin,
+      });
+    } catch (error) {
+      const failureCode =
+        error instanceof Error && /^[A-Z][A-Z0-9_]{1,63}$/.test(error.message)
+          ? error.message
+          : "SYNC_FAILED";
+      if (process.env.CONTEXT_HUB_MCP_TOKEN) {
+        await operations
+          .projectStatus({
+            directory,
+            session,
+            credentialApiOrigin: origin,
+            reportToken: process.env.CONTEXT_HUB_MCP_TOKEN,
+            reportOutcome: "SYNC_FAILED",
+            failureCode,
+          })
+          .catch(() => undefined);
+      }
+      throw error;
+    }
+    let reporting: "REPORTED" | "FAILED" | "NOT_CONFIGURED" = "NOT_CONFIGURED";
+    if (process.env.CONTEXT_HUB_MCP_TOKEN) {
+      try {
+        const status = await operations.projectStatus({
+          directory,
+          session,
+          credentialApiOrigin: origin,
+          reportToken: process.env.CONTEXT_HUB_MCP_TOKEN,
+          reportOutcome: "SYNC_SUCCEEDED",
+        });
+        reporting = status.reporting ?? "FAILED";
+      } catch {
+        reporting = "FAILED";
+      }
+    }
     write(
       JSON.stringify({
         synced: true,
         projectId: manifest.projectId,
         graphVersion: manifest.graph?.version ?? null,
+        reporting,
       }),
     );
     return;

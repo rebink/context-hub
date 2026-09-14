@@ -16,6 +16,7 @@ export type RepositoryIdentity = {
 export type GraphMetadata = {
   repository: RepositoryIdentity;
   version: number;
+  attempt?: number;
   status: GraphLifecycle;
   sourceCommitSha: string;
   checksum: string | null;
@@ -47,6 +48,10 @@ export type Manifest = {
   formatVersion: 1;
   apiOrigin: string;
   projectId: string;
+  client?: {
+    id: string;
+    observationSequence: number;
+  };
   repository: RepositoryIdentity;
   graph: {
     version: number;
@@ -106,6 +111,7 @@ export function isGraphMetadata(value: unknown): value is GraphMetadata {
   return (
     isRepositoryIdentity(item.repository) &&
     isSafeInteger(item.version, 1) &&
+    (item.attempt === undefined || isSafeInteger(item.attempt, 1)) &&
     ["QUEUED", "BUILDING", "FAILED", "READY", "SUPERSEDED"].includes(item.status as string) &&
     typeof item.sourceCommitSha === "string" &&
     SHA.test(item.sourceCommitSha) &&
@@ -141,7 +147,19 @@ export function isManifest(value: unknown): value is Manifest {
     typeof item.apiOrigin !== "string" ||
     typeof item.projectId !== "string" ||
     !/^[A-Za-z0-9_-]+$/.test(item.projectId) ||
-    !isRepositoryIdentity(item.repository)
+    !isRepositoryIdentity(item.repository) ||
+    (item.client !== undefined &&
+      (!item.client ||
+        typeof item.client !== "object" ||
+        Array.isArray(item.client) ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+          String((item.client as Record<string, unknown>).id),
+        ) ||
+        !isSafeInteger(
+          (item.client as Record<string, unknown>).observationSequence,
+          0,
+          2147483647,
+        )))
   )
     return false;
   if (item.graph === null) return true;

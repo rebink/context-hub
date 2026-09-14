@@ -545,7 +545,9 @@ cp "$ROOT"/apps/api/migrations/0015_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
 cp "$ROOT"/apps/api/migrations/0016_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
-v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS mcp_tables FROM sqlite_master WHERE type='table' AND name IN ('mcp_principals','mcp_principal_projects','mcp_principal_operations','mcp_credentials','mcp_request_nonces','mcp_audit_events'); SELECT COUNT(*) AS snapshot_tables FROM sqlite_master WHERE type='table' AND name IN ('context_snapshots','snapshot_artifacts','snapshot_events'); SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql','0015_mcp_principals.sql','0016_context_snapshots.sql');")
+cp "$ROOT"/apps/api/migrations/0017_*.sql "$upgrade_project/migrations/"
+"$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
+v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS mcp_tables FROM sqlite_master WHERE type='table' AND name IN ('mcp_principals','mcp_principal_projects','mcp_principal_operations','mcp_credentials','mcp_request_nonces','mcp_audit_events'); SELECT COUNT(*) AS snapshot_tables FROM sqlite_master WHERE type='table' AND name IN ('context_snapshots','snapshot_artifacts','snapshot_events'); SELECT COUNT(*) AS sync_tables FROM sqlite_master WHERE type='table' AND name='sync_states'; SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql','0015_mcp_principals.sql','0016_context_snapshots.sql','0017_sync_states.sql');")
 grep -Eq '"legacy_rows": 2' <<<"$v2_upgrade_check"
 grep -Eq '"attempt_table": 1' <<<"$v2_upgrade_check"
 grep -Eq '"retry_rows": 1' <<<"$v2_upgrade_check"
@@ -553,9 +555,48 @@ grep -Eq '"retry_events": 1' <<<"$v2_upgrade_check"
 grep -Eq '"machine_tables": 4' <<<"$v2_upgrade_check"
 grep -Eq '"mcp_tables": 6' <<<"$v2_upgrade_check"
 grep -Eq '"snapshot_tables": 3' <<<"$v2_upgrade_check"
-grep -Eq '"applied": 7' <<<"$v2_upgrade_check"
+grep -Eq '"sync_tables": 1' <<<"$v2_upgrade_check"
+grep -Eq '"applied": 8' <<<"$v2_upgrade_check"
+
+cat >"$TEMP/sync-states.sql" <<'SQL'
+INSERT INTO workspace_members(workspace_id,user_id,role) VALUES('w','u','ADMIN');
+INSERT INTO project_members(project_id,user_id,role) VALUES('p','u','ADMIN');
+INSERT INTO mcp_principals(id,owner_user_id,name,created_by) VALUES('mp-sync','u','Local sync','u');
+INSERT INTO mcp_principal_projects(principal_id,project_id) VALUES('mp-sync','p');
+INSERT INTO mcp_principal_operations(principal_id,operation) VALUES('mp-sync','sync_status');
+INSERT INTO sync_states(project_id,principal_id,client_id,client_kind,client_version,observation_sequence,
+  repository_provider,provider_repository_id,repository_canonical_url,local_git_sha,
+  local_graph_version,local_graph_attempt,local_graph_checksum,local_graph_source_commit_sha,
+  remote_git_sha,remote_graph_version,remote_graph_attempt,remote_graph_checksum,remote_graph_source_commit_sha,remote_graph_status,
+  sync_status,report_outcome,failure_code)
+VALUES('p','mp-sync','12345678-1234-4123-8123-123456789abc','CONTEXT_CLI','0.1.0',1,
+  'github','1','github.com/o/one','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  2,1,'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd','cccccccccccccccccccccccccccccccccccccccc',
+  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',2,1,'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+  'cccccccccccccccccccccccccccccccccccccccc','READY','GRAPH_STALE','STATUS',NULL);
+UPDATE sync_states SET observation_sequence=2,sync_status='CURRENT',report_outcome='SYNC_SUCCEEDED',
+  last_seen_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),last_sync_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+WHERE project_id='p' AND principal_id='mp-sync' AND client_id='12345678-1234-4123-8123-123456789abc';
+SQL
+"$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --file "$TEMP/sync-states.sql" >/dev/null
+sync_state_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS exact_state FROM sync_states WHERE project_id='p' AND principal_id='mp-sync' AND observation_sequence=2 AND sync_status='CURRENT' AND last_sync_at=last_seen_at; SELECT COUNT(*) AS sync_indexes FROM sqlite_master WHERE type='index' AND name IN ('sync_states_project_seen','sync_states_principal_seen');")
+grep -Eq '"exact_state": 1' <<<"$sync_state_check"
+grep -Eq '"sync_indexes": 2' <<<"$sync_state_check"
+if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE sync_states SET observation_sequence=1 WHERE project_id='p'" >/dev/null 2>&1; then
+  echo "expected monotonic sync observation rejection" >&2
+  exit 1
+fi
+if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "INSERT INTO sync_states(project_id,principal_id,client_id,client_kind,client_version,observation_sequence,repository_provider,provider_repository_id,repository_canonical_url,local_git_sha,sync_status,report_outcome) VALUES('p','mp-sync','not-a-client-id','CONTEXT_CLI','0.1.0',1,'github','1','github.com/o/one','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','NO_LOCAL_GRAPH','STATUS')" >/dev/null 2>&1; then
+  echo "expected malformed sync client identity rejection" >&2
+  exit 1
+fi
+if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "INSERT INTO sync_states(project_id,principal_id,client_id,client_kind,client_version,observation_sequence,repository_provider,provider_repository_id,repository_canonical_url,local_git_sha,remote_graph_version,remote_graph_source_commit_sha,remote_graph_status,sync_status,report_outcome) VALUES('p','mp-sync','22345678-1234-4123-8123-123456789abc','CONTEXT_CLI','0.1.0',1,'github','1','github.com/o/one','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',2,'cccccccccccccccccccccccccccccccccccccccc','READY','NO_LOCAL_GRAPH','STATUS')" >/dev/null 2>&1; then
+  echo "expected READY sync graph without checksum rejection" >&2
+  exit 1
+fi
+
 "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE graph_versions SET status='QUEUED',attempt=attempt+1,failure_category=NULL,failed_at=NULL,build_started_at=NULL,updated_at='2099-01-02' WHERE id='legacy-building'" >/dev/null
 migration_retry_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS queued_retry FROM graph_versions WHERE id='legacy-building' AND status='QUEUED' AND attempt=2")
 grep -Eq '"queued_retry": 1' <<<"$migration_retry_check"
 
-echo "fresh and staged-through-0016 upgrade migrations, immutable snapshot/reference/audit constraints, separate CI/MCP credential models, exact graph lifecycle evidence, restored bounds, reconciliation, foreign keys, and transactional rollback passed"
+echo "fresh and staged-through-0017 upgrade migrations, bounded monotonic sync states, immutable snapshot/reference/audit constraints, separate CI/MCP credential models, exact graph lifecycle evidence, restored bounds, reconciliation, foreign keys, and transactional rollback passed"

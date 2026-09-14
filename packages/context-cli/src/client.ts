@@ -14,6 +14,7 @@ import {
 
 const execFile = promisify(execFileCallback);
 const REQUEST_TIMEOUT_MS = 10_000;
+const MCP_TOKEN = /^chmcp_[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/;
 
 export class ClientError extends Error {
   constructor(
@@ -96,6 +97,90 @@ function validateMetadata(value: unknown): SyncMetadata {
   )
     throw new ClientError("INVALID_RESPONSE");
   return value as SyncMetadata;
+}
+
+export type SyncStateReport = {
+  clientId: string;
+  clientKind: "CONTEXT_CLI";
+  clientVersion: string;
+  observationSequence: number;
+  repository: { provider: string; providerRepositoryId: string; canonicalUrl: string };
+  localGitSha: string;
+  localGraphVersion: number | null;
+  localGraphAttempt: number | null;
+  localGraphChecksum: string | null;
+  localGraphSourceCommitSha: string | null;
+  remoteGitSha: string | null;
+  remoteGraphVersion: number | null;
+  remoteGraphAttempt: number | null;
+  remoteGraphChecksum: string | null;
+  remoteGraphSourceCommitSha: string | null;
+  remoteGraphStatus: string | null;
+  status: string;
+  reportOutcome: "STATUS" | "SYNC_SUCCEEDED" | "SYNC_FAILED";
+  failureCode: string | null;
+};
+
+export class SyncStateReporter {
+  readonly apiOrigin: string;
+
+  constructor(
+    apiOrigin: string,
+    private token: string,
+    private fetchImplementation: typeof fetch = fetch,
+  ) {
+    this.apiOrigin = validateApiOrigin(apiOrigin);
+    if (!MCP_TOKEN.test(token)) throw new ClientError("INVALID_REPORT_CREDENTIAL");
+  }
+
+  async report(projectId: string, value: SyncStateReport): Promise<void> {
+    if (!/^[A-Za-z0-9_-]+$/.test(projectId)) throw new ClientError("INVALID_PROJECT_ID");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const response = await this.fetchImplementation(
+        `${this.apiOrigin}/projects/${encodeURIComponent(projectId)}/sync-states/current`,
+        {
+          method: "PUT",
+          redirect: "manual",
+          headers: { authorization: `Bearer ${this.token}`, "content-type": "application/json" },
+          body: JSON.stringify(value),
+          signal: controller.signal,
+        },
+      );
+      if (response.status >= 300 && response.status < 400)
+        throw new ClientError("REDIRECT_REJECTED");
+      if (!response.ok) throw new ClientError("SYNC_STATE_REPORT_FAILED", response.status);
+      if (response.headers.get("content-type")?.split(";", 1)[0]?.trim() !== "application/json")
+        throw new ClientError("SYNC_STATE_REPORT_FAILED");
+      const bytes = await boundedBytes(response, MAX_METADATA_BYTES);
+      let payload: unknown;
+      try {
+        payload = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+      } catch {
+        throw new ClientError("SYNC_STATE_REPORT_FAILED");
+      }
+      if (!payload || typeof payload !== "object" || Array.isArray(payload))
+        throw new ClientError("SYNC_STATE_REPORT_FAILED");
+      const state = (payload as Record<string, unknown>).syncState;
+      if (!state || typeof state !== "object" || Array.isArray(state))
+        throw new ClientError("SYNC_STATE_REPORT_FAILED");
+      const accepted = state as Record<string, unknown>;
+      if (
+        accepted.projectId !== projectId ||
+        accepted.clientId !== value.clientId ||
+        accepted.observationSequence !== value.observationSequence ||
+        accepted.status !== value.status ||
+        accepted.reportOutcome !== value.reportOutcome
+      )
+        throw new ClientError("SYNC_STATE_REPORT_FAILED");
+    } catch (error) {
+      if (error instanceof ClientError) throw error;
+      throw new ClientError("SYNC_STATE_REPORT_FAILED");
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
 }
 
 export class SyncClient {

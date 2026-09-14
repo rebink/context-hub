@@ -1,4 +1,5 @@
 import { ApiError, api } from "./api.js";
+import { type ArtifactFreshness, freshnessMessage } from "./artifact-freshness-ui.js";
 import {
   ARTIFACT_TYPES,
   type ArtifactType,
@@ -25,6 +26,7 @@ type Artifact = {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  freshness: ArtifactFreshness;
 };
 
 type Version = {
@@ -37,6 +39,7 @@ type Version = {
   changeNote: string | null;
   createdBy: string;
   createdAt: string;
+  freshness: ArtifactFreshness;
 };
 
 type Hooks = {
@@ -85,6 +88,16 @@ function labeledValue(label: string, value: string): HTMLElement {
   const item = element("div", "detail-field");
   item.append(element("dt", undefined, label), element("dd", undefined, value));
   return item;
+}
+
+function freshnessBadge(freshness: ArtifactFreshness): HTMLElement {
+  const badge = element(
+    "span",
+    `freshness-badge freshness-badge--${freshness.state.toLowerCase()}`,
+    `${freshness.state === "CURRENT" ? "Current" : freshness.state === "STALE" ? "Stale" : "Unknown"} freshness`,
+  );
+  badge.setAttribute("aria-label", freshnessMessage(freshness));
+  return badge;
 }
 
 function draftFrom(form: HTMLFormElement): UploadDraft {
@@ -335,10 +348,12 @@ export function mountArtifacts(
       const row = button("", "artifact-row", () => void openDetail(artifact));
       row.removeAttribute("aria-label");
       const top = element("span", "artifact-row-top");
-      top.append(
-        element("strong", undefined, artifact.name),
+      const labels = element("span", "artifact-labels");
+      labels.append(
         element("span", "artifact-type", artifact.type),
+        freshnessBadge(artifact.freshness),
       );
+      top.append(element("strong", undefined, artifact.name), labels);
       const description = element(
         "span",
         "artifact-row-description",
@@ -421,13 +436,27 @@ export function mountArtifacts(
     } else if (historical) {
       detailHeader.append(element("p", "read-only-note", "Historical version / read-only"));
     }
+    const freshnessPanel = element(
+      "div",
+      `freshness-panel freshness-panel--${version.freshness.state.toLowerCase()}`,
+    );
+    freshnessPanel.setAttribute("role", "status");
+    freshnessPanel.append(
+      freshnessBadge(version.freshness),
+      element("p", undefined, freshnessMessage(version.freshness)),
+    );
     const metadata = element("dl", "detail-grid");
     metadata.append(
       labeledValue("Version", `v${version.version}${historical ? " (historical)" : " (current)"}`),
       labeledValue("Checksum", version.checksum),
       labeledValue("Content type", version.contentType),
       labeledValue("Byte size", `${version.byteSize.toLocaleString()} bytes`),
-      labeledValue("Source commit", version.sourceCommitSha ?? "Not supplied"),
+      labeledValue("Artifact source commit", version.sourceCommitSha ?? "Not supplied"),
+      labeledValue(
+        "Current repository commit",
+        version.freshness.currentRepositoryCommitSha ?? "Unavailable",
+      ),
+      labeledValue("Repository verification", version.freshness.repositoryStatus),
       labeledValue("Change note", version.changeNote ?? "Not supplied"),
       labeledValue("Creator", version.createdBy),
       labeledValue("Created", dateTime(version.createdAt)),
@@ -439,7 +468,15 @@ export function mountArtifacts(
     const historyHeading = element("div", "history-heading");
     historyHeading.append(element("h2", "section-title", "Version history"));
     const historyList = element("div", "history-list");
-    shell.append(detailHeader, metadata, contentHeading, pre, historyHeading, historyList);
+    shell.append(
+      detailHeader,
+      freshnessPanel,
+      metadata,
+      contentHeading,
+      pre,
+      historyHeading,
+      historyList,
+    );
     renderHistory(historyList);
   }
 

@@ -23,7 +23,8 @@ import {
   replaceGraphCache,
   writeManifest,
 } from "../src/cache.js";
-import { ClientError, SyncClient } from "../src/client.js";
+import { run as runCli } from "../src/cli.js";
+import { ClientError, SyncClient, SyncStateReporter } from "../src/client.js";
 import { connectProject, deriveStatus, projectStatus, syncProject } from "../src/index.js";
 import type { GraphMetadata, LocalGraph, Manifest, SyncMetadata, SyncState } from "../src/types.js";
 
@@ -56,6 +57,7 @@ function metadata(version = 1, commit = firstCommit): GraphMetadata {
       canonicalUrl: "github.com/owner/repo",
     },
     version,
+    attempt: 1,
     status: "READY",
     sourceCommitSha: commit,
     checksum: createHash("sha256").update(bytes).digest("hex"),
@@ -659,6 +661,196 @@ describe("transport and offline behavior", () => {
       assert.equal(status.state, "CURRENT");
       assert.equal(status.offline, true);
     }
+  });
+
+  it("requires a bounded exact JSON acknowledgment for sync-state reporting", async () => {
+    const value = {
+      clientId: "12345678-1234-4123-8123-123456789abc",
+      clientKind: "CONTEXT_CLI" as const,
+      clientVersion: "0.1.0",
+      observationSequence: 7,
+      repository: {
+        provider: "github",
+        providerRepositoryId: "repo-1",
+        canonicalUrl: "github.com/owner/repo",
+      },
+      localGitSha: firstCommit,
+      localGraphVersion: null,
+      localGraphAttempt: null,
+      localGraphChecksum: null,
+      localGraphSourceCommitSha: null,
+      remoteGitSha: firstCommit,
+      remoteGraphVersion: null,
+      remoteGraphAttempt: null,
+      remoteGraphChecksum: null,
+      remoteGraphSourceCommitSha: null,
+      remoteGraphStatus: null,
+      status: "NO_LOCAL_GRAPH",
+      reportOutcome: "STATUS" as const,
+      failureCode: null,
+    };
+    const token = `chmcp_11111111-1111-4111-8111-111111111111.${"x".repeat(43)}`;
+    const responses = [
+      new Response("ok", { headers: { "content-type": "text/plain" } }),
+      new Response("{", { headers: { "content-type": "application/json" } }),
+      Response.json({
+        syncState: {
+          projectId: "project-a",
+          clientId: value.clientId,
+          observationSequence: 8,
+          status: value.status,
+          reportOutcome: value.reportOutcome,
+        },
+      }),
+    ];
+    for (const response of responses) {
+      const reporter = new SyncStateReporter("https://api.example", token, async () => response);
+      await assert.rejects(reporter.report("project-a", value), /SYNC_STATE_REPORT_FAILED/);
+    }
+    const reporter = new SyncStateReporter("https://api.example", token, async () =>
+      Response.json({
+        syncState: {
+          projectId: "project-a",
+          clientId: value.clientId,
+          observationSequence: 7,
+          status: value.status,
+          reportOutcome: value.reportOutcome,
+        },
+      }),
+    );
+    await reporter.report("project-a", value);
+  });
+
+  it("reports bounded verified online state with a stable client identity and Authorization only", async () => {
+    const fixture = await gitRepository();
+    const graph = metadata(1, fixture.second);
+    const layout = await ensureLayout(fixture.root);
+    const connected = {
+      ...manifest(graph),
+      client: { id: "12345678-1234-4123-8123-123456789abc", observationSequence: 4 },
+      graph: null,
+    };
+    await writeManifest(layout, connected);
+    await replaceGraphCache(layout, connected, graph, graphBytes(fixture.second));
+    const server = remote({
+      repository: { ...remote().repository, remoteCommitSha: fixture.second },
+      newestGraph: graph,
+      readyGraph: graph,
+    });
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const reports: Array<Record<string, unknown>> = [];
+    const fetchImplementation = async (input: string | URL | Request, init?: RequestInit) => {
+      requests.push({ url: String(input), init });
+      if (String(input).endsWith("/sync")) return Response.json(server);
+      assert.equal(init?.method, "PUT");
+      const headers = new Headers(init?.headers);
+      assert.match(headers.get("authorization") ?? "", /^Bearer chmcp_/);
+      assert.equal(headers.has("cookie"), false);
+      assert.equal(headers.has("origin"), false);
+      const body = JSON.parse(String(init?.body));
+      reports.push(body);
+      assert.equal(body.localGraphAttempt, 1);
+      assert.equal(body.status, "CURRENT");
+      assert.equal(JSON.stringify(body).includes(fixture.root), false);
+      assert.equal(JSON.stringify(body).includes("human-session"), false);
+      return Response.json({
+        syncState: {
+          projectId: "project-a",
+          clientId: body.clientId,
+          observationSequence: body.observationSequence,
+          status: body.status,
+          reportOutcome: body.reportOutcome,
+        },
+      });
+    };
+    const status = await projectStatus({
+      directory: fixture.root,
+      session: "human-session",
+      credentialApiOrigin: "https://api.example",
+      reportToken: `chmcp_11111111-1111-4111-8111-111111111111.${"x".repeat(43)}`,
+      fetchImplementation,
+    });
+    assert.equal(status.reporting, "REPORTED");
+    assert.equal(reports[0]?.observationSequence, 5);
+    assert.equal(reports[0]?.reportOutcome, "STATUS");
+
+    const failedSyncReport = await projectStatus({
+      directory: fixture.root,
+      session: "human-session",
+      credentialApiOrigin: "https://api.example",
+      reportToken: `chmcp_11111111-1111-4111-8111-111111111111.${"x".repeat(43)}`,
+      reportOutcome: "SYNC_FAILED",
+      failureCode: "GRAPH_INTEGRITY_ERROR",
+      fetchImplementation,
+    });
+    assert.equal(failedSyncReport.reporting, "REPORTED");
+    assert.equal(reports[1]?.observationSequence, 6);
+    assert.equal(reports[1]?.reportOutcome, "SYNC_FAILED");
+    assert.equal(reports[1]?.failureCode, "GRAPH_INTEGRITY_ERROR");
+    assert.equal(requests.length, 4);
+    const saved = JSON.parse(await readFile(layout.manifest, "utf8"));
+    assert.equal(saved.client.id, "12345678-1234-4123-8123-123456789abc");
+    assert.equal(saved.client.observationSequence, 6);
+  });
+
+  it("keeps verified local status usable when telemetry persistence fails", async () => {
+    const fixture = await gitRepository();
+    const graph = metadata(1, fixture.second);
+    const layout = await ensureLayout(fixture.root);
+    const connected = { ...manifest(graph), graph: null };
+    await writeManifest(layout, connected);
+    await replaceGraphCache(layout, connected, graph, graphBytes(fixture.second));
+    const server = remote({
+      repository: { ...remote().repository, remoteCommitSha: fixture.second },
+      newestGraph: graph,
+      readyGraph: graph,
+    });
+    const status = await projectStatus({
+      directory: fixture.root,
+      session: "human-session",
+      credentialApiOrigin: "https://api.example",
+      reportToken: `chmcp_11111111-1111-4111-8111-111111111111.${"x".repeat(43)}`,
+      fetchImplementation: async (input) =>
+        String(input).endsWith("/sync")
+          ? Response.json(server)
+          : new Response("unavailable", { status: 503 }),
+    });
+    assert.equal(status.state, "CURRENT");
+    assert.equal(status.offline, false);
+    assert.equal(status.reporting, "FAILED");
+    assert.ok(await readLocalGraph(layout));
+  });
+
+  it("prints sync success even when post-sync reporting fails", async () => {
+    const priorSession = process.env.CONTEXT_HUB_SESSION;
+    const priorOrigin = process.env.CONTEXT_HUB_API;
+    const priorToken = process.env.CONTEXT_HUB_MCP_TOKEN;
+    process.env.CONTEXT_HUB_SESSION = "session";
+    process.env.CONTEXT_HUB_API = "https://api.example";
+    process.env.CONTEXT_HUB_MCP_TOKEN = `chmcp_11111111-1111-4111-8111-111111111111.${"x".repeat(43)}`;
+    const output: string[] = [];
+    try {
+      await runCli(["sync"], "/unused", (value) => output.push(value), {
+        connectProject,
+        syncProject: async () => manifest(),
+        projectStatus: async () => {
+          throw new Error("REPORT_FAILED");
+        },
+      });
+    } finally {
+      if (priorSession === undefined) delete process.env.CONTEXT_HUB_SESSION;
+      else process.env.CONTEXT_HUB_SESSION = priorSession;
+      if (priorOrigin === undefined) delete process.env.CONTEXT_HUB_API;
+      else process.env.CONTEXT_HUB_API = priorOrigin;
+      if (priorToken === undefined) delete process.env.CONTEXT_HUB_MCP_TOKEN;
+      else process.env.CONTEXT_HUB_MCP_TOKEN = priorToken;
+    }
+    assert.deepEqual(JSON.parse(output[0] ?? ""), {
+      synced: true,
+      projectId: "project-a",
+      graphVersion: 1,
+      reporting: "FAILED",
+    });
   });
 
   it("reports verified status offline and surfaces local corruption", async () => {

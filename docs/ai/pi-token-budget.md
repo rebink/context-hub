@@ -1,6 +1,6 @@
 # Pi Token Budget Audit
 
-Phase 17 audits the Phase 16 Context Hub extension at checkpoint `b7307a0`; Phase 18 refreshes its canonical fixture after replacing the misleading snapshot-unavailable placeholder with a truthful fixed availability notice. The notice remains non-mutating and adds no Pi retrieval, snapshot creation, freshness, team, generalized audit, deployment, model-facing tool, or UI capability.
+Phase 17 audits the Phase 16 Context Hub extension at checkpoint `b7307a0`; Phase 18 refreshes its canonical fixture after replacing the misleading snapshot-unavailable placeholder with a truthful fixed availability notice. Phase 19 refreshes only the user-visible sync result to include its separate reporting outcome. The notice remains non-mutating and adds no Pi retrieval, snapshot creation, freshness, team, generalized audit, deployment, model-facing tool, or UI capability.
 
 ## Reproducible method
 
@@ -13,7 +13,7 @@ npx tsx --test packages/context-pi/test/pi-token-audit.test.ts packages/context-
 
 The dependency-free measurement in [`../../packages/context-pi/scripts/pi-token-audit-lib.ts`](../../packages/context-pi/scripts/pi-token-audit-lib.ts) activates the real exported `createContextExtension`, invokes its registered handler for all six exported `PI_COMMAND` subcommands, executes both lifecycle handlers, and imports the real `PI_OUTPUT_LIMITS`. It does not copy command names, descriptions, formatters, or bounds.
 
-The executable emits `{ "audit": ..., "auditSha256": ... }`. `auditSha256` is SHA-256 over the compact deterministic `JSON.stringify(audit)` payload before the digest field is added, so the hash is canonical and not self-referential. The accepted payload digest is **`582ca398d6c8ad4db1db7e6158a87cb9673e5227df1b2fbdd0bb0de8a0fbdca0`**. Tests recompute and exact-lock it.
+The executable emits `{ "audit": ..., "auditSha256": ... }`. `auditSha256` is SHA-256 over the compact deterministic `JSON.stringify(audit)` payload before the digest field is added, so the hash is canonical and not self-referential. The accepted payload digest is **`9ae7b270a3a64257fc58825710cffe6418f64e7f95d40ec3fae75ed64ff04382`**. Tests recompute and exact-lock it.
 
 All byte counts are `TextEncoder` UTF-8 byte lengths. The Context Engine estimator is `ceil(bytes / 4)`, but this audit applies it only to genuinely model-visible bytes. Structural evidence proves no model-visible insertion API or hook is used, so estimated permanent model-visible overhead is **0 tokens**. Formatted notification/status payloads and MCP wire envelopes receive no token estimate. Tokenizer-specific counts and live provider telemetry were not measured.
 
@@ -55,7 +55,7 @@ The complete registration bytes and hash are identical at all project counts. `/
 | --- | ---: | --- | ---: | --- |
 | `/context connect project-2`, two authorized matches | 40 | info | 0 / 0 | `ecef7d08...bce37` |
 | `/context status`, local/offline | 202 | info | 0 / 0 | `83174691...e36cf` |
-| `/context sync` | 46 | info | 0 / 0 | `2924a88e...e573` |
+| `/context sync` with reporting not configured | 64 | info | 0 / 0 | `77fecd26...938b` |
 | `/context search payment retries`, single project | 658 | info | 0 / 0 | `105c40a4...cabcc` |
 | `/context graph RetryPayment`, single project | 458 | info | 0 / 0 | `cb3a3315...e1c8` |
 | `/context snapshot` truthful web/API availability and Pi mutation-auth notice | 132 | warning | 0 / 0 | `da68db1f...10e7` |

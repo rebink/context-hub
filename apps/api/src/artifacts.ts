@@ -1,3 +1,4 @@
+import { classifyArtifactFreshness } from "./artifact-freshness.js";
 import type { ObjectStorage } from "./object-storage.js";
 import { sha256Bytes } from "./security.js";
 
@@ -34,7 +35,12 @@ const CONTENT_TYPES = new Set([
 const ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 type Member = { role: "ADMIN" | "EDITOR" | "VIEWER" };
-type ArtifactRow = {
+type FreshnessColumns = {
+  source_commit_sha: string | null;
+  current_repository_commit_sha: string | null;
+  repository_connection_status: string | null;
+};
+type ArtifactRow = FreshnessColumns & {
   id: string;
   project_id: string;
   type: string;
@@ -46,14 +52,13 @@ type ArtifactRow = {
   created_at: string;
   updated_at: string;
 };
-type VersionRow = {
+type VersionRow = FreshnessColumns & {
   artifact_id: string;
   version: number;
   storage_key: string;
   checksum: string;
   content_type: string;
   byte_size: number;
-  source_commit_sha: string | null;
   change_note: string | null;
   created_by: string;
   created_at: string;
@@ -78,6 +83,23 @@ function fail(request: Request, env: ArtifactEnv, code: string, status: number):
   return reply(request, env, { error: code }, status);
 }
 
+function freshness(row: FreshnessColumns) {
+  const repositoryStatus =
+    row.repository_connection_status === "VERIFIED"
+      ? "VERIFIED"
+      : row.repository_connection_status === "ERROR"
+        ? "UNVERIFIED"
+        : "DISCONNECTED";
+  const currentRepositoryCommitSha =
+    repositoryStatus === "VERIFIED" ? row.current_repository_commit_sha : null;
+  return {
+    state: classifyArtifactFreshness(row.source_commit_sha, currentRepositoryCommitSha),
+    artifactSourceCommitSha: row.source_commit_sha,
+    currentRepositoryCommitSha,
+    repositoryStatus,
+  };
+}
+
 function mapArtifact(row: ArtifactRow) {
   return {
     id: row.id,
@@ -90,6 +112,7 @@ function mapArtifact(row: ArtifactRow) {
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    freshness: freshness(row),
   };
 }
 
@@ -104,6 +127,7 @@ function mapVersion(row: VersionRow) {
     changeNote: row.change_note,
     createdBy: row.created_by,
     createdAt: row.created_at,
+    freshness: freshness(row),
   };
 }
 
@@ -288,9 +312,14 @@ async function artifact(
 ): Promise<ArtifactRow | null> {
   return (
     (await env.DB.prepare(
-      `SELECT id, project_id, type, name, description, current_version, status,
-              created_by, created_at, updated_at
-       FROM artifacts WHERE project_id = ? AND id = ?`,
+      `SELECT a.id, a.project_id, a.type, a.name, a.description, a.current_version, a.status,
+              a.created_by, a.created_at, a.updated_at, av.source_commit_sha,
+              CASE WHEN gc.status='VERIFIED' THEN gc.last_known_commit_sha ELSE NULL END AS current_repository_commit_sha,
+              gc.status AS repository_connection_status
+       FROM artifacts a
+       JOIN artifact_versions av ON av.artifact_id=a.id AND av.version=a.current_version
+       LEFT JOIN git_connections gc ON gc.project_id=a.project_id
+       WHERE a.project_id = ? AND a.id = ?`,
     )
       .bind(projectId, artifactId)
       .first<ArtifactRow>()) ?? null
@@ -389,12 +418,16 @@ async function listArtifacts(request: Request, env: ArtifactEnv, projectId: stri
   const cursorAt = cursor?.[0] ?? null;
   const cursorId = cursor?.[1] ?? null;
   const result = await env.DB.prepare(
-    `SELECT id, project_id, type, name, description, current_version, status,
-            created_by, created_at, updated_at
-     FROM artifacts
-     WHERE project_id = ? AND (? IS NULL OR type = ?)
-       AND (? IS NULL OR created_at < ? OR (created_at = ? AND id < ?))
-     ORDER BY created_at DESC, id DESC LIMIT ?`,
+    `SELECT a.id, a.project_id, a.type, a.name, a.description, a.current_version, a.status,
+            a.created_by, a.created_at, a.updated_at, av.source_commit_sha,
+            CASE WHEN gc.status='VERIFIED' THEN gc.last_known_commit_sha ELSE NULL END AS current_repository_commit_sha,
+            gc.status AS repository_connection_status
+     FROM artifacts a
+     JOIN artifact_versions av ON av.artifact_id=a.id AND av.version=a.current_version
+     LEFT JOIN git_connections gc ON gc.project_id=a.project_id
+     WHERE a.project_id = ? AND (? IS NULL OR a.type = ?)
+       AND (? IS NULL OR a.created_at < ? OR (a.created_at = ? AND a.id < ?))
+     ORDER BY a.created_at DESC, a.id DESC LIMIT ?`,
   )
     .bind(projectId, type, type, cursorAt, cursorAt, cursorAt, cursorId, limit + 1)
     .all<ArtifactRow>();
@@ -501,8 +534,11 @@ async function listVersions(
   }
   const result = await env.DB.prepare(
     `SELECT av.artifact_id, av.version, av.storage_key, av.checksum, av.content_type, av.byte_size,
-            av.source_commit_sha, av.change_note, av.created_by, av.created_at
+            av.source_commit_sha, av.change_note, av.created_by, av.created_at,
+            CASE WHEN gc.status='VERIFIED' THEN gc.last_known_commit_sha ELSE NULL END AS current_repository_commit_sha,
+            gc.status AS repository_connection_status
      FROM artifact_versions av JOIN artifacts a ON a.id = av.artifact_id
+     LEFT JOIN git_connections gc ON gc.project_id=a.project_id
      WHERE a.project_id = ? AND av.artifact_id = ? AND (? IS NULL OR av.version < ?)
      ORDER BY av.version DESC LIMIT ?`,
   )
@@ -621,6 +657,8 @@ async function createVersion(
           change_note: parsed.changeNote,
           created_by: user.id,
           created_at: now,
+          current_repository_commit_sha: current.current_repository_commit_sha,
+          repository_connection_status: current.repository_connection_status,
         }),
       },
     },
@@ -638,8 +676,11 @@ async function readVersion(
 ) {
   const row = await env.DB.prepare(
     `SELECT av.artifact_id, av.version, av.storage_key, av.checksum, av.content_type, av.byte_size,
-            av.source_commit_sha, av.change_note, av.created_by, av.created_at
+            av.source_commit_sha, av.change_note, av.created_by, av.created_at,
+            CASE WHEN gc.status='VERIFIED' THEN gc.last_known_commit_sha ELSE NULL END AS current_repository_commit_sha,
+            gc.status AS repository_connection_status
      FROM artifact_versions av JOIN artifacts a ON a.id = av.artifact_id
+     LEFT JOIN git_connections gc ON gc.project_id=a.project_id
      WHERE a.project_id = ? AND av.artifact_id = ? AND av.version = ?`,
   )
     .bind(projectId, artifactId, version)

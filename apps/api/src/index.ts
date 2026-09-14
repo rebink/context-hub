@@ -30,6 +30,7 @@ import {
 } from "./security.js";
 import { handleSnapshotRoute } from "./snapshots.js";
 import { handleSyncRoute } from "./sync.js";
+import { handleSyncStateRead, handleSyncStateWrite } from "./sync-states.js";
 
 export interface Env {
   DB: D1Database;
@@ -555,6 +556,27 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
             credentialRoute[1] ?? "",
             credentialRoute[2],
             Boolean(credentialRotate),
+          );
+        }
+
+        const syncStateCurrent = /^\/projects\/([^/]+)\/sync-states\/current$/.exec(pathname);
+        const syncStateCollection = /^\/projects\/([^/]+)\/sync-states$/.exec(pathname);
+        const syncStateRoute = syncStateCurrent ?? syncStateCollection;
+        if (syncStateRoute) {
+          if (request.method === "PUT" && syncStateCurrent) {
+            return handleSyncStateWrite(request, env, syncStateRoute[1] ?? "");
+          }
+          if (request.method !== "GET") {
+            return error(request, env, "METHOD_NOT_ALLOWED", 405);
+          }
+          const user = await authenticate(request, env);
+          if (!user) return error(request, env, "UNAUTHENTICATED", 401);
+          return handleSyncStateRead(
+            request,
+            env,
+            user,
+            syncStateRoute[1] ?? "",
+            Boolean(syncStateCurrent),
           );
         }
 
