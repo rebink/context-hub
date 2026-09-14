@@ -23,6 +23,10 @@ type Artifact = {
   description: string | null;
   currentVersion: number;
   status: string;
+  lifecycleRevision: number;
+  archivedAt: string | null;
+  archivedBy: string | null;
+  archiveReason: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -219,7 +223,8 @@ export function mountArtifacts(
 
   const createDialog = uploadDialog("create", "Create artifact", "Publish artifact", true);
   const publishDialog = uploadDialog("publish", "Publish new version", "Publish version", false);
-  container.append(createDialog, publishDialog);
+  const archiveDialog = createArchiveDialog();
+  container.append(createDialog, publishDialog, archiveDialog);
 
   for (const item of [
     { value: "", label: "All" },
@@ -432,7 +437,14 @@ export function mountArtifacts(
     );
     detailHeader.append(title);
     if (canMutate && !historical) {
-      detailHeader.append(button("Publish new version", "primary-action", openPublish));
+      const actions = element("div", "artifact-detail-actions");
+      actions.append(button("Publish new version", "primary-action", openPublish));
+      if (project.role === "ADMIN") {
+        actions.append(
+          button("Archive artifact", "danger-action", () => archiveDialog.showModal()),
+        );
+      }
+      detailHeader.append(actions);
     } else if (historical) {
       detailHeader.append(element("p", "read-only-note", "Historical version / read-only"));
     }
@@ -553,6 +565,91 @@ export function mountArtifacts(
     } catch (error) {
       if (controller.signal.aborted || generation !== requestGeneration) return;
       handleDetailError(error);
+    }
+  }
+
+  function createArchiveDialog(): HTMLDialogElement {
+    const dialog = element("dialog", "artifact-dialog");
+    dialog.setAttribute("aria-labelledby", "archive-artifact-title");
+    const form = element("form", "dialog-form");
+    const heading = element("div", "dialog-heading");
+    const title = element("h2", undefined, "Archive artifact?");
+    title.id = "archive-artifact-title";
+    heading.append(
+      title,
+      button("Close", "text-action", () => dialog.close()),
+    );
+    const warning = element(
+      "p",
+      "archive-warning",
+      "This removes the artifact from active lists, context search, and MCP sources. Immutable versions and snapshot references remain available.",
+    );
+    const label = element("label", undefined, "Archive reason");
+    label.htmlFor = "artifact-archive-reason";
+    const reason = element("textarea");
+    reason.id = label.htmlFor;
+    reason.name = "reason";
+    reason.required = true;
+    reason.maxLength = 500;
+    reason.rows = 4;
+    const error = element("p", "form-error");
+    error.setAttribute("aria-live", "polite");
+    error.dataset.archiveError = "";
+    const submit = element("button", "danger-action", "Confirm archive");
+    submit.type = "submit";
+    form.append(heading, warning, label, reason, error, submit);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void submitArchive(form, submit, error);
+    });
+    dialog.addEventListener("close", () => {
+      form.reset();
+      error.textContent = "";
+    });
+    dialog.append(form);
+    return dialog;
+  }
+
+  async function submitArchive(
+    form: HTMLFormElement,
+    submit: HTMLButtonElement,
+    errorNode: HTMLElement,
+  ): Promise<void> {
+    if (!selected) return;
+    const artifactAtSubmit = selected;
+    const reason = String(new FormData(form).get("reason") ?? "").trim();
+    if (!reason || reason.length > 500) {
+      errorNode.textContent = "Enter a reason using 500 characters or fewer.";
+      return;
+    }
+    submit.disabled = true;
+    errorNode.textContent = "Archiving artifact...";
+    try {
+      await api(`/projects/${project.id}/artifacts/${artifactAtSubmit.id}`, {
+        method: "DELETE",
+        body: JSON.stringify({
+          expectedVersion: artifactAtSubmit.currentVersion,
+          expectedRevision: artifactAtSubmit.lifecycleRevision,
+          reason,
+        }),
+      });
+      archiveDialog.close();
+      selected = null;
+      await refreshArtifactCount();
+      await loadList(false, "Artifact archived. Loading active artifacts...");
+      backToList();
+      listStatus.textContent = "Artifact archived. Immutable history remains preserved.";
+    } catch (error) {
+      handleAuth(error);
+      if (error instanceof ApiError && error.status === 409) {
+        errorNode.textContent = `The artifact changed${error.currentStatus ? ` (${error.currentStatus.toLowerCase()})` : ""}. Your reason is preserved; close and reload before trying again.`;
+      } else if (error instanceof ApiError && error.status === 403) {
+        errorNode.textContent = "Your administrator access changed. The reason is preserved.";
+      } else {
+        errorNode.textContent = "The artifact could not be archived. The reason is preserved.";
+      }
+    } finally {
+      submit.disabled = false;
     }
   }
 

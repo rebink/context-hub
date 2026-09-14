@@ -28,6 +28,16 @@ INSERT INTO project_repositories (project_id,repository_identity_id) VALUES ('p'
 SQL
 "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --file "$TEMP/seed.sql" >/dev/null
 
+for invalid_artifact_sql in \
+  "INSERT INTO artifacts(id,project_id,type,name,status,created_by) VALUES('fresh-archived','p','architecture','Invalid archived','ARCHIVED','u')" \
+  "INSERT INTO artifacts(id,project_id,type,name,status,lifecycle_revision,created_by) VALUES('fresh-revision','p','architecture','Invalid revision','ACTIVE',2,'u')" \
+  "INSERT INTO artifacts(id,project_id,type,name,status,archived_at,archived_by,archive_reason,created_by) VALUES('fresh-metadata','p','architecture','Invalid metadata','ACTIVE','2026-01-01','u','Invalid','u')"; do
+  if "$WRANGLER" d1 execute DB --local --persist-to "$fresh" --config "$SOURCE_CONFIG" --command "$invalid_artifact_sql" >/dev/null 2>&1; then
+    echo "expected fresh artifact lifecycle insert rejection: $invalid_artifact_sql" >&2
+    exit 1
+  fi
+done
+
 cat >"$TEMP/graphs.sql" <<'SQL'
 INSERT INTO graph_versions
 (id,project_id,version,repository_provider,provider_repository_id,repository_owner,repository_name,repository_canonical_url,source_commit_sha,graphify_version,adapter_version,profile,format_version,generator,status,attempt,queued_at,updated_at)
@@ -549,7 +559,9 @@ cp "$ROOT"/apps/api/migrations/0017_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
 cp "$ROOT"/apps/api/migrations/0018_*.sql "$upgrade_project/migrations/"
 "$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
-v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS mcp_tables FROM sqlite_master WHERE type='table' AND name IN ('mcp_principals','mcp_principal_projects','mcp_principal_operations','mcp_credentials','mcp_request_nonces','mcp_audit_events'); SELECT COUNT(*) AS snapshot_tables FROM sqlite_master WHERE type='table' AND name IN ('context_snapshots','snapshot_artifacts','snapshot_events'); SELECT COUNT(*) AS sync_tables FROM sqlite_master WHERE type='table' AND name='sync_states'; SELECT COUNT(*) AS team_tables FROM sqlite_master WHERE type='table' AND name IN ('project_invitations','team_member_removals','team_events'); SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql','0015_mcp_principals.sql','0016_context_snapshots.sql','0017_sync_states.sql','0018_team_management.sql');")
+cp "$ROOT"/apps/api/migrations/0019_*.sql "$upgrade_project/migrations/"
+"$WRANGLER" d1 migrations apply DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" >/dev/null
+v2_upgrade_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS legacy_rows FROM graph_versions WHERE status IN ('READY','SUPERSEDED') AND storage_layout='LEGACY_V1' AND selected_publication_id IS NULL; SELECT COUNT(*) AS attempt_table FROM sqlite_master WHERE type='table' AND name='graph_build_attempts'; SELECT COUNT(*) AS retry_rows FROM graph_versions WHERE id='legacy-building' AND status='FAILED' AND failure_category='MIGRATION_RETRY' AND storage_layout='ATTEMPT_V2'; SELECT COUNT(*) AS retry_events FROM graph_events WHERE project_id='p' AND graph_version=3 AND from_status='BUILDING' AND to_status='FAILED' AND attempt=1 AND failure_category='MIGRATION_RETRY' AND created_at='2026-01-01'; SELECT COUNT(*) AS machine_tables FROM sqlite_master WHERE type='table' AND name IN ('machine_principals','machine_credentials','machine_request_nonces','machine_audit_events'); SELECT COUNT(*) AS mcp_tables FROM sqlite_master WHERE type='table' AND name IN ('mcp_principals','mcp_principal_projects','mcp_principal_operations','mcp_credentials','mcp_request_nonces','mcp_audit_events'); SELECT COUNT(*) AS snapshot_tables FROM sqlite_master WHERE type='table' AND name IN ('context_snapshots','snapshot_artifacts','snapshot_events'); SELECT COUNT(*) AS sync_tables FROM sqlite_master WHERE type='table' AND name='sync_states'; SELECT COUNT(*) AS team_tables FROM sqlite_master WHERE type='table' AND name IN ('project_invitations','team_member_removals','team_events'); SELECT COUNT(*) AS administration_tables FROM sqlite_master WHERE type='table' AND name='project_administration_events'; SELECT COUNT(*) AS applied FROM d1_migrations WHERE name IN ('0010_attempt_scoped_graph_payloads.sql','0011_graph_constraint_restoration.sql','0012_graph_lifecycle_evidence_guards.sql','0013_graph_lease_cleanup_hardening.sql','0014_machine_graph_publication.sql','0015_mcp_principals.sql','0016_context_snapshots.sql','0017_sync_states.sql','0018_team_management.sql','0019_project_administration.sql');")
 grep -Eq '"legacy_rows": 2' <<<"$v2_upgrade_check"
 grep -Eq '"attempt_table": 1' <<<"$v2_upgrade_check"
 grep -Eq '"retry_rows": 1' <<<"$v2_upgrade_check"
@@ -559,7 +571,8 @@ grep -Eq '"mcp_tables": 6' <<<"$v2_upgrade_check"
 grep -Eq '"snapshot_tables": 3' <<<"$v2_upgrade_check"
 grep -Eq '"sync_tables": 1' <<<"$v2_upgrade_check"
 grep -Eq '"team_tables": 3' <<<"$v2_upgrade_check"
-grep -Eq '"applied": 9' <<<"$v2_upgrade_check"
+grep -Eq '"administration_tables": 1' <<<"$v2_upgrade_check"
+grep -Eq '"applied": 10' <<<"$v2_upgrade_check"
 
 cat >"$TEMP/sync-states.sql" <<'SQL'
 INSERT INTO workspace_members(workspace_id,user_id,role) VALUES('w','u','ADMIN');
@@ -673,8 +686,49 @@ if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_
   exit 1
 fi
 
+for invalid_artifact_sql in \
+  "INSERT INTO artifacts(id,project_id,type,name,status,created_by) VALUES('upgrade-archived','p','architecture','Invalid archived','ARCHIVED','u')" \
+  "INSERT INTO artifacts(id,project_id,type,name,status,lifecycle_revision,created_by) VALUES('upgrade-revision','p','architecture','Invalid revision','ACTIVE',2,'u')" \
+  "INSERT INTO artifacts(id,project_id,type,name,status,archived_at,archived_by,archive_reason,created_by) VALUES('upgrade-metadata','p','architecture','Invalid metadata','ACTIVE','2026-01-01','u','Invalid','u')"; do
+  if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "$invalid_artifact_sql" >/dev/null 2>&1; then
+    echo "expected staged artifact lifecycle insert rejection: $invalid_artifact_sql" >&2
+    exit 1
+  fi
+done
+
+cat >"$TEMP/project-administration.sql" <<'SQL'
+UPDATE projects SET name='Payments Platform',slug='payments-platform',description='Bounded payment context',
+  settings_revision=settings_revision+1,settings_updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),settings_updated_by='u',
+  updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id='p' AND settings_revision=1;
+INSERT INTO artifacts(id,project_id,type,name,current_version,status,created_by)
+VALUES('artifact-admin','p','architecture','Legacy architecture',1,'ACTIVE','u');
+INSERT INTO artifact_versions(artifact_id,version,storage_key,checksum,content_type,byte_size,created_by)
+VALUES('artifact-admin',1,'projects/p/artifacts/artifact-admin/v/1/content','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','text/plain',10,'u');
+UPDATE artifacts SET status='ARCHIVED',lifecycle_revision=lifecycle_revision+1,
+  archived_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),archived_by='u',archive_reason='Superseded',
+  updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+WHERE id='artifact-admin' AND current_version=1 AND lifecycle_revision=1;
+SQL
+"$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --file "$TEMP/project-administration.sql" >/dev/null
+administration_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS settings_event FROM project_administration_events WHERE project_id='p' AND actor_user_id='u' AND action='PROJECT_SETTINGS_UPDATED' AND target_id='p' AND length(before_metadata)<4096 AND length(after_metadata)<4096; SELECT COUNT(*) AS archive_event FROM project_administration_events WHERE project_id='p' AND actor_user_id='u' AND action='ARTIFACT_ARCHIVED' AND target_id='artifact-admin'; SELECT COUNT(*) AS preserved_version FROM artifact_versions WHERE artifact_id='artifact-admin' AND version=1; SELECT COUNT(*) AS lifecycle_index FROM sqlite_master WHERE type='index' AND name='artifacts_project_status_created_idx';")
+grep -Eq '"settings_event": 1' <<<"$administration_check"
+grep -Eq '"archive_event": 1' <<<"$administration_check"
+grep -Eq '"preserved_version": 1' <<<"$administration_check"
+grep -Eq '"lifecycle_index": 1' <<<"$administration_check"
+for immutable_admin_sql in \
+  "UPDATE artifact_versions SET checksum='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' WHERE artifact_id='artifact-admin'" \
+  "DELETE FROM artifact_versions WHERE artifact_id='artifact-admin'" \
+  "UPDATE project_administration_events SET outcome='FAILED' WHERE project_id='p'" \
+  "DELETE FROM project_administration_events WHERE project_id='p'" \
+  "UPDATE artifacts SET status='ACTIVE' WHERE id='artifact-admin'"; do
+  if "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "$immutable_admin_sql" >/dev/null 2>&1; then
+    echo "expected project administration immutability failure: $immutable_admin_sql" >&2
+    exit 1
+  fi
+done
+
 "$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "UPDATE graph_versions SET status='QUEUED',attempt=attempt+1,failure_category=NULL,failed_at=NULL,build_started_at=NULL,updated_at='2099-01-02' WHERE id='legacy-building'" >/dev/null
 migration_retry_check=$("$WRANGLER" d1 execute DB --local --persist-to "$upgrade" --config "$upgrade_project/wrangler.toml" --command "SELECT COUNT(*) AS queued_retry FROM graph_versions WHERE id='legacy-building' AND status='QUEUED' AND attempt=2")
 grep -Eq '"queued_retry": 1' <<<"$migration_retry_check"
 
-echo "fresh and staged-through-0018 upgrade migrations, bounded team/sync transitions, immutable outcome constraints, separate CI/MCP credential models, exact graph lifecycle evidence, restored bounds, reconciliation, foreign keys, and transactional rollback passed"
+echo "fresh and staged-through-0019 upgrade migrations, project administration lifecycle, bounded team/sync transitions, immutable outcome constraints, separate CI/MCP credential models, exact graph lifecycle evidence, restored bounds, reconciliation, foreign keys, and transactional rollback passed"

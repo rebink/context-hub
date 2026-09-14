@@ -49,6 +49,7 @@ class FakeD1 {
   gitAuditEvents: Row[] = [];
   githubConnectionStates: Row[] = [];
   beforeMutation?: (sql: string) => void;
+  projectUpdateError?: Error;
   failAuditInsert = false;
 
   prepare(sql: string) {
@@ -229,6 +230,48 @@ class FakeD1 {
         updated_at: connection.updated_at,
       };
     }
+    if (this.has(sql, "UPDATE projects SET name=?")) {
+      if (this.projectUpdateError) throw this.projectUpdateError;
+      const project = this.projects.find(
+        (row) =>
+          row.id === args[4] &&
+          row.status === "ACTIVE" &&
+          (row.settings_revision ?? 1) === args[5] &&
+          this.projectMembers.some(
+            (member) =>
+              member.project_id === row.id && member.user_id === args[6] && member.role === "ADMIN",
+          ),
+      );
+      if (!project) return null;
+      project.name = args[0];
+      project.slug = args[1];
+      project.description = args[2];
+      project.settings_revision = Number(project.settings_revision ?? 1) + 1;
+      return {
+        name: project.name,
+        slug: project.slug,
+        description: project.description,
+        settings_revision: project.settings_revision,
+      };
+    }
+    if (this.has(sql, "SELECT p.id,p.workspace_id,p.name,p.slug,p.description")) {
+      const project = this.projects.find((row) => row.id === args[0] && row.status === "ACTIVE");
+      const member = this.projectMembers.find(
+        (row) => row.project_id === args[0] && row.user_id === args[1],
+      );
+      return project && member
+        ? {
+            ...project,
+            settings_revision: project.settings_revision ?? 1,
+            role: member.role,
+            member_count: this.projectMembers.filter((item) => item.project_id === project.id)
+              .length,
+            artifact_count: this.artifacts.filter(
+              (item) => item.project_id === project.id && item.status === "ACTIVE",
+            ).length,
+          }
+        : null;
+    }
     if (
       this.has(sql, "FROM projects p JOIN project_members pm") &&
       this.has(sql, "WHERE p.id = ?")
@@ -318,6 +361,7 @@ class FakeD1 {
         description: args[4],
         created_by: args[5],
         status: "ACTIVE",
+        settings_revision: 1,
         created_at: new Date().toISOString(),
       });
     } else if (this.has(sql, "INSERT INTO project_members")) {
@@ -995,6 +1039,100 @@ describe("workspaces and project authorization", () => {
     assert.equal((await detail.text()).includes("Secret Project"), false);
     assert.equal((await app.fetch(request("/projects/p", "admin-token"), env)).status, 200);
     assert.equal((await app.fetch(request("/projects/%", "admin-token"), env)).status, 400);
+  });
+
+  it("routes authenticated project settings PATCH with exact Origin and current ADMIN", async () => {
+    const db = new FakeD1();
+    await addUserSession(db, "admin", "admin-token");
+    await addUserSession(db, "editor", "editor-token");
+    db.projects.push({
+      id: "p",
+      workspace_id: "w",
+      name: "Payments",
+      slug: "payments",
+      description: null,
+      status: "ACTIVE",
+      settings_revision: 1,
+    });
+    db.projectMembers.push(
+      { project_id: "p", user_id: "admin", role: "ADMIN" },
+      { project_id: "p", user_id: "editor", role: "EDITOR" },
+    );
+    const env = bindings(db);
+    const payload = JSON.stringify({
+      name: "Payments Platform",
+      slug: "payments-platform",
+      description: "Payment context",
+      expectedRevision: 1,
+    });
+    assert.equal(
+      (await app.fetch(request("/projects/p", undefined, { method: "PATCH", body: payload }), env))
+        .status,
+      401,
+    );
+    assert.equal(
+      (
+        await app.fetch(
+          new Request("https://api.example/projects/p", { method: "PATCH", body: payload }),
+          env,
+        )
+      ).status,
+      401,
+    );
+    assert.equal(
+      (
+        await app.fetch(
+          request("/projects/p", "admin-token", {
+            method: "PATCH",
+            headers: { origin: "https://evil.example", "content-type": "application/json" },
+            body: payload,
+          }),
+          env,
+        )
+      ).status,
+      403,
+    );
+    assert.equal(
+      (
+        await app.fetch(
+          request("/projects/p", "editor-token", {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: payload,
+          }),
+          env,
+        )
+      ).status,
+      403,
+    );
+    const updated = await app.fetch(
+      request("/projects/p", "admin-token", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: payload,
+      }),
+      env,
+    );
+    assert.equal(updated.status, 200);
+    assert.equal((await body(updated)).project.settings_revision, 2);
+
+    db.projects[0]!.settings_revision = 1;
+    db.projects[0]!.name = "Payments";
+    db.projects[0]!.slug = "payments";
+    db.projects[0]!.description = null;
+    db.projectUpdateError = new Error("D1 internal SQL detail: hidden_table");
+    const failed = await app.fetch(
+      request("/projects/p", "admin-token", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: payload,
+      }),
+      env,
+    );
+    assert.equal(failed.status, 500);
+    const failedText = await failed.text();
+    assert.deepEqual(JSON.parse(failedText), { error: "INTERNAL_ERROR" });
+    assert.equal(failedText.includes("hidden_table"), false);
   });
 
   it("validates inputs and reports slug conflicts", async () => {

@@ -1,4 +1,5 @@
 import { classifyArtifactFreshness } from "./artifact-freshness.js";
+import { readBoundedJsonObject } from "./bounded-json.js";
 import type { ObjectStorage } from "./object-storage.js";
 import { sha256Bytes } from "./security.js";
 
@@ -48,6 +49,10 @@ type ArtifactRow = FreshnessColumns & {
   description: string | null;
   current_version: number;
   status: string;
+  lifecycle_revision: number;
+  archived_at: string | null;
+  archived_by: string | null;
+  archive_reason: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -75,7 +80,12 @@ function headers(request: Request, env: ArtifactEnv): Headers {
   return result;
 }
 
-function reply(request: Request, env: ArtifactEnv, value: object, status = 200): Response {
+function reply(
+  request: Request,
+  env: ArtifactEnv,
+  value: Record<string, unknown>,
+  status = 200,
+): Response {
   return Response.json(value, { status, headers: headers(request, env) });
 }
 
@@ -109,6 +119,10 @@ function mapArtifact(row: ArtifactRow) {
     description: row.description,
     currentVersion: row.current_version,
     status: row.status,
+    lifecycleRevision: row.lifecycle_revision,
+    archivedAt: row.archived_at,
+    archivedBy: row.archived_by,
+    archiveReason: row.archive_reason,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -298,7 +312,7 @@ async function member(env: ArtifactEnv, projectId: string, userId: string): Prom
     (await env.DB.prepare(
       `SELECT pm.role FROM project_members pm
        JOIN projects p ON p.id = pm.project_id
-       WHERE pm.project_id = ? AND pm.user_id = ?`,
+       WHERE pm.project_id = ? AND pm.user_id = ? AND p.status='ACTIVE'`,
     )
       .bind(projectId, userId)
       .first<Member>()) ?? null
@@ -313,6 +327,7 @@ async function artifact(
   return (
     (await env.DB.prepare(
       `SELECT a.id, a.project_id, a.type, a.name, a.description, a.current_version, a.status,
+              a.lifecycle_revision,a.archived_at,a.archived_by,a.archive_reason,
               a.created_by, a.created_at, a.updated_at, av.source_commit_sha,
               CASE WHEN gc.status='VERIFIED' THEN gc.last_known_commit_sha ELSE NULL END AS current_repository_commit_sha,
               gc.status AS repository_connection_status
@@ -419,13 +434,14 @@ async function listArtifacts(request: Request, env: ArtifactEnv, projectId: stri
   const cursorId = cursor?.[1] ?? null;
   const result = await env.DB.prepare(
     `SELECT a.id, a.project_id, a.type, a.name, a.description, a.current_version, a.status,
+            a.lifecycle_revision,a.archived_at,a.archived_by,a.archive_reason,
             a.created_by, a.created_at, a.updated_at, av.source_commit_sha,
             CASE WHEN gc.status='VERIFIED' THEN gc.last_known_commit_sha ELSE NULL END AS current_repository_commit_sha,
             gc.status AS repository_connection_status
      FROM artifacts a
      JOIN artifact_versions av ON av.artifact_id=a.id AND av.version=a.current_version
      LEFT JOIN git_connections gc ON gc.project_id=a.project_id
-     WHERE a.project_id = ? AND (? IS NULL OR a.type = ?)
+     WHERE a.project_id = ? AND a.status='ACTIVE' AND (? IS NULL OR a.type = ?)
        AND (? IS NULL OR a.created_at < ? OR (a.created_at = ? AND a.id < ?))
      ORDER BY a.created_at DESC, a.id DESC LIMIT ?`,
   )
@@ -588,7 +604,9 @@ async function createVersion(
          (artifact_id, version, storage_key, checksum, content_type, byte_size,
           source_commit_sha, change_note, created_by, created_at)
          SELECT id, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM artifacts
-         WHERE id = ? AND project_id = ? AND current_version = ?`,
+         WHERE id = ? AND project_id = ? AND status='ACTIVE' AND current_version = ?
+           AND EXISTS(SELECT 1 FROM projects p JOIN project_members pm ON pm.project_id=p.id
+             WHERE p.id=artifacts.project_id AND p.status='ACTIVE' AND pm.user_id=? AND pm.role IN ('ADMIN','EDITOR'))`,
       ).bind(
         version,
         key,
@@ -602,11 +620,14 @@ async function createVersion(
         current.id,
         projectId,
         parsed.expectedVersion,
+        user.id,
       ),
       env.DB.prepare(
         `UPDATE artifacts SET current_version = ?, updated_at = ?
-         WHERE id = ? AND project_id = ? AND current_version = ?`,
-      ).bind(version, now, current.id, projectId, parsed.expectedVersion),
+         WHERE id = ? AND project_id = ? AND status='ACTIVE' AND current_version = ?
+           AND EXISTS(SELECT 1 FROM projects p JOIN project_members pm ON pm.project_id=p.id
+             WHERE p.id=artifacts.project_id AND p.status='ACTIVE' AND pm.user_id=? AND pm.role IN ('ADMIN','EDITOR'))`,
+      ).bind(version, now, current.id, projectId, parsed.expectedVersion, user.id),
       env.DB.prepare(
         `INSERT INTO audit_events
          (id, project_id, artifact_id, artifact_version, event_type, actor_id, created_at)
@@ -699,6 +720,120 @@ async function readVersion(
   }
 }
 
+function isArchiveConflict(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("invalid artifact archive transition");
+}
+
+async function archiveConflict(
+  request: Request,
+  env: ArtifactEnv,
+  projectId: string,
+  current: ArtifactRow,
+): Promise<Response> {
+  const latest = await artifact(env, projectId, current.id);
+  return reply(
+    request,
+    env,
+    {
+      error: "CONFLICT",
+      currentVersion: latest?.current_version ?? current.current_version,
+      currentRevision: latest?.lifecycle_revision ?? current.lifecycle_revision,
+      currentStatus: latest?.status ?? current.status,
+    },
+    409,
+  );
+}
+
+async function archiveArtifact(
+  request: Request,
+  env: ArtifactEnv,
+  projectId: string,
+  current: ArtifactRow,
+  user: ArtifactUser,
+): Promise<Response> {
+  const parsed = await readBoundedJsonObject(request, 2 * 1024);
+  if (!parsed.ok) {
+    const status =
+      parsed.error === "UNSUPPORTED_MEDIA_TYPE"
+        ? 415
+        : parsed.error === "PAYLOAD_TOO_LARGE"
+          ? 413
+          : 400;
+    return fail(request, env, parsed.error, status);
+  }
+  const keys = Object.keys(parsed.value).sort();
+  if (
+    keys.length !== 3 ||
+    keys[0] !== "expectedRevision" ||
+    keys[1] !== "expectedVersion" ||
+    keys[2] !== "reason"
+  ) {
+    return fail(request, env, "INVALID_INPUT", 400);
+  }
+  const expectedVersion = parsed.value.expectedVersion;
+  const expectedRevision = parsed.value.expectedRevision;
+  const reasonValue = parsed.value.reason;
+  const reason = typeof reasonValue === "string" ? reasonValue.trim() : "";
+  if (
+    !Number.isInteger(expectedVersion) ||
+    Number(expectedVersion) < 1 ||
+    Number(expectedVersion) > 2_147_483_647 ||
+    !Number.isInteger(expectedRevision) ||
+    Number(expectedRevision) < 1 ||
+    Number(expectedRevision) >= 2_147_483_647 ||
+    reason.length < 1 ||
+    reason.length > 500
+  ) {
+    return fail(request, env, "INVALID_INPUT", 400);
+  }
+  if (
+    current.status !== "ACTIVE" ||
+    current.current_version !== expectedVersion ||
+    current.lifecycle_revision !== expectedRevision
+  ) {
+    return reply(
+      request,
+      env,
+      {
+        error: "CONFLICT",
+        currentVersion: current.current_version,
+        currentRevision: current.lifecycle_revision,
+        currentStatus: current.status,
+      },
+      409,
+    );
+  }
+  let archived: { lifecycle_revision: number; archived_at: string } | null;
+  try {
+    archived = await env.DB.prepare(
+      `UPDATE artifacts SET status='ARCHIVED',lifecycle_revision=lifecycle_revision+1,
+         archived_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),archived_by=?,archive_reason=?,
+         updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE id=? AND project_id=? AND status='ACTIVE' AND current_version=? AND lifecycle_revision=?
+         AND EXISTS(SELECT 1 FROM projects p JOIN project_members admin ON admin.project_id=p.id
+           WHERE p.id=artifacts.project_id AND p.status='ACTIVE' AND admin.user_id=? AND admin.role='ADMIN')
+       RETURNING lifecycle_revision,archived_at`,
+    )
+      .bind(user.id, reason, current.id, projectId, expectedVersion, expectedRevision, user.id)
+      .first();
+  } catch (error) {
+    if (!isArchiveConflict(error)) throw error;
+    return archiveConflict(request, env, projectId, current);
+  }
+  if (!archived) return archiveConflict(request, env, projectId, current);
+  return reply(request, env, {
+    artifact: {
+      ...mapArtifact(current),
+      status: "ARCHIVED",
+      lifecycleRevision: archived.lifecycle_revision,
+      archivedAt: archived.archived_at,
+      archivedBy: user.id,
+      archiveReason: reason,
+      updatedAt: archived.archived_at,
+    },
+  });
+}
+
 export async function handleArtifactRoute(
   request: Request,
   env: ArtifactEnv,
@@ -713,8 +848,11 @@ export async function handleArtifactRoute(
   }
   const membership = await member(env, projectId, user.id);
   if (!membership) return fail(request, env, "NOT_FOUND", 404);
-  const mutation = request.method === "POST";
-  if (mutation && membership.role === "VIEWER") return fail(request, env, "FORBIDDEN", 403);
+  const mutation = request.method === "POST" || request.method === "DELETE";
+  if (request.method === "DELETE" && membership.role !== "ADMIN")
+    return fail(request, env, "FORBIDDEN", 403);
+  if (request.method === "POST" && membership.role === "VIEWER")
+    return fail(request, env, "FORBIDDEN", 403);
   if (mutation && request.headers.get("origin") !== env.WEB_ORIGIN) {
     return fail(request, env, "ORIGIN_NOT_ALLOWED", 403);
   }
@@ -737,5 +875,7 @@ export async function handleArtifactRoute(
       ? listVersions(request, env, projectId, artifactId)
       : createVersion(request, env, storage, projectId, current, user);
   }
+  if (request.method === "DELETE") return archiveArtifact(request, env, projectId, current, user);
+  if (current.status !== "ACTIVE") return fail(request, env, "NOT_FOUND", 404);
   return reply(request, env, { artifact: mapArtifact(current) });
 }

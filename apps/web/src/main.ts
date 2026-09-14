@@ -4,6 +4,7 @@ import { mountArtifacts } from "./artifacts.js";
 import { mountGit } from "./git.js";
 import { callbackFreeUrl, matchGitCallbackProject, parseGitCallback } from "./git-helpers.js";
 import { mountGraphs } from "./graphs.js";
+import { mountProjectSettings } from "./project-settings.js";
 import { mountInvitationInbox, mountTeam } from "./team.js";
 
 type User = {
@@ -27,6 +28,7 @@ type Project = {
   slug: string;
   description: string | null;
   status: string;
+  settings_revision: number;
   role: "ADMIN" | "EDITOR" | "VIEWER";
   member_count: number;
   artifact_count: number;
@@ -37,7 +39,7 @@ let workspaces: Workspace[] = [];
 let projects: Project[] = [];
 let activeWorkspaceId = "";
 let activeProjectId = localStorage.getItem("context-hub-project") ?? "";
-let activeProjectView: "overview" | "artifacts" | "graphify" | "team" = "overview";
+let activeProjectView: "overview" | "artifacts" | "graphify" | "team" | "settings" = "overview";
 let unmountProjectView: (() => void) | null = null;
 let refreshGeneration = 0;
 let refreshController = new AbortController();
@@ -113,10 +115,16 @@ function renderProject(project: Project): void {
       <button type="button" data-project-tab="artifacts">Artifacts</button>
       <button type="button" data-project-tab="graphify">Graphify</button>
       <button type="button" data-project-tab="team">Team</button>
+      <button type="button" data-project-tab="settings">Settings</button>
     </nav>
     <div data-project-view></div>`;
   content.querySelectorAll<HTMLButtonElement>("[data-project-tab]").forEach((tab) => {
-    const view = tab.dataset.projectTab as "overview" | "artifacts" | "graphify" | "team";
+    const view = tab.dataset.projectTab as
+      | "overview"
+      | "artifacts"
+      | "graphify"
+      | "team"
+      | "settings";
     const active = view === activeProjectView;
     tab.classList.toggle("project-tab--active", active);
     tab.setAttribute("aria-current", active ? "page" : "false");
@@ -147,6 +155,19 @@ function renderProject(project: Project): void {
       onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again."),
       onCountChange: (count) => {
         project.member_count = count;
+      },
+    });
+    return;
+  }
+  if (activeProjectView === "settings") {
+    unmountProjectView = mountProjectSettings(view, project, {
+      onUnauthorized: () => renderLoggedOut("Your session expired. Sign in again."),
+      onUpdated: (updated) => {
+        Object.assign(project, updated);
+        const projectLink = root?.querySelector<HTMLButtonElement>(
+          `[data-project-id="${project.id}"]`,
+        );
+        if (projectLink) projectLink.textContent = project.name;
       },
     });
     return;
@@ -214,24 +235,30 @@ function renderEmpty(): void {
     : canCreateProject
       ? "Projects keep repository context and access boundaries separate."
       : "Ask a project administrator to grant direct access.";
-  const action = !hasWorkspace
-    ? '<button class="primary-action" type="button" data-empty-action>New workspace</button>'
-    : canCreateProject
-      ? '<button class="primary-action" type="button" data-empty-action>New project</button>'
-      : "";
-  content.innerHTML = `
-    <section class="empty-state reveal" aria-labelledby="empty-title">
-      <p class="kicker">${hasWorkspace ? "Workspace ready" : "Start here"}</p>
-      <h1 id="empty-title">${title}</h1>
-      <p>${description}</p>
-      ${action}
-    </section>`;
-  root.querySelector<HTMLButtonElement>("[data-empty-action]")?.addEventListener("click", () => {
-    const dialog = root.querySelector<HTMLDialogElement>(
-      hasWorkspace ? "[data-project-dialog]" : "[data-workspace-dialog]",
-    );
-    dialog?.showModal();
-  });
+  const section = document.createElement("section");
+  section.className = "empty-state reveal";
+  section.setAttribute("aria-labelledby", "empty-title");
+  const kicker = document.createElement("p");
+  kicker.className = "kicker";
+  kicker.textContent = hasWorkspace ? "Workspace ready" : "Start here";
+  const heading = document.createElement("h1");
+  heading.id = "empty-title";
+  heading.textContent = title;
+  const copy = document.createElement("p");
+  copy.textContent = description;
+  section.append(kicker, heading, copy);
+  if (!hasWorkspace || canCreateProject) {
+    const action = button(!hasWorkspace ? "New workspace" : "New project", "primary-action");
+    action.dataset.emptyAction = "";
+    action.addEventListener("click", () => {
+      const dialog = root.querySelector<HTMLDialogElement>(
+        hasWorkspace ? "[data-project-dialog]" : "[data-workspace-dialog]",
+      );
+      dialog?.showModal();
+    });
+    section.append(action);
+  }
+  content.replaceChildren(section);
 }
 
 function populateNavigation(): void {
@@ -249,6 +276,7 @@ function populateNavigation(): void {
 
   for (const project of projects.filter((item) => item.workspace_id === activeWorkspaceId)) {
     const item = button(project.name);
+    item.dataset.projectId = project.id;
     item.classList.toggle("project-link--active", project.id === activeProjectId);
     item.setAttribute("aria-current", project.id === activeProjectId ? "page" : "false");
     item.addEventListener("click", () => {

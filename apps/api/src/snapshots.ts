@@ -377,15 +377,17 @@ async function verifiedArtifact(
   storage: ObjectStorage,
   projectId: string,
   requested: { artifactId: string; version: number },
+  allowArchived = false,
 ) {
   const row = await env.DB.prepare(
     `SELECT av.artifact_id, av.version AS artifact_version, a.type AS artifact_type, av.storage_key,
             av.checksum, av.content_type, av.byte_size, av.source_commit_sha, av.change_note,
             av.created_by AS version_created_by, av.created_at AS version_created_at
      FROM artifact_versions av JOIN artifacts a ON a.id = av.artifact_id
-     WHERE a.project_id = ? AND av.artifact_id = ? AND av.version = ?`,
+     WHERE a.project_id = ? AND av.artifact_id = ? AND av.version = ?
+       AND (? = 1 OR a.status='ACTIVE')`,
   )
-    .bind(projectId, requested.artifactId, requested.version)
+    .bind(projectId, requested.artifactId, requested.version, allowArchived ? 1 : 0)
     .first<Omit<ArtifactReference, "upload_id">>();
   if (
     !row ||
@@ -821,10 +823,16 @@ async function verifySnapshotIntegrity(
       .first<GraphRow>();
     if (!graph || !(await loadVerifiedReadyGraph(storage, graph))) return null;
     for (const ref of refs) {
-      const current = await verifiedArtifact(env, storage, row.project_id, {
-        artifactId: ref.artifact_id,
-        version: ref.artifact_version,
-      });
+      const current = await verifiedArtifact(
+        env,
+        storage,
+        row.project_id,
+        {
+          artifactId: ref.artifact_id,
+          version: ref.artifact_version,
+        },
+        true,
+      );
       if (
         !current ||
         JSON.stringify(artifactEvidence(current)) !== JSON.stringify(artifactEvidence(ref))

@@ -16,6 +16,7 @@ import { handleGraphRoute } from "./graphs.js";
 import { handleCredentialRoute, handleMachineGraphRoute } from "./machine-graphs.js";
 import { handleMcpCredentialRoute, handleMcpRoute } from "./mcp.js";
 import type { ObjectStorage } from "./object-storage.js";
+import { handleProjectAdministration } from "./project-administration.js";
 import { R2ObjectStorage } from "./r2-object-storage.js";
 import { normalizeGithubRepository } from "./repository-identity.js";
 
@@ -65,6 +66,7 @@ type Project = {
   slug: string;
   description: string | null;
   status: string;
+  settings_revision: number;
   role: string;
   member_count: number;
   artifact_count: number;
@@ -351,9 +353,9 @@ async function workspaces(request: Request, env: Env, user: User): Promise<Respo
 async function projects(request: Request, env: Env, user: User): Promise<Response> {
   if (request.method === "GET") {
     const result = await env.DB.prepare(
-      `SELECT p.id, p.workspace_id, p.name, p.slug, p.description, p.status, pm.role,
+      `SELECT p.id, p.workspace_id, p.name, p.slug, p.description, p.status, p.settings_revision, pm.role,
               (SELECT COUNT(*) FROM project_members members WHERE members.project_id = p.id) AS member_count,
-              (SELECT COUNT(*) FROM artifacts artifact WHERE artifact.project_id = p.id) AS artifact_count
+              (SELECT COUNT(*) FROM artifacts artifact WHERE artifact.project_id = p.id AND artifact.status='ACTIVE') AS artifact_count
        FROM projects p JOIN project_members pm ON pm.project_id = p.id
        WHERE pm.user_id = ? ORDER BY p.created_at, p.id`,
     )
@@ -406,6 +408,7 @@ async function projects(request: Request, env: Env, user: User): Promise<Respons
         slug,
         description,
         status: "ACTIVE",
+        settings_revision: 1,
         role: "ADMIN",
         member_count: 1,
         artifact_count: 0,
@@ -422,9 +425,9 @@ async function resolveProject(request: Request, env: Env, user: User): Promise<R
   const canonical = repository && normalizeGithubRepository(repository);
   if (!canonical) return error(request, env, "INVALID_REPOSITORY", 400);
   const result = await env.DB.prepare(
-    `SELECT p.id, p.workspace_id, p.name, p.slug, p.description, p.status, pm.role,
+    `SELECT p.id, p.workspace_id, p.name, p.slug, p.description, p.status, p.settings_revision, pm.role,
             (SELECT COUNT(*) FROM project_members members WHERE members.project_id = p.id) AS member_count,
-            (SELECT COUNT(*) FROM artifacts artifact WHERE artifact.project_id = p.id) AS artifact_count
+            (SELECT COUNT(*) FROM artifacts artifact WHERE artifact.project_id = p.id AND artifact.status='ACTIVE') AS artifact_count
      FROM repository_identities ri
      JOIN project_repositories pr ON pr.repository_identity_id = ri.id
      JOIN git_connections gc ON gc.project_id = pr.project_id
@@ -450,9 +453,9 @@ async function projectDetail(
   id: string,
 ): Promise<Response> {
   const project = await env.DB.prepare(
-    `SELECT p.id, p.workspace_id, p.name, p.slug, p.description, p.status, pm.role,
+    `SELECT p.id, p.workspace_id, p.name, p.slug, p.description, p.status, p.settings_revision, pm.role,
             (SELECT COUNT(*) FROM project_members members WHERE members.project_id = p.id) AS member_count,
-            (SELECT COUNT(*) FROM artifacts artifact WHERE artifact.project_id = p.id) AS artifact_count
+            (SELECT COUNT(*) FROM artifacts artifact WHERE artifact.project_id = p.id AND artifact.status='ACTIVE') AS artifact_count
      FROM projects p JOIN project_members pm ON pm.project_id = p.id
      WHERE p.id = ? AND pm.user_id = ?`,
   )
@@ -680,14 +683,14 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
           versionDetail ?? versionCollection ?? artifactDetail ?? artifactCollection;
         const artifactMethodAllowed =
           (artifactCollection && ["GET", "POST"].includes(request.method)) ||
-          (artifactDetail && request.method === "GET") ||
+          (artifactDetail && ["GET", "DELETE"].includes(request.method)) ||
           (versionCollection && ["GET", "POST"].includes(request.method)) ||
           (versionDetail && request.method === "GET");
         if (artifactRoute) {
           const user = await authenticate(request, env);
           if (!user) return error(request, env, "UNAUTHENTICATED", 401);
           if (!artifactMethodAllowed) {
-            const allow = artifactDetail || versionDetail ? "GET" : "GET, POST";
+            const allow = artifactDetail ? "GET, DELETE" : versionDetail ? "GET" : "GET, POST";
             return json(request, env, { error: "METHOD_NOT_ALLOWED" }, 405, { allow });
           }
           return await handleArtifactRoute(
@@ -699,6 +702,14 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
             artifactRoute[2],
             versionDetail?.[3],
           );
+        }
+
+        const projectSettings =
+          request.method === "PATCH" ? /^\/projects\/([^/]+)$/.exec(pathname) : null;
+        if (projectSettings) {
+          const user = await authenticate(request, env);
+          if (!user) return error(request, env, "UNAUTHENTICATED", 401);
+          return await handleProjectAdministration(request, env, user, projectSettings[1] ?? "");
         }
 
         if (isHostileMutation(request, env)) return error(request, env, "ORIGIN_NOT_ALLOWED", 403);
@@ -757,8 +768,8 @@ export function createApp(outboundFetch: typeof fetch = fetch) {
         const isProjectsRoute =
           pathname === "/projects" && ["GET", "POST"].includes(request.method);
         const isResolveRoute = pathname === "/projects/resolve" && request.method === "GET";
-        const detailMatch =
-          request.method === "GET" ? /^\/projects\/([^/]+)$/.exec(pathname) : null;
+        const projectPath = /^\/projects\/([^/]+)$/.exec(pathname);
+        const detailMatch = request.method === "GET" ? projectPath : null;
         if (isWorkspaceRoute || isProjectsRoute || isResolveRoute || detailMatch) {
           const user = await authenticate(request, env);
           if (!user) return error(request, env, "UNAUTHENTICATED", 401);

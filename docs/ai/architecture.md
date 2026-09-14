@@ -51,7 +51,7 @@ The browser and future local/MCP clients are untrusted input boundaries. Only th
 
 ### Planned
 
-- Add Snapshot, Activity, and Settings views as their server capabilities land. The Team view is current; viewer presentation is read-only, but server authorization remains authoritative.
+- Add Snapshot and Activity views as their server capabilities land. The Team view and Phase 20A project Settings view are current; viewer presentation is read-only, but server authorization remains authoritative.
 - Add loading, empty, error, conflict, stale, and offline states without broad data preloading. Never render an entire graph; graph UI requests bounded node/search/neighborhood/path slices.
 - Reuse the one Context Engine freshness classifier rather than implementing UI-specific semantics. Framework/router adoption requires evidence and an ADR if significant; it is not part of the current plan.
 
@@ -102,11 +102,11 @@ Ordered SQL migrations in `apps/api/migrations` are authoritative. Applied migra
 - **Snapshots:** migration 0016 adds immutable `context_snapshots`, `snapshot_artifacts`, and narrow `snapshot_events`. Rows capture exact Git, selected graph publication/attempt/storage/checksum identity, sealed expected artifact count, exact artifact ID/version/logical type/storage/checksum/source/change provenance, creator and D1-authoritative time, idempotency, and canonical manifest metadata. Composite foreign keys, insertion/count seals, referenced artifact/version immutability triggers, and project-first indexes preserve exact project scope and replay.
 - **Sync state:** migration 0017 adds one bounded row per project, MCP/local principal, and stable nonsecret client UUID. It stores only client kind/version, monotonic observation sequence, exact normalized repository identity, local Git and server-verified published graph version/attempt/checksum/source commit, authoritative remote Git/READY-graph identity/status, deterministic Phase 11 status, bounded failure code, and D1-clock last-seen/last-successful-sync times. Writes use one authorization-conditioned upsert after truth validation, so membership, scope, credential, and repository replacement races cannot publish state. Project/time and principal/time indexes support bounded reads; each principal may retain at most 20 clients per project.
 - **Team:** migration 0018 adds 7-day exact-user project invitations, membership revisions, immutable removal evidence, and deterministic revision-bound `team_events`. Partial unique and project/invitee/status/time indexes enforce one live invite per identity, bounded lookup, and retained terminal replay evidence. Trigger insert guards prove exact invitation/member/removal state before accepting a unique success event; ACTIVE/current-ADMIN guards and mutation predicates fence archive and actor-demotion races. Invite lookup resolves the normalized current GitHub login through the one bounded `IdentityLookupProvider`, then matches only `(provider, provider_user_id)` already in D1 without updating identity. No invitation bearer or email address is stored. Phase 20's single review, consolidated five-item P1 correction, and 290-test root gate are complete; live browser/accessibility, delivery, and remote contention evidence remain external.
-- **Audit:** `audit_events` is artifact-specific, `git_audit_events` records bounded Git connect/sync/disconnect metadata, and MCP/snapshots/team have narrow immutable lifecycle/request outcomes. These are indexed by project/principal/time as applicable; none is the generalized planned audit schema.
+- **Project/artifact administration:** migration 0019 adds a settings revision and last-update actor/time for approved mutable project name/slug/description only; artifact lifecycle revision plus archived actor/time/reason; a project/status/time index; immutable-version update/delete guards; and narrow immutable `project_administration_events` with bounded redacted before/after JSON. An insert guard requires every new artifact to begin ACTIVE at lifecycle revision 1 with null archive metadata without rewriting historical rows. Trigger and conditional-write predicates fence active project, current direct ADMIN, revision/current-version, and status races. Settings responses use the guarded write's exact `RETURNING` transition rather than a post-commit authorization/read. Only known revision, uniqueness, and lifecycle trigger conflicts map to deterministic 409 responses; unexpected D1 failures reach the generic nonleaking 500 boundary. Archived artifacts leave R2, versions, snapshot references, checksums, and provenance untouched.
+- **Audit:** `audit_events` is artifact-publication-specific, `git_audit_events` records bounded Git connect/sync/disconnect metadata, and MCP/snapshots/team/project administration have narrow immutable lifecycle/request outcomes. These are indexed by project/principal/time as applicable; none is the generalized planned audit schema.
 
 ### Planned owner tables/indexes
 
-- **Project/artifact administration:** project settings revision and artifact archive actor/time/revision plus active/archive indexes; immutable versions remain untouched.
 - **Audit phase:** generalized immutable `audit_events` owns project, actor/principal, action, target type/ID, bounded redacted metadata, outcome, and time with project/time index.
 - Webhook delivery records exist only if webhooks are enabled; usage records exist only after privacy/free-tier evaluation.
 
@@ -209,11 +209,11 @@ Phase 17's deterministic [`pi-token-budget.md`](pi-token-budget.md) audit activa
 
 Artifacts have a mutable metadata row/current pointer and immutable `artifact_versions`. Publishing requires `expectedVersion`; a stale writer receives deterministic `409 CONFLICT` with the authorized current version. The UI preserves the draft, requires explicit latest-version review, and never auto-retries. Historical bytes, checksum, type, size, source commit, change note, author, and timestamp remain retrievable and verified.
 
-### Current freshness and planned lifecycle
+### Current freshness and lifecycle
 
-Artifact list/detail/version responses annotate exact artifact source commit, current verified repository commit, repository verification edge, and the shared `CURRENT | STALE | UNKNOWN` classification. The responsive UI renders text/symbol badges and explicit warnings without relying on color, retains both commits, and never modifies artifact metadata or immutable history. Context Engine and artifact routes import the same `classifyArtifactFreshness` implementation.
+Artifact list/detail/version responses annotate exact artifact source commit, current verified repository commit, repository verification edge, and the shared `CURRENT | STALE | UNKNOWN` classification. The responsive UI renders text/symbol badges and explicit warnings without relying on color, retains both commits, and never modifies immutable history. Context Engine and artifact routes import the same `classifyArtifactFreshness` implementation.
 
-Logical archive/delete remains planned: it changes metadata only and preserves all versions. Project settings and artifact lifecycle mutations use explicit revision preconditions. Binary formats remain deferred until format-specific validation, scanning, and quotas exist.
+Logical archive/delete is current: ADMIN submits exact current version and lifecycle revision plus a bounded reason; D1 atomically tombstones metadata and emits narrow immutable evidence. Default active lists/counts/current detail, Context Engine, MCP `get_artifact`, and `get_sources` exclude archived artifacts. Explicit authorized HTTP version list/read and already sealed snapshot integrity replay continue to resolve exact immutable versions; new snapshots reject archived active selection. Publishing after archive is fenced, restore is not implemented, and no R2 delete occurs. Project name/slug/description settings use exact settings revisions; repository identity, provider IDs, workspace, ownership, status, and security fields are not mutable. Binary formats remain deferred until format-specific validation, scanning, and quotas exist. Phase 20A's single review, consolidated three-item P1 correction, and 302-test root gate are complete; browser/accessibility and remote D1/R2 contention evidence remain external.
 
 ## Graph sync and atomic local replacement
 
@@ -239,7 +239,7 @@ Human browser sessions are opaque cookie credentials; current CI machine and MCP
 
 ### Current
 
-Artifact publication and Git connect/sync/disconnect insert domain-specific audit rows without credentials or payload bodies. Errors are returned as generic codes. There is no generalized activity API, metrics store, or production observability configuration.
+Artifact publication, project settings/archive transitions, and Git connect/sync/disconnect insert domain-specific audit rows without credentials or payload bodies. Phase 20A administration evidence contains only bounded settings/tombstone before/after JSON and D1-authoritative actor/project/target/revision/time. Errors are returned as generic codes. There is no generalized activity API, denial/failure aggregation policy, metrics store, or production observability configuration.
 
 ### Planned
 

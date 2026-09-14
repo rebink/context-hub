@@ -297,14 +297,16 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Passed the root phase stop gate: fresh/staged-through-0018 migration integrity plus 290 tests (167 API, 30 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds. Live browser/accessibility, external invitation delivery (not implemented), remote D1 contention, and remote MCP/sync revocation evidence remain external.
 - **P2 backlog (non-blocking):** add browser/focus CORS refresh coverage; collect remote real-D1 contention evidence for two-admin/final-admin, accept/revoke, archive, capacity, and actor-demotion races; add an exact seven-day expiry assertion.
 
-### 20A. Project administration and artifact lifecycle — `PENDING`
+### 20A. Project administration and artifact lifecycle — `COMPLETE LOCALLY`
 
-- [ ] Add ADMIN-only project update/settings endpoints and real-data UI for the approved mutable project fields; reject mass assignment and preserve repository/authorization boundaries.
-- [ ] Add ADMIN-only logical artifact archive/delete with status/tombstone metadata; hide archived artifacts from default active lists while preserving every immutable version, checksum, provenance field, and audit reference.
-- [ ] Require client `expectedVersion` (or an equivalent explicit revision precondition) for concurrent project settings and artifact lifecycle mutations where stale writes can conflict; return a deterministic conflict without silently retrying.
-- [ ] Audit each project update/settings and artifact archive/delete attempt according to the audit policy, with actor/project/target and bounded redacted before/after metadata but no payloads or secrets.
-- [ ] Add endpoint and data-model acceptance tests plus ADMIN/EDITOR/VIEWER/outsider, cross-project isolation, history preservation, expected-version/conflict, audit, and UI state tests.
-- [ ] Acceptance requires `PATCH /projects/:id` (or a documented settings subroute), logical `DELETE /projects/:id/artifacts/:artifactId` (or a documented archive action), persisted project settings revision, artifact archive metadata, role-safe UI, and the phase stop gate.
+- [x] Add ADMIN-only `PATCH /projects/:id` and a real-data Settings view for the approved mutable `name`, `slug`, and `description` fields; exact-key validation rejects mass assignment and keeps workspace, ownership, status, membership, repository, and provider identity outside the mutation contract.
+- [x] Add ADMIN-only logical `DELETE /projects/:id/artifacts/:artifactId` with archive status, actor, D1 time, reason, and revision metadata; default active lists/counts, Context Engine, MCP sources, and current artifact detail hide archived rows while exact authorized version history and sealed snapshot replay remain intact. R2 is never deleted by archive.
+- [x] Require exact project `expectedRevision` plus artifact `expectedVersion` and `expectedRevision`; SQL predicates recheck active project, current direct role, status, and revision, and stale/repeated requests return deterministic `409 CONFLICT` without retry.
+- [x] Couple successful settings and archive transitions to narrow immutable `project_administration_events` evidence with actor/project/target/revision, D1-authoritative time, and bounded JSON before/after metadata. Generalized Phase 21 audit aggregation/history and its denial/failure policy remain pending.
+- [x] Add targeted endpoint, SQL migration, role/isolation, bounds/mass-assignment, conflict/race/no-op, immutable-history/no-R2-delete, default exclusion, snapshot, Context Engine/MCP predicate, and role-safe UI helper coverage. Local browser/accessibility and remote D1/R2 contention evidence remain external.
+- [x] Complete the one independent Phase 20A diff review and its complete three-item P1 correction in one consolidated pass: initial artifact lifecycle insertion guards, exact `UPDATE ... RETURNING` settings transitions without post-commit authorization/read, and allowlisted conflict classification with generic nonleaking internal failures. No second review is planned.
+- [x] Passed the root phase stop gate: fresh/staged-through-0019 migration integrity plus 302 tests (178 API, 31 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds.
+- **P2 backlog (non-blocking):** add a project-path method branch so unsupported methods on `/projects/:id` return `405 Method Not Allowed` with `Allow: GET, PATCH`, plus router coverage; add browser/DOM E2E coverage for artifact archive confirmation, stale-conflict draft preservation, and focus behavior when a browser harness exists while retaining the external browser/accessibility gate.
 
 ### 21. Audit coverage (Prompt 21) — `PARTIAL`
 
@@ -412,8 +414,8 @@ All project endpoints inherit authenticate -> resolve -> direct membership -> ro
 - [x] `POST /projects/:id/graphs/:version/query` for bounded node search/detail, neighbors, callers/callees, directed path, and sources.
 - [x] `POST /projects/:id/context/search` and bounded relevant-context retrieval (substantive search input uses a bounded JSON body, not query strings).
 - [x] `GET /projects/:id/team`, invite/accept/revoke, role `PATCH`, and member `DELETE` routes.
-- [ ] ADMIN-only `PATCH /projects/:id` (or documented settings subroute) with expected settings revision and deterministic conflict behavior.
-- [ ] ADMIN-only logical `DELETE /projects/:id/artifacts/:artifactId` (or documented archive action) with expected artifact revision and immutable version-history preservation.
+- [x] ADMIN-only `PATCH /projects/:id` with exact expected settings revision and deterministic conflict behavior.
+- [x] ADMIN-only logical `DELETE /projects/:id/artifacts/:artifactId` with exact expected current version plus lifecycle revision and immutable version-history preservation.
 - [ ] `GET/POST /projects/:id/snapshots` and snapshot detail retrieval.
 - [ ] `GET /projects/:id/activity`.
 - [ ] Bounded `GET /activity` aggregate over directly authorized projects only, with pagination/time bounds and nonleaking isolation.
@@ -429,7 +431,7 @@ All project endpoints inherit authenticate -> resolve -> direct membership -> ro
 - [x] `repository_identities`, `project_repositories` with canonical provider identity uniqueness and resolution index.
 - [x] `github_connection_states`, `git_connections`, and `git_audit_events` with hashed expiring connection state, project/provider/repository/default branch/installation reference/known commit/metadata/timestamps, normalized repository identity joins, and project/time audit indexes.
 - [x] `artifacts`, `artifact_versions` with immutable checksummed payload metadata and project/type/version indexes.
-- [ ] Extend `projects` with approved mutable settings and a settings revision; extend `artifacts` with logical archive status/actor/time/revision while preserving immutable `artifact_versions` and active/archive indexes.
+- [x] Migration 0019 extends `projects` with approved mutable settings revision/evidence and `artifacts` with logical archive status/actor/time/reason/revision while preserving immutable `artifact_versions` and active/archive indexes.
 - [ ] Generalized `audit_events` for all required targets/actions with project/time index (current artifact-only schema is partial).
 - [~] `graph_versions` and `graph_events` exist with complete build-identity uniqueness, project/version and status/version indexes, one current READY row, lease expiry lookup, constrained lifecycle payloads, and immutable transition events; Phase 9 acceptance additionally requires ADR 0004's additive `graph_build_attempts`, storage-layout marker, selected-publication metadata, and project-first cleanup indexes.
 - [ ] `context_snapshots`, `snapshot_artifacts` with project and exact-version constraints/indexes.

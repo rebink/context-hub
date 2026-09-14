@@ -1604,6 +1604,91 @@ dialog::backdrop {
   }
 }
 
+.settings-heading h1 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3.2rem, 8vw, 7.2rem);
+  font-weight: 400;
+  letter-spacing: -0.055em;
+  line-height: 0.9;
+}
+
+.settings-intro {
+  max-width: 720px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.settings-form {
+  max-width: 760px;
+  margin-top: 48px;
+  padding: clamp(24px, 5vw, 48px);
+  display: grid;
+  border: 1px solid var(--ink);
+  background: color-mix(in srgb, var(--panel) 58%, var(--paper));
+}
+
+.settings-form input,
+.settings-form textarea {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--paper);
+}
+
+.settings-form label:not(:first-child) {
+  margin-top: 20px;
+}
+
+.settings-actions,
+.artifact-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-actions {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.revision-label,
+.form-status,
+.archive-warning {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.settings-read-only {
+  margin-top: 48px;
+}
+
+.danger-action {
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid #9f2d17;
+  color: #fff8ef;
+  background: #9f2d17;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.danger-action:hover {
+  color: #171a16;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.danger-action:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 @media (max-width: 320px) {
   .dialog-form {
     padding: 20px 16px;
@@ -1629,10 +1714,19 @@ dialog::backdrop {
     width: fit-content;
   }
 
+  .settings-actions,
+  .artifact-detail-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .dialog-actions button,
   .git-actions button,
   .git-actions .text-action,
-  .dialog-form > .primary-action {
+  .dialog-form > .primary-action,
+  .dialog-form > .danger-action,
+  .settings-actions button,
+  .artifact-detail-actions button {
     width: 100%;
     margin-left: 0;
     white-space: normal;

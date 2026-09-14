@@ -40,6 +40,8 @@ class ArtifactD1 {
   repositoryCommit: string | null = null;
   repositoryStatus: "VERIFIED" | "ERROR" | null = null;
   failNextBatch = false;
+  archiveError?: Error;
+  administrationEvents: Row[] = [];
 
   prepare(sql: string) {
     return new ArtifactStatement(this, sql);
@@ -81,6 +83,51 @@ class ArtifactD1 {
         (row) => row.project_id === args[0] && row.user_id === args[1],
       );
       return project && membership ? { role: membership.role } : null;
+    }
+    if (this.has(sql, "UPDATE artifacts SET status='ARCHIVED'")) {
+      if (this.archiveError) throw this.archiveError;
+      const artifact = this.artifacts.find(
+        (row) =>
+          row.id === args[2] &&
+          row.project_id === args[3] &&
+          row.status === "ACTIVE" &&
+          row.current_version === args[4] &&
+          row.lifecycle_revision === args[5] &&
+          this.projectMembers.some(
+            (member) =>
+              member.project_id === row.project_id &&
+              member.user_id === args[6] &&
+              member.role === "ADMIN",
+          ),
+      );
+      if (!artifact) return null;
+      const archivedAt = "2026-09-15T12:00:00.000Z";
+      const before = {
+        status: artifact.status,
+        currentVersion: artifact.current_version,
+        revision: artifact.lifecycle_revision,
+      };
+      artifact.status = "ARCHIVED";
+      artifact.lifecycle_revision += 1;
+      artifact.archived_at = archivedAt;
+      artifact.archived_by = args[0];
+      artifact.archive_reason = args[1];
+      artifact.updated_at = archivedAt;
+      this.administrationEvents.push({
+        project_id: artifact.project_id,
+        actor_user_id: args[0],
+        action: "ARTIFACT_ARCHIVED",
+        target_id: artifact.id,
+        before_metadata: JSON.stringify(before),
+        after_metadata: JSON.stringify({
+          status: artifact.status,
+          currentVersion: artifact.current_version,
+          revision: artifact.lifecycle_revision,
+          reason: artifact.archive_reason,
+        }),
+        created_at: archivedAt,
+      });
+      return { lifecycle_revision: artifact.lifecycle_revision, archived_at: archivedAt };
     }
     if (this.has(sql, "FROM artifacts a") && this.has(sql, "WHERE a.project_id = ? AND a.id = ?")) {
       const artifact = this.artifacts.find(
@@ -138,6 +185,7 @@ class ArtifactD1 {
         .filter(
           (row) =>
             row.project_id === projectId &&
+            row.status === "ACTIVE" &&
             (!type || row.type === type) &&
             (!cursorAt ||
               row.created_at < cursorAt ||
@@ -187,6 +235,10 @@ class ArtifactD1 {
         description: args[4],
         current_version: 1,
         status: "ACTIVE",
+        lifecycle_revision: 1,
+        archived_at: null,
+        archived_by: null,
+        archive_reason: null,
         created_by: args[5],
         created_at: args[6],
         updated_at: args[7],
@@ -211,7 +263,16 @@ class ArtifactD1 {
     if (this.has(sql, "INSERT INTO artifact_versions") && this.has(sql, "SELECT id")) {
       const artifact = this.artifacts.find(
         (row) =>
-          row.id === args[9] && row.project_id === args[10] && row.current_version === args[11],
+          row.id === args[9] &&
+          row.project_id === args[10] &&
+          row.status === "ACTIVE" &&
+          row.current_version === args[11] &&
+          this.projectMembers.some(
+            (member) =>
+              member.project_id === row.project_id &&
+              member.user_id === args[12] &&
+              ["ADMIN", "EDITOR"].includes(member.role),
+          ),
       );
       if (!artifact) return 0;
       this.versions.push({
@@ -231,7 +292,16 @@ class ArtifactD1 {
     if (this.has(sql, "UPDATE artifacts SET current_version")) {
       const artifact = this.artifacts.find(
         (row) =>
-          row.id === args[2] && row.project_id === args[3] && row.current_version === args[4],
+          row.id === args[2] &&
+          row.project_id === args[3] &&
+          row.status === "ACTIVE" &&
+          row.current_version === args[4] &&
+          this.projectMembers.some(
+            (member) =>
+              member.project_id === row.project_id &&
+              member.user_id === args[5] &&
+              ["ADMIN", "EDITOR"].includes(member.role),
+          ),
       );
       if (!artifact) return 0;
       artifact.current_version = args[0];
@@ -353,7 +423,7 @@ function apiRequest(
     headers.set("content-type", "application/json");
     headers.set("content-length", String(new TextEncoder().encode(body).byteLength));
   }
-  if (method === "POST" && origin !== "missing") {
+  if (["POST", "PATCH", "DELETE"].includes(method) && origin !== "missing") {
     headers.set("origin", origin === "good" ? "https://app.example" : origin);
   }
   return new Request(`https://api.example${path}`, { method, headers, body });
@@ -380,7 +450,7 @@ async function create(token: string, value: unknown = createBody) {
 beforeEach(() => {
   db = new ArtifactD1();
   r2 = new ArtifactR2();
-  db.projects.push({ id: "p" }, { id: "q" });
+  db.projects.push({ id: "p", status: "ACTIVE" }, { id: "q", status: "ACTIVE" });
   env = {
     DB: db as unknown as D1Database,
     OBJECTS: r2 as unknown as R2Bucket,
@@ -540,6 +610,136 @@ describe("artifact publication", () => {
     assert.equal(latest.content, '{"version":2}');
   });
 
+  it("archives only as ADMIN, hides active content, and preserves exact history without R2 deletion", async () => {
+    const admin = await user("admin", "ADMIN");
+    const editor = await user("editor", "EDITOR");
+    const viewer = await user("viewer", "VIEWER");
+    const created = await responseBody(await create(editor));
+    const id = created.artifact.id;
+    const key = db.versions[0]!.storage_key;
+
+    for (const token of [editor, viewer]) {
+      const denied = await app.fetch(
+        apiRequest(`/projects/p/artifacts/${id}`, token, "DELETE", {
+          expectedVersion: 1,
+          expectedRevision: 1,
+          reason: "Retired context",
+        }),
+        env,
+      );
+      assert.equal(denied.status, 403);
+    }
+    const archived = await app.fetch(
+      apiRequest(`/projects/p/artifacts/${id}`, admin, "DELETE", {
+        expectedVersion: 1,
+        expectedRevision: 1,
+        reason: "  Superseded by repository docs  ",
+      }),
+      env,
+    );
+    assert.equal(archived.status, 200);
+    assert.equal(db.artifacts[0]!.status, "ARCHIVED");
+    assert.equal(db.artifacts[0]!.archive_reason, "Superseded by repository docs");
+    assert.equal(db.administrationEvents[0]!.actor_user_id, "admin");
+    assert.equal(db.administrationEvents[0]!.target_id, id);
+    assert.ok((db.administrationEvents[0]!.before_metadata as string).length < 4096);
+    assert.equal(r2.deletes.length, 0);
+    assert.ok(r2.objects.has(key));
+
+    const list = await responseBody(
+      await app.fetch(apiRequest("/projects/p/artifacts", viewer), env),
+    );
+    assert.deepEqual(list.artifacts, []);
+    assert.equal(
+      (await app.fetch(apiRequest(`/projects/p/artifacts/${id}`, viewer), env)).status,
+      404,
+    );
+    const history = await responseBody(
+      await app.fetch(apiRequest(`/projects/p/artifacts/${id}/versions`, viewer), env),
+    );
+    assert.deepEqual(
+      history.versions.map((version: Row) => version.version),
+      [1],
+    );
+    const exact = await responseBody(
+      await app.fetch(apiRequest(`/projects/p/artifacts/${id}/versions/1`, viewer), env),
+    );
+    assert.equal(exact.content, createBody.content);
+
+    const publish = await app.fetch(
+      apiRequest(`/projects/p/artifacts/${id}/versions`, editor, "POST", {
+        expectedVersion: 1,
+        contentType: "text/plain",
+        content: "must not publish",
+      }),
+      env,
+    );
+    assert.equal(publish.status, 409);
+    assert.equal(db.versions.length, 1);
+    assert.equal(r2.deletes.length, 1);
+  });
+
+  it("returns deterministic archive conflicts for stale and repeated requests", async () => {
+    const admin = await user("admin", "ADMIN");
+    const created = await responseBody(await create(admin));
+    const id = created.artifact.id;
+    const stale = await app.fetch(
+      apiRequest(`/projects/p/artifacts/${id}`, admin, "DELETE", {
+        expectedVersion: 1,
+        expectedRevision: 2,
+        reason: "Stale",
+      }),
+      env,
+    );
+    assert.equal(stale.status, 409);
+    assert.equal((await responseBody(stale)).currentRevision, 1);
+
+    const request = () =>
+      app.fetch(
+        apiRequest(`/projects/p/artifacts/${id}`, admin, "DELETE", {
+          expectedVersion: 1,
+          expectedRevision: 1,
+          reason: "Retired",
+        }),
+        env,
+      );
+    assert.equal((await request()).status, 200);
+    const repeated = await request();
+    assert.equal(repeated.status, 409);
+    assert.deepEqual(await responseBody(repeated), {
+      error: "CONFLICT",
+      currentVersion: 1,
+      currentRevision: 2,
+      currentStatus: "ARCHIVED",
+    });
+    assert.equal(db.administrationEvents.length, 1);
+  });
+
+  it("maps only the known archive trigger conflict and hides unexpected D1 failures", async () => {
+    const admin = await user("admin", "ADMIN");
+    const created = await responseBody(await create(admin));
+    const archiveRequest = () =>
+      apiRequest(`/projects/p/artifacts/${created.artifact.id}`, admin, "DELETE", {
+        expectedVersion: 1,
+        expectedRevision: 1,
+        reason: "Retired",
+      });
+
+    db.archiveError = new Error("D1_ERROR: invalid artifact archive transition: SQLITE_CONSTRAINT");
+    const conflict = await app.fetch(archiveRequest(), env);
+    assert.equal(conflict.status, 409);
+    assert.equal((await responseBody(conflict)).currentRevision, 1);
+
+    db.archiveError = new Error("NOT NULL constraint failed: private.secret");
+    const failed = await app.fetch(archiveRequest(), env);
+    assert.equal(failed.status, 500);
+    const text = await failed.text();
+    assert.deepEqual(JSON.parse(text), { error: "INTERNAL_ERROR" });
+    assert.equal(text.includes("private.secret"), false);
+    assert.equal(db.artifacts[0]!.status, "ACTIVE");
+    assert.equal(db.administrationEvents.length, 0);
+  });
+
   it("returns authorized currentVersion on stale and raced writes without creating a DB version", async () => {
     const editor = await user("editor", "EDITOR");
     const created = await responseBody(await create(editor));
@@ -602,7 +802,31 @@ describe("artifact boundaries and failure handling", () => {
       env,
     );
     assert.equal(unsupported.status, 405);
-    assert.equal(unsupported.headers.get("allow"), "GET");
+    assert.equal(unsupported.headers.get("allow"), "GET, DELETE");
+  });
+
+  it("validates archive method, media type, body bounds, and exact fields", async () => {
+    const admin = await user("admin", "ADMIN");
+    const created = await responseBody(await create(admin));
+    const path = `/projects/p/artifacts/${created.artifact.id}`;
+    const valid = { expectedVersion: 1, expectedRevision: 1, reason: "Retired" };
+    const assigned = await app.fetch(
+      apiRequest(path, admin, "DELETE", { ...valid, status: "ARCHIVED" }),
+      env,
+    );
+    assert.equal(assigned.status, 400);
+    const wrongType = apiRequest(path, admin, "DELETE", valid);
+    wrongType.headers.set("content-type", "text/plain");
+    assert.equal((await app.fetch(wrongType, env)).status, 415);
+    const oversized = apiRequest(path, admin, "DELETE", valid);
+    oversized.headers.set("content-length", "2049");
+    assert.equal((await app.fetch(oversized, env)).status, 413);
+    const hostile = await app.fetch(
+      apiRequest(path, admin, "DELETE", valid, "https://evil.example"),
+      env,
+    );
+    assert.equal(hostile.status, 403);
+    assert.equal(db.artifacts[0]!.status, "ACTIVE");
   });
 
   it("rejects invalid formats, declared JSON, content size, and request size", async () => {

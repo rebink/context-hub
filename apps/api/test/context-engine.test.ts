@@ -52,7 +52,7 @@ class ContextD1 {
       const limit = args.at(-1) as number;
       const searchTerms = args.slice(1, -1) as string[];
       return this.artifacts
-        .filter((row) => row.project_id === args[0])
+        .filter((row) => row.project_id === args[0] && row.status === "ACTIVE")
         .sort((left, right) => {
           const score = (row: Row) => {
             const text = `${row.name} ${row.type} ${row.description ?? ""}`.toLowerCase();
@@ -114,6 +114,7 @@ async function putArtifact(db: ContextD1, storage: MemoryStorage, values: Partia
     content_type: "text/markdown",
     byte_size: objectBytes.byteLength,
     source_commit_sha: values.source_commit_sha === undefined ? commit : values.source_commit_sha,
+    status: values.status ?? "ACTIVE",
     updated_at: values.updated_at ?? "2026-01-01T00:00:00.000Z",
   });
   return { id, key, checksum };
@@ -440,6 +441,19 @@ describe("ContextProvider contract", () => {
       "ARTIFACT_SOURCE_UNAVAILABLE",
       "GRAPH_SOURCE_UNAVAILABLE",
     ]);
+  });
+
+  it("excludes archived artifacts before private storage access", async () => {
+    const db = new ContextD1();
+    const storage = new MemoryStorage();
+    const archived = await putArtifact(db, storage, { status: "ARCHIVED" });
+    const provider = new ContextEngine(db as unknown as D1Database, storage);
+    const result = await provider.search({ ...input, query: "refund architecture" });
+    assert.equal(
+      result.evidence.some((item) => item.kind === "ARTIFACT"),
+      false,
+    );
+    assert.equal(storage.getCalls.has(archived.key), false);
   });
 
   it("keeps project retrieval isolated and has no shared cache", async () => {
