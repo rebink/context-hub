@@ -6,6 +6,7 @@ import {
 } from "./graph-format-v1.js";
 import type { ObjectStorage, StoredObjectMetadata } from "./object-storage.js";
 import { randomToken, sha256Bytes } from "./security.js";
+import { attemptGraphObjectKey } from "./storage-keys.js";
 
 export type GraphEnv = { DB: D1Database; WEB_ORIGIN?: string };
 export type GraphUser = { id: string };
@@ -1020,7 +1021,12 @@ export async function publishGraphBuild(
     row.lease_expires_at <= leaseCheckAt
   )
     throw new GraphConflictError("STALE_LEASE");
-  const expectedKey = `projects/${claim.projectId}/graphs/v/${claim.version}/attempts/${claim.attempt}/${claim.publicationId}/graph.json`;
+  const expectedKey = attemptGraphObjectKey(
+    claim.projectId,
+    claim.version,
+    claim.attempt,
+    claim.publicationId,
+  );
   if (claim.storageKey !== expectedKey) throw new GraphConflictError("CONFLICT");
   const key = claim.storageKey;
   const uploadId = claim.publicationId;

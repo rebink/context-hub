@@ -1,0 +1,1121 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "artifact_versions",
+      "sqlSha256": "e8634981354075c34ce25ff34176fc328bb94b09c192377d2dfbef8f450cdeaf"
+    },
+    {
+      "name": "artifacts",
+      "sqlSha256": "d88b175aedc99c8b3ce1a01ba17a0f61734e2f7460b0cb6b3db8d25e1e371896"
+    },
+    {
+      "name": "audit_events",
+      "sqlSha256": "33b4efff08b3495ad8e72355493fbfeef865492e1997160e4d7dc4f4ec45c71d"
+    },
+    {
+      "name": "context_snapshots",
+      "sqlSha256": "781bff81a0b4394f80bc06c522e37c8a142f96845acc812b1d0e1af1bf532ec6"
+    },
+    {
+      "name": "git_audit_events",
+      "sqlSha256": "daaabadbba8a6fdd8ff987a2dbfc10edf7cd4bb53a0a7012e5402978e8978ccf"
+    },
+    {
+      "name": "git_connections",
+      "sqlSha256": "702c95264fb18d652964bbc4f754d3fea2ca43652c11b6fcf60945feca50e676"
+    },
+    {
+      "name": "github_connection_states",
+      "sqlSha256": "463cf3e21ec1000f44a0e375883662fa013a6bebbb789f886a66f8c716723acd"
+    },
+    {
+      "name": "graph_build_attempts",
+      "sqlSha256": "6d5731618dfa1f61f8f5cf24611be67d680f5faaf4610181f6247bbc99dc6994"
+    },
+    {
+      "name": "graph_events",
+      "sqlSha256": "9b8ea2d5030b912ecf04b49fd05c3edafb3ced55302b776772a36d76cc468e78"
+    },
+    {
+      "name": "graph_reservation_events",
+      "sqlSha256": "00b40b84e33d7f5b17866f95101eb84747333e4e9cdb678d40c4f965af6da914"
+    },
+    {
+      "name": "graph_versions",
+      "sqlSha256": "6622097e6d73aee0a966fc6aebafc94fe959ed3bef75617f91e64159f137dc57"
+    },
+    {
+      "name": "machine_audit_events",
+      "sqlSha256": "74902b335f9b0ee63e9133ec6d1bf9dd0ec189d7013ea5e2813a697d064da899"
+    },
+    {
+      "name": "machine_credentials",
+      "sqlSha256": "4d73a5ad4c6f2b1d9ba1d64a9f9dd18b080f9d6067e2346939eabed8185a0b26"
+    },
+    {
+      "name": "machine_principals",
+      "sqlSha256": "cdc6c069275f4475389620f7729f682d48fb0430a65465d07ee5d4f6716b142f"
+    },
+    {
+      "name": "machine_request_nonces",
+      "sqlSha256": "ea4a5846aff917c3712bba17b563b7d7a7bc9ffa700bb6551cbe2f7368c8816f"
+    },
+    {
+      "name": "mcp_audit_events",
+      "sqlSha256": "a75a636a082f63d2b06062add309885938eab8fdf8d422412632d2d2fae2ee85"
+    },
+    {
+      "name": "mcp_credentials",
+      "sqlSha256": "4c839319d740255bcac1f613fae2fa4fcf3c38d8dc88c1bf07965185d26902db"
+    },
+    {
+      "name": "mcp_principal_operations",
+      "sqlSha256": "f7de8944b1c9f9dd5560c7f7b99dfd8176ccf0a4a835ffacf8befd8b6c50a3b9"
+    },
+    {
+      "name": "mcp_principal_projects",
+      "sqlSha256": "f948ae8f4a4e8ee8db42192dc8e88f57872757badf29ccac03eb82c58868426a"
+    },
+    {
+      "name": "mcp_principals",
+      "sqlSha256": "3dd2104a97eb2249f249c5213e9ed6a0bbfe1769eb5b77ccc4dccd21d5b4f7cb"
+    },
+    {
+      "name": "mcp_request_nonces",
+      "sqlSha256": "b92f1d5492fd2e132115651b40eb96bd299e0fb3efc598424abfa1d268c573b0"
+    },
+    {
+      "name": "oauth_states",
+      "sqlSha256": "8d622e277eee0bcd2e153b0603e219a81539376ea51687478074355de4803f2c"
+    },
+    {
+      "name": "project_administration_events",
+      "sqlSha256": "32ced6fb4ceeedbd28bd71dca0539e652f302a29376381567b3b3139e42e3311"
+    },
+    {
+      "name": "project_audit_event_counts",
+      "sqlSha256": "a8d2bad9e3966720c78d07d46c934cca48bf19ba00fcff9d4727e146966a76fd"
+    },
+    {
+      "name": "project_audit_events",
+      "sqlSha256": "66374082336082cba453557e54cfef8cc7d02579047fa0c9c0da86f02965bb8a"
+    },
+    {
+      "name": "project_invitations",
+      "sqlSha256": "9504d9ccf8c6ecec059553a035aaffd827a0958a8ad3fee13cb5d2768733faf8"
+    },
+    {
+      "name": "project_members",
+      "sqlSha256": "fec22c2de36663de93b5af601b107f089c85776dc865d3363f7bf6a9ca75f56e"
+    },
+    {
+      "name": "project_repositories",
+      "sqlSha256": "5ff4f4dd84a5ec0b00e94beab541c2eb2ddb243a08113d98ad4b653a081be324"
+    },
+    {
+      "name": "projects",
+      "sqlSha256": "c7afa36b735d07f37011c1c4ceb40efb524092e503150efe3ec24b68f5ae32ef"
+    },
+    {
+      "name": "repository_identities",
+      "sqlSha256": "978b45ba8c20d2e16874ed22fe38bbb938279503c91b20dfffdaa40b1a22cc40"
+    },
+    {
+      "name": "sessions",
+      "sqlSha256": "15bf8f33432c6b755f5bf6b196fb400280d0cd0d1a33e76bd023229fd94ef640"
+    },
+    {
+      "name": "snapshot_artifacts",
+      "sqlSha256": "1a218bf5ab798af38c77211117d5cecc3df33346708a87b65a24c7ec0be655fa"
+    },
+    {
+      "name": "snapshot_events",
+      "sqlSha256": "e9dc297beb0bc2ffaf20a2271432c86a341ee21b8bc471bae86e830d01b7bffc"
+    },
+    {
+      "name": "sync_state_events",
+      "sqlSha256": "14a3e0e3a4330bb4126f45a88653b0b6f98fe5869d176eef9dcca3527694dd27"
+    },
+    {
+      "name": "sync_states",
+      "sqlSha256": "ca6f74868570d57adeadf09e585cb2590be5d8969a6e6b57ba274a3ac9fb7422"
+    },
+    {
+      "name": "team_events",
+      "sqlSha256": "393dfb9fa675fe2397bc07b7c4779faf8389651063baf2ec4afdfac60fe9e99f"
+    },
+    {
+      "name": "team_member_removals",
+      "sqlSha256": "6523ef25d48dca741d8081fd286202aa8657da2246b74cda51121beb40d9fd0c"
+    },
+    {
+      "name": "users",
+      "sqlSha256": "7858e4affe27e2d04a845a84ef3b4bb41ee2b9bd98d544ecd60d76e81deecf51"
+    },
+    {
+      "name": "workspace_members",
+      "sqlSha256": "883bafe15f0e24862a01173f452a4a2981945952ebd6786378cf12388c190615"
+    },
+    {
+      "name": "workspaces",
+      "sqlSha256": "2131a4a951eaca9c5d61605f29d732e24ed3edbbc7d81b7fb56d1a73ab0624c5"
+    }
+  ],
+  "indexes": [
+    {
+      "name": "artifact_versions_artifact_version_idx",
+      "sqlSha256": "1cef02d1f1efea25298ab486d2fdcdfd9bc1380e525f2e6a41fec1b576d06b49"
+    },
+    {
+      "name": "artifacts_id_project_idx",
+      "sqlSha256": "95a21c646d9ac3a198bb729c99db8df7f0c6bf489af453c51d8d1094e3619fae"
+    },
+    {
+      "name": "artifacts_project_created_idx",
+      "sqlSha256": "7923614d48e5d28ffa30ecdf7e1259a7768364dc9348e65bc4ce7c117210da52"
+    },
+    {
+      "name": "artifacts_project_status_created_idx",
+      "sqlSha256": "ef7a190708e517dde84552babdb15e805aab3f6d38392ccc9277ab98defc335c"
+    },
+    {
+      "name": "artifacts_project_type_created_idx",
+      "sqlSha256": "2f2e1b63d77dfb9c2a6af92e91f515435da6c2aad3ad86cbf18cc6e39ec9d379"
+    },
+    {
+      "name": "audit_events_artifact_created_idx",
+      "sqlSha256": "07ead77542b8dc67731fa222c3f452c0295e025d882043f67b98fa212ac47a2e"
+    },
+    {
+      "name": "audit_events_project_created_idx",
+      "sqlSha256": "3a601522e6fbc087e05ff53e7bc476be05d412712620d180eb3f4ac32fc59dc8"
+    },
+    {
+      "name": "context_snapshots_project_created_idx",
+      "sqlSha256": "580d57d05faf9d63c1a8d2817a4861cbc4582e862fd90c8acdbd48428c756756"
+    },
+    {
+      "name": "git_audit_project_created_idx",
+      "sqlSha256": "be71c11bbb16995a09a7820cdc7cd200a6ca2a556c0fdd071cc7ee6355d27ca5"
+    },
+    {
+      "name": "git_connections_connection_id_idx",
+      "sqlSha256": "c72750812ddfc84bf7f214157b5c410eb31a36fc685a631b70aac1670894dc52"
+    },
+    {
+      "name": "git_connections_repository_idx",
+      "sqlSha256": "19128ae75913bb62190229eeeb29239acb84891791057c440cb5a0af3abf0816"
+    },
+    {
+      "name": "github_connection_states_expires_idx",
+      "sqlSha256": "a2c1cfff29ccf70d08d67c55b0690ce682884140af61e4f7507ffe540147383d"
+    },
+    {
+      "name": "github_connection_states_session_project_idx",
+      "sqlSha256": "959f9ff6c0d6c540a254f55e5f9a1ac253092998d6fe19c600b420967d85975d"
+    },
+    {
+      "name": "github_connection_states_user_project_idx",
+      "sqlSha256": "00e342542988eb870abdcbd02fb885bbf81f572e4eb32ddac76eff2277548efd"
+    },
+    {
+      "name": "graph_build_attempts_cleanup_idx",
+      "sqlSha256": "76a65ebd3e9fb0891afff33ddd3d2257ad394a821a799a41b673b30286aa7160"
+    },
+    {
+      "name": "graph_build_attempts_project_status_idx",
+      "sqlSha256": "b3ace8faf3acca168a56dab1e1ef6bbae3d83875ef09d04a06a8339c1fb63232"
+    },
+    {
+      "name": "graph_events_project_created_idx",
+      "sqlSha256": "22bb22fc537e331cbdfbad5e28d288e2b2ba6272734c0c778779e366897d4f5d"
+    },
+    {
+      "name": "graph_reservation_events_project_time_idx",
+      "sqlSha256": "5a10733367348a2f016caa42f636f86b7b6c721a0f205f6ce1a671d2e31f557e"
+    },
+    {
+      "name": "graph_versions_one_ready_per_project_idx",
+      "sqlSha256": "0863c26dcdc7052139f1192b37b4089753cb61e1b3929521813f707c6daef00c"
+    },
+    {
+      "name": "graph_versions_project_status_version_idx",
+      "sqlSha256": "6ccee8fc4bbec7e1ae517133c913b0014fd6d90bede8dfe815030b5ca4b937a3"
+    },
+    {
+      "name": "graph_versions_project_version_idx",
+      "sqlSha256": "42b058e128fc6b8c1da3ca016bc98d70b8095a0366a3520e7c6e71d8a90a097e"
+    },
+    {
+      "name": "machine_audit_principal_time",
+      "sqlSha256": "a63ebb115e6583244568e7e0744697f4f0e33055e7e7a618986a6457c890ea9e"
+    },
+    {
+      "name": "machine_audit_project_time",
+      "sqlSha256": "84cf03aac1e111041da418a3fa038bdc98c52c0b67208db13b6ad3ad7fa1d804"
+    },
+    {
+      "name": "machine_credentials_expiry",
+      "sqlSha256": "a04d5aeba1c5daf840d1726e862d3ad51634c40df910203fc82cfdbc4248229c"
+    },
+    {
+      "name": "machine_credentials_one_active",
+      "sqlSha256": "83499dd4652ec9e19bc7cd54725edbb801ab10f586574e22034794784c100fe0"
+    },
+    {
+      "name": "machine_credentials_principal_created",
+      "sqlSha256": "3b7464d13559c090194d9dcf4cabb27113b855c914c7cd2800050d0747e009d6"
+    },
+    {
+      "name": "machine_principals_project_created",
+      "sqlSha256": "27184da0ab5727b901422322863509320778200bf552e135f8f5631e4c4d171c"
+    },
+    {
+      "name": "machine_principals_repository",
+      "sqlSha256": "df3eeacde97c71978e85eca9392dc4b9933c5588b3b826a692273fb871ac0907"
+    },
+    {
+      "name": "machine_request_nonces_expiry",
+      "sqlSha256": "7291bc79b9047b58e8e037bb870b9b3705ccd677fbd336bf172f848dcc33dfee"
+    },
+    {
+      "name": "machine_request_nonces_project_time",
+      "sqlSha256": "215a67fa81696791213fd59b6ebcbc8a2c830fd125e70c128931a13eb1e547eb"
+    },
+    {
+      "name": "mcp_audit_principal_time",
+      "sqlSha256": "214fe079878fc43539f54522c7702e952ec649fc6d724ad89221d9fa007b1f5e"
+    },
+    {
+      "name": "mcp_audit_project_time",
+      "sqlSha256": "07e6de26dad8d7d6c394eb85053727e4dfabf34bff622871b09a528a41ca1ef2"
+    },
+    {
+      "name": "mcp_credentials_expiry",
+      "sqlSha256": "06468ff4efe5478738c19b1ce02dfb1ae5776be1b1436e7f99a22a72934ce423"
+    },
+    {
+      "name": "mcp_credentials_one_active",
+      "sqlSha256": "96718c33f8f7418229f184dec4b280763f41e1ed2ca6569df5f6afa4a2163b9a"
+    },
+    {
+      "name": "mcp_credentials_principal_issued",
+      "sqlSha256": "77052f68a867ca2affacc94a585dab2de95eb6ac4cfff4377ad4c75ae278dd1d"
+    },
+    {
+      "name": "mcp_principal_projects_project",
+      "sqlSha256": "e7576f252a8092549150eca7687fcc60e25c8df726e0b24c5c369e14dbcfa7bc"
+    },
+    {
+      "name": "mcp_principals_owner_issued",
+      "sqlSha256": "8875915b0f71ada01ea7214cbf13f1697948281d4870a1e46e3992fa01e4b66a"
+    },
+    {
+      "name": "mcp_request_nonces_expiry",
+      "sqlSha256": "5cb04c3da1bc50c8e3a26e6f01c04bd7842c0fb21d861b0f8a5627c44dcf81e3"
+    },
+    {
+      "name": "mcp_request_nonces_rate",
+      "sqlSha256": "77585e8e33319cd30130f6b44d165243e43d61a43c8717f1bcb6a9005753e69e"
+    },
+    {
+      "name": "oauth_states_expires_at_idx",
+      "sqlSha256": "b28bc344f24ef5ff715daf3c142446633bb7bea07d81e71ca13756bef4be6aa2"
+    },
+    {
+      "name": "project_administration_events_project_time_idx",
+      "sqlSha256": "34d8a77c1be6f9608a58eb923b849c96fe6ac000e7f6b0986995d8bff99445c0"
+    },
+    {
+      "name": "project_administration_events_target_time_idx",
+      "sqlSha256": "55b78cfd93c3a8b3cc065323de282890221f19032de90eb03fc153b79b57633c"
+    },
+    {
+      "name": "project_audit_events_project_action_time_idx",
+      "sqlSha256": "12b12d5d823d4459c94a8bdc6e13d834441526b35fbeeda402676fdaa3342cdb"
+    },
+    {
+      "name": "project_audit_events_project_actor_time_idx",
+      "sqlSha256": "883ef8644d70e9acb4c50362b4bb831a354a9c6c3e40a5783f6fb9f691fde57c"
+    },
+    {
+      "name": "project_audit_events_project_time_idx",
+      "sqlSha256": "4afac171a84f937827ceea80e3d519ceb4445fa5c699b98f3170fc1eacefa61f"
+    },
+    {
+      "name": "project_invitations_expiry",
+      "sqlSha256": "60658be5a59e324020e1b6b9fdac726be442bb66fa0724f007dd5c3e33b1484c"
+    },
+    {
+      "name": "project_invitations_invitee_status_time",
+      "sqlSha256": "6f0cddd1af7f35dcdfa542ae62f45db07b290396d21148fb9fbc192efd1401dd"
+    },
+    {
+      "name": "project_invitations_one_pending",
+      "sqlSha256": "a5701224d54c58e5fe130986f759d31140c9211ba95b85b3be132deb89d20766"
+    },
+    {
+      "name": "project_invitations_project_status_time",
+      "sqlSha256": "959da0253fcab5efd68049550f770ee48a8d2d3dedc40e7140a081e8f20b1aa5"
+    },
+    {
+      "name": "project_members_user_id_idx",
+      "sqlSha256": "2e29dcb96a1aa97b3ef3d3982d110906cef5f76ee26ad2696a581cb1fded0d7b"
+    },
+    {
+      "name": "project_repositories_one_per_project_idx",
+      "sqlSha256": "485d7af52666f6f705213e7692a7a646f179729ea1cfd480561f0f205d53302c"
+    },
+    {
+      "name": "project_repositories_repository_idx",
+      "sqlSha256": "b75e6e2a6b08c825fab5693ab078be88bf8fbf78c6e2f5fbc223da5dcb17c217"
+    },
+    {
+      "name": "projects_workspace_id_idx",
+      "sqlSha256": "f80da2ce43e3d0a9c70500d3d0bce30f6d4acbe3abfce09e3198ef7221fcd117"
+    },
+    {
+      "name": "sessions_expires_at_idx",
+      "sqlSha256": "24c0a4ef8669478a4920242eba94b4f5c2f0878f768fc9645310dbcd1fd2c208"
+    },
+    {
+      "name": "sessions_user_id_idx",
+      "sqlSha256": "0cf62c5f5b812bfcf3545a8615542a0c0e5d2dda2fbc3d67d7a97c4c4bedf3b3"
+    },
+    {
+      "name": "snapshot_artifacts_project_snapshot_idx",
+      "sqlSha256": "2c205654a208210b139bc792ba36bb6ffb1708e6743f35e6927ca9137a6275fd"
+    },
+    {
+      "name": "snapshot_events_project_created_idx",
+      "sqlSha256": "2979480e552bb835a5b8b32c721a2b497efeda274f694a66daaee4ad2981e480"
+    },
+    {
+      "name": "sync_state_events_project_time_idx",
+      "sqlSha256": "f63f5cebb9fd7a9e29bd0446dd8c5c83b79e36da2b8ea56def0ca74bc6b3500a"
+    },
+    {
+      "name": "sync_states_principal_seen",
+      "sqlSha256": "d68356bdc4f6b9a270b839c58523dde5c46400c371c3f6b68a44f68c2cceee0c"
+    },
+    {
+      "name": "sync_states_project_seen",
+      "sqlSha256": "955b28c3bfadc71f3b898e537e845e72faee91d64d3ea4f9677189422e1e4927"
+    },
+    {
+      "name": "team_events_project_time",
+      "sqlSha256": "4a31c07465f6d10ce08d62fcda87d57263bb5648540ea33aa2a5d227b85c2e39"
+    },
+    {
+      "name": "workspace_members_user_id_idx",
+      "sqlSha256": "8a6797329a1bc3dc0b1c65ace8b8f5e6a24aceaa6c87ad3dd34ef80cc27ea777"
+    }
+  ],
+  "triggers": [
+    {
+      "name": "administration_audit_bridge",
+      "sqlSha256": "da049389ff0af145f8bbb934ec5fd5476507adefe2c138c657c25e8780003f3b"
+    },
+    {
+      "name": "artifact_archive_guard",
+      "sqlSha256": "a8e2cf9bf06d74bbee492433618d48cc36b54cb358586d884199c0d47a0dd84f"
+    },
+    {
+      "name": "artifact_archived",
+      "sqlSha256": "214658c7baf0dde02bff08f7bebf8da5a5b91b3cb70fa10b11eb27fcfb1d8670"
+    },
+    {
+      "name": "artifact_audit_bridge",
+      "sqlSha256": "5c9a6f1db9d7d4a8a33241fdf493f29e56512a52124aef5a3e5e5e7beace9ab8"
+    },
+    {
+      "name": "artifact_versions_immutable_delete",
+      "sqlSha256": "233999320859b472c470f6211274e9fe0c6e12b0aa90f53617dde20d83d97092"
+    },
+    {
+      "name": "artifact_versions_immutable_update",
+      "sqlSha256": "dcb8a5cabe9cde0992fe92023ddbb01416482752f465fa92dd52162ca9ad8b10"
+    },
+    {
+      "name": "artifacts_lifecycle_insert_guard",
+      "sqlSha256": "d747adeab39df33ea517878cd320090341298ba563e61cfbcc7feae7a6b7be6a"
+    },
+    {
+      "name": "audit_events_immutable_delete",
+      "sqlSha256": "d486baa297131a896821a466580d65ca5dab4e12b4f15f2d2c9be5f08f9b07cb"
+    },
+    {
+      "name": "audit_events_immutable_update",
+      "sqlSha256": "b041e7f9a50b7a63dbb7c7c65b347a9c4f550128d713081c0def85bac7c98dab"
+    },
+    {
+      "name": "audit_events_insert_guard",
+      "sqlSha256": "f23ad3ad9bdd55db16012b2154e05855897f569794fb83e3a6afad4efe081b22"
+    },
+    {
+      "name": "context_snapshots_immutable_delete",
+      "sqlSha256": "4d3633612d3f805ec4ee775ee5a3c61edd411e3521bca45497b9219743633d10"
+    },
+    {
+      "name": "context_snapshots_immutable_update",
+      "sqlSha256": "96a91b902e3dc0ce8710a5b275a065b9758caf33b7a18f696dc79b604c2028cf"
+    },
+    {
+      "name": "context_snapshots_reference_guard",
+      "sqlSha256": "7ea328629b572017f3dcfa1ffd5d598e3fe7e6fe26cd298f20a18825bc36b8fe"
+    },
+    {
+      "name": "git_audit_bridge",
+      "sqlSha256": "2903e13f3c442a367619c2ae1ed7ea18194f5eabca9b63b160a1a846abf95baa"
+    },
+    {
+      "name": "git_audit_events_immutable_delete",
+      "sqlSha256": "707eee8ec20854f887ac19fb7ad0bf8c3398e7e1a44cd5b74e4689c9b8289528"
+    },
+    {
+      "name": "git_audit_events_immutable_update",
+      "sqlSha256": "01d14d414f4aa19c179420490007ed0c9c2490bd329c8a7a1de2f5919555ce48"
+    },
+    {
+      "name": "git_audit_events_insert_guard",
+      "sqlSha256": "ed7d6a10fca4f5d9bdceff9fc4c267a767f492305563b24ae9e5f4dc47475c29"
+    },
+    {
+      "name": "graph_attempt_claim_version",
+      "sqlSha256": "3c2f6368aa531addc8c3fd26dec1b238b1e10e81eadaefa15b70736925d2881e"
+    },
+    {
+      "name": "graph_attempt_delete_immutable",
+      "sqlSha256": "0fcf03466a586b47c8f5cb5c2d6ddab18222c4a9f4aecfe5a98ae9c0fafba86d"
+    },
+    {
+      "name": "graph_attempt_fail_version",
+      "sqlSha256": "9b89a839369b2c5e82f3d225431cc5917a6b53149faf8dbfa701312227c0d702"
+    },
+    {
+      "name": "graph_attempt_identity_immutable",
+      "sqlSha256": "6e64a2fd0cdece9d17a2a3f22995541081e1b9384701c16be4d3f160cc0d1b68"
+    },
+    {
+      "name": "graph_attempt_insert_guard",
+      "sqlSha256": "a4317edee1751bba7214ee1dd0e52e49823bcdc8daa22818a8426628a39b6408"
+    },
+    {
+      "name": "graph_attempt_legal_update",
+      "sqlSha256": "ea878b663874bf5d72799b525e737662e655b43c8a87abff9d50f533d948647f"
+    },
+    {
+      "name": "graph_attempt_publish_guard",
+      "sqlSha256": "2a98d51a806ff90bd44a2cc8378ee050553c39a8aa6a70a420965bcf3459609d"
+    },
+    {
+      "name": "graph_attempt_publish_version",
+      "sqlSha256": "a6f636e85f8ae68ee6616eef8d1e3b1398acc172f25b000a2fdabace29eff38a"
+    },
+    {
+      "name": "graph_events_immutable_delete",
+      "sqlSha256": "56dc56161a8783effda2851c85adb4ad68763da4cd1ca8b41bab3dff9d6103f5"
+    },
+    {
+      "name": "graph_events_immutable_update",
+      "sqlSha256": "377d6e0c31c3a878dae1919225e8deaedcf968d44537f42a15c8466418291078"
+    },
+    {
+      "name": "graph_reservation_audit_bridge",
+      "sqlSha256": "ea5d4d8bf0a17c2aa26af4b345c4b015372da58718a50cfce43c2bc0bb0fb528"
+    },
+    {
+      "name": "graph_reservation_events_immutable_delete",
+      "sqlSha256": "f9f9e5e8333abb0aa14c4b23c5fc0a246dd3d61d3a5b549937c8032abac1b8b0"
+    },
+    {
+      "name": "graph_reservation_events_immutable_update",
+      "sqlSha256": "b74789d9468173006aa0068a3ddf53a039bec2ee9ab55c63cfe835b30bd51218"
+    },
+    {
+      "name": "graph_reservation_events_insert_guard",
+      "sqlSha256": "815c577fe0e69bf0538536d0690245347617c3b897b6f85e05b24cde51fb1ec3"
+    },
+    {
+      "name": "graph_reservation_source_after_insert",
+      "sqlSha256": "2987924dacb03f04748d8da0762ad3f642b37403db778fb0730969ba43637fd2"
+    },
+    {
+      "name": "graph_reservation_source_after_retry",
+      "sqlSha256": "9d630da8f9eef41458721c5d3ba2e4aacc529796cefc68042552e7f78a261a87"
+    },
+    {
+      "name": "graph_transition_actor_guard",
+      "sqlSha256": "76bff44b2512f55cfc11acadbbb3d029f643c5b1d45a30e305f3f329f7bbd868"
+    },
+    {
+      "name": "graph_versions_identity_immutable",
+      "sqlSha256": "6633dca07a51a97ceabaaa97f0ecae7edbb4bf09dce70ddcaa1e9ab99e51b892"
+    },
+    {
+      "name": "graph_versions_insert_attempt_layout",
+      "sqlSha256": "337660f7bc09f8599f64715adb42b8a65c15683be341eecc4d117951d25464c1"
+    },
+    {
+      "name": "graph_versions_insert_event",
+      "sqlSha256": "b89dfe398a9be3047934c0064985fd02f773868d489f549ff318f25825001228"
+    },
+    {
+      "name": "graph_versions_insert_queued",
+      "sqlSha256": "760289b3b4b82a761a2623c92f28cd573ec2923242f3b92138590cfe4fced958"
+    },
+    {
+      "name": "graph_versions_legal_transition",
+      "sqlSha256": "e325346639c883c2dbaf35968f78468d7062573edeb0bbacf6069f69bc718e10"
+    },
+    {
+      "name": "graph_versions_promote_supersedes_ready",
+      "sqlSha256": "0308a2660d61ebd858463930326b0be3c69ca1001dd70807d4ae1c7c070a11df"
+    },
+    {
+      "name": "graph_versions_ready_immutable",
+      "sqlSha256": "3585a10bc8b7008615c9e614605fa4af25327f66605ee2ccff1008fed2a02ce8"
+    },
+    {
+      "name": "graph_versions_transition_event",
+      "sqlSha256": "430326601fde87dd07a994cdb6b5d958f308bce0ab7fef2f25b76d14bcfa53d8"
+    },
+    {
+      "name": "machine_audit_bridge",
+      "sqlSha256": "df5845344e17102928513ad94b54048a4dec663256d8d3ad82b383f86ba64ee5"
+    },
+    {
+      "name": "machine_audit_exact_guard",
+      "sqlSha256": "2736aba584f993b4ab61f4bb64bf0e2ad14eec300c25d3cc3b1ad5e17c4a3f13"
+    },
+    {
+      "name": "machine_audit_immutable_delete",
+      "sqlSha256": "abd7a470743f2c17b6475c2710046adc4745791bd97ad94bf5699fafbc9bbb65"
+    },
+    {
+      "name": "machine_audit_immutable_update",
+      "sqlSha256": "2c663dfb4e37ede897d7c8d172abf783e89b4b0d5508d27e3bed9dfead834bd1"
+    },
+    {
+      "name": "machine_audit_scope_guard",
+      "sqlSha256": "5b5b4496cb661797bba4837cd016d72a3e0cccb653cc83c95704e0614ce79f10"
+    },
+    {
+      "name": "machine_credential_identity_immutable",
+      "sqlSha256": "c3f08d6eea029242a07ec9bd87f7c5cac832325f32adb0782c24efbd0fb59801"
+    },
+    {
+      "name": "machine_credential_revocation_actor_guard",
+      "sqlSha256": "328b898ec455b3b0eae60ac4f863fb308a979ba98cbde069dbd356728d57c36b"
+    },
+    {
+      "name": "machine_credential_revocation_actor_immutable",
+      "sqlSha256": "4580684f32d84d56900cf158f2d3984f939c624bcc9b793b2e5761ef7d25c1e8"
+    },
+    {
+      "name": "machine_graph_claim_audit",
+      "sqlSha256": "49516b6da0ce48241122a3a5bf5c962219ac5b5cae0d5ebfad2a4069ff22a3f5"
+    },
+    {
+      "name": "machine_graph_fail_audit",
+      "sqlSha256": "62232612ed41e78bf43337e54b8cdd6895c7b5104b1f3ae6fd5f0f2d2b882767"
+    },
+    {
+      "name": "machine_graph_publish_audit",
+      "sqlSha256": "317e140a89614e828f71c5f44e9dfbfe771f4b99112d0691b8d5d7ccc95faabd"
+    },
+    {
+      "name": "machine_nonce_immutable_delete",
+      "sqlSha256": "079a792abd066368d50d1bf56b24e3c5da59fc054d7532a04fd0319c043c2c23"
+    },
+    {
+      "name": "machine_nonce_immutable_update",
+      "sqlSha256": "b942d015fb487d6f134bd373eb733e48288da5d5a2e5785267d3820ca16fe027"
+    },
+    {
+      "name": "machine_nonce_project_guard",
+      "sqlSha256": "abf5d2fe1e4c16de6e4091efb4bf43ecce2c813d2f1968d3b8f7ec5d65b087cc"
+    },
+    {
+      "name": "machine_principal_identity_immutable",
+      "sqlSha256": "7fb9daf7f57de8c27f66b729b42dad9e8a9c92d6353ee4485c4b6b73b0deaf95"
+    },
+    {
+      "name": "mcp_audit_bridge",
+      "sqlSha256": "7ad546d0b15016e513239c32164740cf314e7ffad61b87e711a64e5728d46f35"
+    },
+    {
+      "name": "mcp_audit_exact_guard",
+      "sqlSha256": "9c7a57cd92d10dcf3a1cbd177276e631d54f1bebe58c4f6c13f3b48cda42ae5f"
+    },
+    {
+      "name": "mcp_audit_immutable_delete",
+      "sqlSha256": "e50dd2a6b40870e7e2e2be725eba513f3eb9499261c71d1f6b4e8e50faa2e29d"
+    },
+    {
+      "name": "mcp_audit_immutable_update",
+      "sqlSha256": "184741dcc2cf13cab4fa929e2457cfa2a7e650d5843fb82eae0dbfc3dd3e6127"
+    },
+    {
+      "name": "mcp_audit_scope_guard",
+      "sqlSha256": "1ed392fcd436ae2d12e353c3ad44b05d2f4412cc01249ab715d30b49f9f9adad"
+    },
+    {
+      "name": "mcp_credential_identity_immutable",
+      "sqlSha256": "083456447fcf2a3e76e746e5c8d955ec3427e2ef3a720aec136751a9cc9b83ff"
+    },
+    {
+      "name": "mcp_credential_replacement_guard",
+      "sqlSha256": "806515636301c635f3ec49ecac8cd8c91b9898d5cf18157698082e6cdfa0633a"
+    },
+    {
+      "name": "mcp_credential_revoke_audit",
+      "sqlSha256": "4d22a7eb1ce7c5b320782172b1512faf90a62633193aa716fa604e6112bef8fe"
+    },
+    {
+      "name": "mcp_credential_scope_guard",
+      "sqlSha256": "a1702a1e0a35d91c4434106c20c9f44d9f405105b2d00c099c82bb0fda12f127"
+    },
+    {
+      "name": "mcp_nonce_expiry_guard",
+      "sqlSha256": "4b2dfecb057d883988d70e0f3b1e2dd85fd3b710ca55d929ffe5f4dbf627fc01"
+    },
+    {
+      "name": "mcp_nonce_immutable_delete",
+      "sqlSha256": "db74fabd4e4ca89329b87395268fc382155676ce36672665de8f4e9a2494487a"
+    },
+    {
+      "name": "mcp_nonce_immutable_update",
+      "sqlSha256": "4df79f8852b5a59a8c345ba5c1c04ac740a30850469177ed9a6a770dd15ce366"
+    },
+    {
+      "name": "mcp_principal_identity_immutable",
+      "sqlSha256": "a3a0b025081eed3331d60d65b9c632bdfa55cfa2ccadbe984493c659a27a5644"
+    },
+    {
+      "name": "mcp_principal_operation_immutable_delete",
+      "sqlSha256": "2bba548c6030c0b547258400db4295155c526e757b47ff579fa412f49404fb19"
+    },
+    {
+      "name": "mcp_principal_operation_immutable_update",
+      "sqlSha256": "bba64718e351ce19883ee74d4a4d27856aca7822422e3ca5ed47d912006ba030"
+    },
+    {
+      "name": "mcp_principal_operation_sealed_insert",
+      "sqlSha256": "6250e3396c7c633f2a99ff531006e6551c4a70f74a472c5d515e70c5097a630e"
+    },
+    {
+      "name": "mcp_principal_project_immutable_delete",
+      "sqlSha256": "1c79d2db941be55068cb6d6f591d8fe01169d3458df44b8883bf8a586ceb10d0"
+    },
+    {
+      "name": "mcp_principal_project_immutable_update",
+      "sqlSha256": "6d1c8a8696e1ca56fd2e9670f0673c24baf08eeba083d2bb9d1542a142713176"
+    },
+    {
+      "name": "mcp_principal_project_sealed_insert",
+      "sqlSha256": "15ad94c79ce497e698521830d40d22158a9deb9d46f7390683527bdad8874e0b"
+    },
+    {
+      "name": "mcp_project_scope_guard",
+      "sqlSha256": "769c22b765047257850977020c79cb4fa4f100f8f0b61dfadf995da692f0554c"
+    },
+    {
+      "name": "project_administration_events_immutable_delete",
+      "sqlSha256": "3f4066f99afb74cadf9fef61c8a72f713f62b1744e19da059d1f0b66464e4b43"
+    },
+    {
+      "name": "project_administration_events_immutable_update",
+      "sqlSha256": "2f01bf7f6c436d6c4876a36358063c660137e8c39250462aced120c9095347e9"
+    },
+    {
+      "name": "project_administration_events_insert_guard",
+      "sqlSha256": "e7afc9566d510990bdd0196a2a24ebb4d254a7d69bb289a209735278918a7d55"
+    },
+    {
+      "name": "project_audit_bridge",
+      "sqlSha256": "47e29acb0d5aeda942c5bbbf826c2bc950a9e65bd1bdf92f96c3bf27af43989e"
+    },
+    {
+      "name": "project_audit_events_capacity",
+      "sqlSha256": "3528efeeb95c0f239f64058f8d351c763ddde36aa661cd292865da149ecba6b9"
+    },
+    {
+      "name": "project_audit_events_immutable_delete",
+      "sqlSha256": "e9fc2e9e0e98e63dfef2d554e58a7e6fd1aebec6a956e1760e5c7fac75318492"
+    },
+    {
+      "name": "project_audit_events_immutable_update",
+      "sqlSha256": "1bd9b0c8c00281b6661a92bb6870c3a42c10ba1215bf1ff0d84e0798f44d6730"
+    },
+    {
+      "name": "project_audit_events_source_guard",
+      "sqlSha256": "30087befc0218df5204a8a24dc881773276389ce4947589f3fe6bf9f76d446bc"
+    },
+    {
+      "name": "project_invitation_accepted",
+      "sqlSha256": "0a673d91aec1f42f35f3214f81a73a9eaa511c6c875ccfd2a0d0772e897f7b59"
+    },
+    {
+      "name": "project_invitation_created",
+      "sqlSha256": "364091cd15a9b232ff4dbb3f7b8a00a0aeeb97b2f9c3c37d8a85f66b4e1f1c15"
+    },
+    {
+      "name": "project_invitation_insert_guard",
+      "sqlSha256": "a206caaca3c239155d33eae908aceeb4c8ba6129553518c4a66985ed30b79cb8"
+    },
+    {
+      "name": "project_invitation_revoked",
+      "sqlSha256": "057cee4f3268dae7bce1e075f43f370675a18a035301157172f55ac9c4d60041"
+    },
+    {
+      "name": "project_invitation_transition_guard",
+      "sqlSha256": "db099783baf43dd07f6959ca5eee65ab18fb27f95a64ca1c0caae8d817d9d907"
+    },
+    {
+      "name": "project_invitations_immutable_delete",
+      "sqlSha256": "d6116a9d7a880de6aeb5de5f98c5fe2adece23dd23941df568123c4b4de36583"
+    },
+    {
+      "name": "project_member_delete_guard",
+      "sqlSha256": "b18ddbd8bae1599ac65d2868d54b0fe0c4a083b87f805c10e1d310758dd1d09c"
+    },
+    {
+      "name": "project_member_removal_evidence",
+      "sqlSha256": "8aecef53d61d355f92856d9b27702cb7bc37448496bb9a37baa4f55f7c78047e"
+    },
+    {
+      "name": "project_member_removed",
+      "sqlSha256": "1f0a1e993b041798e9d8ed08d72bef5bc01ff58675c021e3bc1440bbb52b528e"
+    },
+    {
+      "name": "project_member_role_changed",
+      "sqlSha256": "8f78c32e375fd3a4947c6731fc8e37d8d8a72e300f17ee4bcb4a76d491243314"
+    },
+    {
+      "name": "project_member_role_guard",
+      "sqlSha256": "7e75974b6cd7a0647d00a741ac60d9c60893244ad2ab10a6abaebeb042841ade"
+    },
+    {
+      "name": "project_settings_update_guard",
+      "sqlSha256": "4006e512168137ace4472f1dc8e4d037324acb3ceda91d4dad821f2df4c3af55"
+    },
+    {
+      "name": "project_settings_updated",
+      "sqlSha256": "8abfd5d1929c19826fa607696b4d5ef337e9066c0da0650542a81f7f92260421"
+    },
+    {
+      "name": "referenced_artifact_versions_immutable_delete",
+      "sqlSha256": "70e54a823c7ec659fdd1ed935877c1cdfad4e2326015c9dd10baecce76965ca2"
+    },
+    {
+      "name": "referenced_artifact_versions_immutable_update",
+      "sqlSha256": "24cd0274da524d49268bb4f1d0abddd2bedbea7f79736397e76a5847454db8d5"
+    },
+    {
+      "name": "snapshot_artifacts_immutable_delete",
+      "sqlSha256": "9dcb9c6a5a9a6926ef84fb65faf1b919c680c07fdacccc0239f0508715202773"
+    },
+    {
+      "name": "snapshot_artifacts_immutable_update",
+      "sqlSha256": "1e594867faa5985bb8bfeb5ba9a5e1197d58a63ca035c02f8ea03d53e43a9bfd"
+    },
+    {
+      "name": "snapshot_artifacts_reference_guard",
+      "sqlSha256": "421dd048ec5e6d451bd26c0fe08e9ea9354ff3b2f89a15a0700dcb85140ec2c6"
+    },
+    {
+      "name": "snapshot_artifacts_sealed_after_success",
+      "sqlSha256": "43fe94d1aca7b550dedf1d9956a0101d196d67ca42a79bee16ae74128a5e918c"
+    },
+    {
+      "name": "snapshot_audit_bridge",
+      "sqlSha256": "276b47b15179f63f30159b9cd2dc5e1d0d5dc644dc9952dabfe7350d32d61c3e"
+    },
+    {
+      "name": "snapshot_events_immutable_delete",
+      "sqlSha256": "0718407a62a9d2d23a799be8fc134bfd2a297bcf11a383249bdab72af7f62274"
+    },
+    {
+      "name": "snapshot_events_immutable_update",
+      "sqlSha256": "b415974c5b51ece93caef94f625c3b85aa6c4cb3c29d21f9b60937cabaeae155"
+    },
+    {
+      "name": "snapshot_success_exact_artifact_count",
+      "sqlSha256": "09ee886c04a88bea082fe9c719e610069bbd05c5b3957c2deb043250b2b7a97e"
+    },
+    {
+      "name": "snapshotted_artifacts_identity_immutable",
+      "sqlSha256": "e9d8336afbb93f413fb8ae8bfcf6167c010bc361c9656b657fe5820143fa1f0b"
+    },
+    {
+      "name": "sync_state_audit_bridge",
+      "sqlSha256": "f04f5d6dee1a803bf8fea90e0028c253daf636aaa85afdcfab26b3726d8fa8be"
+    },
+    {
+      "name": "sync_state_events_immutable_delete",
+      "sqlSha256": "b1af0b06a4b32f3fce2a10577e2e0d739d79616ee51800ac955d8fb3c2112e49"
+    },
+    {
+      "name": "sync_state_events_immutable_update",
+      "sqlSha256": "4c475e413a0d4bb17641dce980cb7e68279870e351007dabdf98c6517f962509"
+    },
+    {
+      "name": "sync_state_events_insert_guard",
+      "sqlSha256": "0ea3e078f1fddce64b06e6581b61ca41640d43a8f79ac8c608e7e912160fbf65"
+    },
+    {
+      "name": "sync_state_source_after_insert",
+      "sqlSha256": "e0d5aa029ae9582bc62bfa74667cd8592235cf005a3e826dd42192f564d71574"
+    },
+    {
+      "name": "sync_state_source_after_update",
+      "sqlSha256": "f4bf73a3fa71ff81ed13530b4d047e519c7803598afdaac71d9dca49ed7f7938"
+    },
+    {
+      "name": "sync_states_client_bound",
+      "sqlSha256": "dd5da495030bc626b4009e7442bfcdef5d7e7ad050c4a1488e9cc8225c685502"
+    },
+    {
+      "name": "sync_states_identity_guard",
+      "sqlSha256": "48939a5a02e097a3b608773cf2f4b20a5edbaf2a33cf57e0f8c6532c5347df51"
+    },
+    {
+      "name": "team_audit_bridge",
+      "sqlSha256": "8ecbccd1737a1b4e325595b6b204fad2f5e753b13a9e5d4df5ad4107bf69c92a"
+    },
+    {
+      "name": "team_events_immutable_delete",
+      "sqlSha256": "4aa2126ec0e66de40eb9b32507749005351bd7a1287bd6cd8b315bb1c2bb7f61"
+    },
+    {
+      "name": "team_events_immutable_update",
+      "sqlSha256": "67618b16da78644ad723225812de8c598fadaa78598f93a840e06dfce3b20ff1"
+    },
+    {
+      "name": "team_events_insert_guard",
+      "sqlSha256": "7219072db42cc7c2efbfe30d188f235aecfd1888ee32ae30698110eb4b513b8f"
+    },
+    {
+      "name": "team_member_removals_immutable_delete",
+      "sqlSha256": "ee0abc689858634c70c091edabf914785c25273cf2de3f7bb75b318c497547b1"
+    },
+    {
+      "name": "team_member_removals_immutable_update",
+      "sqlSha256": "663175f55ba26201cbfec881803dcc24a2882b51161d7bbd744002c871ff60a7"
+    },
+    {
+      "name": "team_member_removals_insert_guard",
+      "sqlSha256": "693e5b1b9fadabc3a94b073bb18091597b3455889f55d1b0da091c90bbaa9843"
+    }
+  ],
+  "foreignKeys": {
+    "artifact_versions": [
+      [0, 0, "users", "created_by", "id", "NO ACTION", "NO ACTION", "NONE"],
+      [1, 0, "artifacts", "artifact_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "artifacts": [
+      [0, 0, "users", "archived_by", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "users", "created_by", "id", "NO ACTION", "NO ACTION", "NONE"],
+      [2, 0, "projects", "project_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "audit_events": [
+      [0, 0, "users", "actor_id", "id", "NO ACTION", "NO ACTION", "NONE"],
+      [1, 0, "artifacts", "artifact_id", "id", "NO ACTION", "CASCADE", "NONE"],
+      [2, 0, "projects", "project_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "context_snapshots": [
+      [0, 0, "graph_versions", "project_id", "project_id", "NO ACTION", "NO ACTION", "NONE"],
+      [0, 1, "graph_versions", "graph_version", "version", "NO ACTION", "NO ACTION", "NONE"],
+      [1, 0, "users", "created_by", "id", "NO ACTION", "NO ACTION", "NONE"],
+      [2, 0, "projects", "project_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "git_audit_events": [
+      [0, 0, "users", "actor_id", "id", "NO ACTION", "NO ACTION", "NONE"],
+      [
+        1,
+        0,
+        "repository_identities",
+        "repository_identity_id",
+        "id",
+        "NO ACTION",
+        "NO ACTION",
+        "NONE"
+      ],
+      [2, 0, "projects", "project_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "git_connections": [
+      [
+        0,
+        0,
+        "repository_identities",
+        "repository_identity_id",
+        "id",
+        "NO ACTION",
+        "NO ACTION",
+        "NONE"
+      ],
+      [1, 0, "projects", "project_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "github_connection_states": [
+      [0, 0, "sessions", "session_id", "id", "NO ACTION", "CASCADE", "NONE"],
+      [1, 0, "projects", "project_id", "id", "NO ACTION", "CASCADE", "NONE"],
+      [2, 0, "users", "user_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "graph_build_attempts": [
+      [0, 0, "graph_versions", "project_id", "project_id", "NO ACTION", "CASCADE", "NONE"],
+      [0, 1, "graph_versions", "graph_version", "version", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "graph_events": [
+      [0, 0, "graph_versions", "project_id", "project_id", "NO ACTION", "CASCADE", "NONE"],
+      [0, 1, "graph_versions", "graph_version", "version", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "graph_reservation_events": [
+      [0, 0, "graph_versions", "project_id", "project_id", "NO ACTION", "RESTRICT", "NONE"],
+      [0, 1, "graph_versions", "graph_version", "version", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "users", "actor_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [2, 0, "projects", "project_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "graph_versions": [
+      [0, 0, "users", "transition_actor_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "projects", "project_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "machine_audit_events": [
+      [0, 0, "users", "actor_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "machine_credentials", "credential_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [2, 0, "machine_principals", "principal_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [3, 0, "projects", "project_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "machine_credentials": [
+      [0, 0, "users", "revoked_by_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [
+        1,
+        0,
+        "machine_credentials",
+        "replaced_by_credential_id",
+        "id",
+        "NO ACTION",
+        "RESTRICT",
+        "NONE"
+      ],
+      [2, 0, "users", "created_by", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [3, 0, "machine_principals", "principal_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "machine_principals": [
+      [0, 0, "users", "created_by", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "projects", "project_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "machine_request_nonces": [
+      [0, 0, "projects", "project_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "machine_credentials", "credential_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "mcp_audit_events": [
+      [0, 0, "projects", "project_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "users", "actor_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [2, 0, "mcp_credentials", "credential_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [3, 0, "mcp_principals", "principal_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "mcp_credentials": [
+      [0, 0, "mcp_credentials", "replaced_by_credential_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "users", "revoked_by_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [2, 0, "users", "created_by", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [3, 0, "mcp_principals", "principal_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "mcp_principal_operations": [
+      [0, 0, "mcp_principals", "principal_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "mcp_principal_projects": [
+      [0, 0, "projects", "project_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "mcp_principals", "principal_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "mcp_principals": [
+      [0, 0, "users", "created_by", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "users", "owner_user_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "mcp_request_nonces": [
+      [0, 0, "mcp_credentials", "credential_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "project_administration_events": [
+      [0, 0, "users", "actor_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "projects", "project_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "project_audit_event_counts": [
+      [0, 0, "projects", "project_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "project_audit_events": [
+      [0, 0, "projects", "project_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "project_invitations": [
+      [0, 0, "users", "revoked_by_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "users", "accepted_by_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [2, 0, "users", "inviter_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [3, 0, "users", "invitee_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [4, 0, "projects", "project_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "project_members": [
+      [0, 0, "users", "role_updated_by", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "users", "invited_by", "id", "NO ACTION", "NO ACTION", "NONE"],
+      [2, 0, "users", "user_id", "id", "NO ACTION", "CASCADE", "NONE"],
+      [3, 0, "projects", "project_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "project_repositories": [
+      [
+        0,
+        0,
+        "repository_identities",
+        "repository_identity_id",
+        "id",
+        "NO ACTION",
+        "CASCADE",
+        "NONE"
+      ],
+      [1, 0, "projects", "project_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "projects": [
+      [0, 0, "users", "settings_updated_by", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "users", "created_by", "id", "NO ACTION", "NO ACTION", "NONE"],
+      [2, 0, "workspaces", "workspace_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "sessions": [[0, 0, "users", "user_id", "id", "NO ACTION", "CASCADE", "NONE"]],
+    "snapshot_artifacts": [
+      [0, 0, "artifact_versions", "artifact_id", "artifact_id", "NO ACTION", "NO ACTION", "NONE"],
+      [0, 1, "artifact_versions", "artifact_version", "version", "NO ACTION", "NO ACTION", "NONE"],
+      [1, 0, "artifacts", "artifact_id", "id", "NO ACTION", "NO ACTION", "NONE"],
+      [1, 1, "artifacts", "project_id", "project_id", "NO ACTION", "NO ACTION", "NONE"],
+      [2, 0, "context_snapshots", "project_id", "project_id", "NO ACTION", "CASCADE", "NONE"],
+      [2, 1, "context_snapshots", "snapshot_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "snapshot_events": [
+      [0, 0, "context_snapshots", "project_id", "project_id", "NO ACTION", "NO ACTION", "NONE"],
+      [0, 1, "context_snapshots", "snapshot_id", "id", "NO ACTION", "NO ACTION", "NONE"],
+      [1, 0, "users", "actor_id", "id", "NO ACTION", "NO ACTION", "NONE"],
+      [2, 0, "projects", "project_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "sync_state_events": [
+      [0, 0, "mcp_principals", "principal_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "projects", "project_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "sync_states": [
+      [0, 0, "mcp_principals", "principal_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "projects", "project_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "team_events": [
+      [0, 0, "users", "target_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "project_invitations", "invitation_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [2, 0, "users", "actor_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [3, 0, "projects", "project_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "team_member_removals": [
+      [0, 0, "users", "actor_user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [1, 0, "users", "user_id", "id", "NO ACTION", "RESTRICT", "NONE"],
+      [2, 0, "projects", "project_id", "id", "NO ACTION", "RESTRICT", "NONE"]
+    ],
+    "workspace_members": [
+      [0, 0, "users", "invited_by", "id", "NO ACTION", "NO ACTION", "NONE"],
+      [1, 0, "users", "user_id", "id", "NO ACTION", "CASCADE", "NONE"],
+      [2, 0, "workspaces", "workspace_id", "id", "NO ACTION", "CASCADE", "NONE"]
+    ],
+    "workspaces": [[0, 0, "users", "created_by", "id", "NO ACTION", "NO ACTION", "NONE"]]
+  }
+}

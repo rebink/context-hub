@@ -111,9 +111,9 @@ The order below is binding. Multi-project Task A must finish before MCP; Task B 
 - [x] Replace seed-only project-repository trust with one active link per project backed by a consistent verified connection; preserve one repository mapping to many projects and none/unique/ambiguous authorized resolution.
 - [x] Add focused provider and route tests for cross-session state rejection, two-state callback/PKCE replay, stale callback/disconnect interleavings, optimistic replacement races, strict callback origins, specific-installation proof beyond one-page listing, verified repository resolution, provider mechanics, and secret exposure while preserving existing tests.
 - [x] Implement the repository connection UI with role-aware controls, bounded callback handling, project stale-response protection, accessible confirmation/form behavior, and responsive system-theme styling.
-- [ ] Complete the required final review acceptance before marking Phase 6 complete.
-- [ ] Complete live browser/GitHub App/Cloudflare verification as an external release blocker; local Phase 6 completion does not claim this deployment evidence.
-- [x] Run the full local phase stop gate, including fresh/upgrade Wrangler D1 migrations, uniqueness, foreign-key and transactional rollback checks, tests, typecheck, lint, and builds.
+- [ ] Historical Phase 6 acceptance is `BLOCKED`: no surviving independently attributable Phase 6 review verdict was found, and a current review must not be presented as contemporaneous evidence.
+- [ ] Complete live browser/GitHub App/Cloudflare verification as an external release blocker; local implementation evidence does not claim this deployment evidence.
+- [ ] Historical Phase 6 gate acceptance is `BLOCKED`: current checks can revalidate the implementation, but no focused Phase 6 test/typecheck/lint/build transcript and checkpoint survives.
 
 ### 7. Graphify research (Prompt 7) — `COMPLETE`
 
@@ -211,7 +211,7 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Test user in two workspaces, user in multiple projects, workspace-only denial, unauthorized query denial, correct remote resolution, and ambiguous explicit-selection requirement.
 - [x] Create repository identities/links through the real Git connection flow rather than seeds.
 - [x] Re-run migration, authorization, isolation, and phase stop gates after completing the backend real-link flow.
-- [x] Complete the Task A real-link flow locally through the Phase 6 UI; final Phase 6 review acceptance remains pending and live provider/browser verification remains an external release blocker.
+- [~] The Task A real-link flow exists through the Phase 6 UI. Historical Phase 6 acceptance is `BLOCKED` on the missing contemporaneous independent-review and focused gate/checkpoint evidence; live provider/browser verification remains an external release blocker.
 
 ### 14/B. Universal multi-project MCP (Prompt 14 + Task B) — `COMPLETE LOCALLY`
 
@@ -386,13 +386,15 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 - [x] Completed the one independent Phase 24 review and its consolidated six-P1 correction pass without a second review: exact D1 `RETURNING` cardinality/identity checks, bounded isolated harness lifecycle, deterministic Git/Python execution, actual identity/CLI auto-resolution and reporting, structural isolation/snapshot assertions, and exact audit/revocation evidence.
 - [x] Passed the parent-owned root phase stop gate: `npm run test:e2e:local`, fresh/staged-through-0020 migration integrity, 342 tests (207 API, 42 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds.
 
-### 25. Final architecture and product QA (Prompt 25) — `PENDING`
+### 25. Final architecture and product QA (Prompt 25) — `AUDIT COMPLETE LOCALLY; MVP ACCEPTANCE BLOCKED`
 
-- [ ] Verify Git truth, derived Graphify, immutable/no-merge graphs, immutable artifact versions, server permissions, provider-neutral MCP, lightweight Pi, bounded context, provenance, safe sync, and free-tier architecture against PRD/architecture/security.
-- [ ] Identify deviations without speculative redesign.
-- [ ] Product QA: create project, connect Git, upload architecture/ADR, invite teammate, assign roles, generate/inspect graph, sync, search/query, connect Pi, create snapshot, and inspect audit.
-- [ ] Report product QA as `PASS`, `FAIL`, `BLOCKED`, or `NICE TO HAVE`, focusing on clarity, reliability, token efficiency, security, and developer experience.
-- [ ] Run the phase stop gate.
+- [x] Verified Git truth, derived Graphify, immutable/no-merge graphs, immutable artifact versions, server permissions, provider-neutral MCP, lightweight Pi, bounded context, provenance, safe sync, and free-tier architecture against PRD/architecture/security in [`final-qa.md`](final-qa.md).
+- [x] Added dependency-free `npm run qa:architecture`, deriving provider implementations, runtime MCP/Pi invariants, storage layouts, routes/auth predicates, fresh migration schema, limits, workflows, and documentation state from production sources/exports.
+- [x] Identified each deviation once with severity, rationale, owner/unblock condition, and launch impact without speculative redesign.
+- [x] Product QA maps create/connect/artifacts/team/roles/graphs/sync/search/query/Pi/snapshots/Activity/Settings/navigation to local executable or explicitly blocked live evidence.
+- [x] Reported every requirement as exact `PASS`, `FAIL`, `BLOCKED`, or `NICE TO HAVE`; local MVP acceptance remains `BLOCKED` only on missing historical Phase 6 review/gate evidence, and production launch remains `BLOCKED`.
+- [x] The one independent Phase 25 review is complete and its single consolidated P0/P1 correction pass is implemented; no second review was performed.
+- [x] Passed the parent-owned root phase stop gate: deterministic architecture QA digest `3cddb373ad45292a542bcb6a7f94ca618ed543db9af586961c1435a8e4198aec`, local E2E, fresh/staged-through-0020 migration integrity, 342 tests (207 API, 42 web, 26 CLI, 26 Pi, 41 adapter), typecheck, Biome lint, and all builds.
 
 ### 26. Production deployment and live verification — `PENDING`
 

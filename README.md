@@ -1,6 +1,6 @@
 # Context Hub
 
-A source-backed context control plane for teams and coding agents. The current boundary includes immutable artifacts and snapshots, GitHub identity/repository integration, Graphify publication/exploration, team and audit management, local sync/offline graph cache, the bounded universal MCP endpoint, and the thin Pi package. The management UI provides URL-backed global/project navigation, directly authorized global Activity, real read-only account/configuration Settings, and all implemented project surfaces. Phase 23's local free-tier audit is complete after one independent review, one consolidated four-P1 correction, and the 340-test root gate; live browser/accessibility and remote release evidence remain pending. See the [implementation status](docs/ai/implementation-status.md), [master plan](docs/ai/master-plan.md), [architecture](docs/ai/architecture.md), and [free-tier audit](docs/ai/free-tier-audit.md).
+A source-backed context control plane for teams and coding agents. The current boundary includes immutable artifacts and snapshots, GitHub identity/repository integration, Graphify publication/exploration, team and audit management, local sync/offline graph cache, the bounded universal MCP endpoint, and the thin Pi package. The management UI provides URL-backed global/project navigation, directly authorized global Activity, real read-only account/configuration Settings, and all implemented project surfaces. Phase 25 final architecture/product QA is implemented from clean Phase 24 checkpoint `174ff9d`; its single independent review, consolidated correction, deterministic architecture QA, local E2E, and 342-test root gate are complete; local MVP acceptance is blocked on missing historical Phase 6 acceptance evidence, and production launch remains blocked on live/browser/remote/operational evidence. See the [final QA](docs/ai/final-qa.md), [implementation status](docs/ai/implementation-status.md), [master plan](docs/ai/master-plan.md), [architecture](docs/ai/architecture.md), and [free-tier audit](docs/ai/free-tier-audit.md).
 
 ## Local setup
 
@@ -22,6 +22,7 @@ npm run typecheck
 npm run lint
 npm run build
 npm run audit:free-tier # rebuild and measure local free-tier evidence
+npm run qa:architecture # derive final architecture invariants from production truth
 ```
 
 ## Artifact API
@@ -64,7 +65,7 @@ The Graphify tab shows separate newest-attempt/current-READY state, immutable pr
 
 ## Pi integration
 
-`packages/context-pi` registers the native `/context connect`, `status`, `sync`, `search`, `graph`, and `snapshot` command forms without adding LLM tools or prompt/provider behavior. It reuses `packages/context-cli` and the existing MCP endpoint, automatically resolves one authorized project from the canonical local GitHub remote, and requires explicit selection when multiple projects match. Status and verified cached graph queries remain useful offline. Snapshot is intentionally unavailable until Phase 18.
+`packages/context-pi` registers the native `/context connect`, `status`, `sync`, `search`, `graph`, and `snapshot` command forms without adding LLM tools or prompt/provider behavior. It reuses `packages/context-cli` and the existing MCP endpoint, automatically resolves one authorized project from the canonical local GitHub remote, and requires explicit selection when multiple projects match. Status and verified cached graph queries remain useful offline. Snapshot is a truthful non-mutating availability command; immutable snapshot creation and inspection are available through the web/API, while a Pi mutation contract remains intentionally deferred.
 
 ADMIN-provisioned Phase 14 MCP credentials are injected from an OS secret helper through `CONTEXT_HUB_MCP_TOKEN`; existing CLI connect/sync operations use environment-only `CONTEXT_HUB_SESSION`. Both require the independently supplied exact `CONTEXT_HUB_API` origin. Do not put either secret in arguments, repository files, prompts, logs, or output. See [`packages/context-pi/README.md`](packages/context-pi/README.md).
 

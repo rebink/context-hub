@@ -12,6 +12,7 @@ import {
 import type { ObjectStorage } from "./object-storage.js";
 import { normalizeGithubRepository } from "./repository-identity.js";
 import { randomToken, sha256, sha256Bytes } from "./security.js";
+import { artifactObjectKey } from "./storage-keys.js";
 
 export type McpEnv = { DB: D1Database; WEB_ORIGIN?: string };
 export type McpHuman = { id: string };
@@ -499,7 +500,7 @@ async function getArtifact(
     .bind(projectId, artifactId, version, version)
     .first<ArtifactRow>();
   if (!row) failure("ARTIFACT_NOT_FOUND", 404);
-  const expectedKey = `projects/${projectId}/artifacts/${artifactId}/v/${row.version}/content`;
+  const expectedKey = artifactObjectKey(projectId, artifactId, row.version);
   if (row.storage_key !== expectedKey) failure("SOURCE_UNAVAILABLE", 503);
   const head = await storage.head(row.storage_key);
   if (

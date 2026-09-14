@@ -9,6 +9,7 @@ import {
 } from "./graphs.js";
 import type { ObjectStorage } from "./object-storage.js";
 import { randomToken, sha256, sha256Bytes } from "./security.js";
+import { attemptGraphObjectKey } from "./storage-keys.js";
 
 const ID = /^[A-Za-z0-9_-]+$/;
 const COMMIT = /^[0-9a-f]{40}$/;
@@ -441,7 +442,7 @@ async function claimForRequest(
     leaseId,
     publicationId,
     leaseExpiresAt: "",
-    storageKey: `projects/${projectId}/graphs/v/${version}/attempts/${attempt}/${publicationId}/graph.json`,
+    storageKey: attemptGraphObjectKey(projectId, version, attempt, publicationId),
   };
 }
 

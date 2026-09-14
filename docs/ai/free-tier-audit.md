@@ -79,22 +79,22 @@ Sources: [Actions billing](https://docs.github.com/en/billing/concepts/product-b
 
 ## Measured repository consumption
 
-Results from `npm run audit:free-tier` on 2026-09-15:
+Results from `npm run audit:free-tier` on 2026-09-14:
 
 | Dimension | Measured result | Current official ceiling | Repository headroom |
 | --- | ---: | ---: | ---: |
-| Worker emitted module, local gzip level 9 | 72,509 bytes | 3,145,728 compressed bytes (Free) | 97.70% |
-| Wrangler upload, gzip | 72,909 bytes (71.20 KiB) | 3,145,728 compressed bytes (Free) | 97.68% |
-| Worker emitted module, uncompressed | 361,023 bytes | 67,108,864 uncompressed bytes (tooling) | 99.46% |
+| Worker emitted module, local gzip level 9 | 74,698 bytes | 3,145,728 compressed bytes (Free) | 97.63% |
+| Wrangler upload, gzip | 75,100 bytes (73.34 KiB) | 3,145,728 compressed bytes (Free) | 97.61% |
+| Worker emitted module, uncompressed | 373,291 bytes | 67,108,864 uncompressed bytes (tooling) | 99.44% |
 | Pages files | 5 | 20,000 | 99.98% |
 | Pages total output | 131,260 bytes | No aggregate published | N/A |
 | Largest Pages asset | 99,813 bytes | 26,214,400 bytes | 99.62% |
 | Fresh migrated D1 file | 847,872 bytes | 524,288,000 bytes/database | 99.84% |
-| D1 schema | 42 application tables, 62 explicit/non-auto indexes | No table/index-count quota published | N/A |
+| D1 schema | 40 application/domain tables, 62 explicit/non-auto indexes (plus Wrangler `_cf_METADATA` and migration ledger `d1_migrations`) | No table/index-count quota published | N/A |
 | Project-first indexes | 34 local schema indexes whose SQL starts with/includes `project_id` | Shape evidence only | N/A |
 | Migrations | 20 ordered migrations | Storage/write usage applies | N/A |
 
-Wrangler's own dry-run reported 352.56 KiB total upload / 71.20 KiB gzip during the same run. The script's exact module/gzip counts differ slightly because Wrangler's upload reporting includes its own packaging/accounting and gzip settings. The Wrangler gzip result is the decisive Free-plan comparison; the local gzip result is a reproducible cross-check, while the emitted uncompressed size is compared separately with the 64 MiB tooling ceiling.
+Wrangler's own dry-run reported 364.54 KiB total upload / 73.34 KiB gzip during the same run. The script's exact module/gzip counts differ slightly because Wrangler's upload reporting includes its own packaging/accounting and gzip settings. The Wrangler gzip result is the decisive Free-plan comparison; the local gzip result is a reproducible cross-check, while the emitted uncompressed size is compared separately with the 64 MiB tooling ceiling.
 
 Representative fresh-schema local SQLite plans selected:
 

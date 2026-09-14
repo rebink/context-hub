@@ -2,6 +2,7 @@ import type { GraphRow } from "./graphs.js";
 import { loadVerifiedReadyGraph } from "./graphs.js";
 import type { ObjectStorage, StoredObjectMetadata } from "./object-storage.js";
 import { sha256Bytes } from "./security.js";
+import { artifactObjectKey, snapshotManifestObjectKey } from "./storage-keys.js";
 
 export type SnapshotEnv = { DB: D1Database; WEB_ORIGIN?: string };
 export type SnapshotUser = { id: string };
@@ -419,8 +420,14 @@ async function verifiedArtifactObject(
   row: Omit<ArtifactReference, "upload_id">,
 ) {
   if (
-    row.storage_key !==
-    `projects/${projectId}/artifacts/${row.artifact_id}/v/${row.artifact_version}/content`
+    !ID.test(projectId) ||
+    projectId.length > 128 ||
+    !ID.test(row.artifact_id) ||
+    row.artifact_id.length > 128 ||
+    !Number.isSafeInteger(row.artifact_version) ||
+    row.artifact_version < 1 ||
+    row.artifact_version > 2_147_483_647 ||
+    row.storage_key !== artifactObjectKey(projectId, row.artifact_id, row.artifact_version)
   )
     return null;
   const head = await storage.head(row.storage_key);
@@ -698,7 +705,7 @@ async function createSnapshot(
   }
   const id = crypto.randomUUID();
   const createdAt = await databaseNow(env);
-  const key = `projects/${projectId}/snapshots/${id}/manifest.json`;
+  const key = snapshotManifestObjectKey(projectId, id);
   const uploadId =
     graph.storage_layout === "ATTEMPT_V2"
       ? graph.selected_publication_id

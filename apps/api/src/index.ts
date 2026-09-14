@@ -23,6 +23,7 @@ import type { ObjectStorage } from "./object-storage.js";
 import { handleProjectAdministration } from "./project-administration.js";
 import { R2ObjectStorage } from "./r2-object-storage.js";
 import { normalizeGithubRepository } from "./repository-identity.js";
+import { matchRouteContract } from "./route-contract.js";
 
 export { normalizeGithubRepository } from "./repository-identity.js";
 
@@ -536,6 +537,13 @@ function createRouter(outboundFetch: typeof fetch, dependencies: AppDependencies
             env,
             pathname === "/activity" || pathname === "/settings" ? "GET, OPTIONS" : undefined,
           );
+        }
+
+        const contract = matchRouteContract(pathname);
+        if (contract && !contract.methods.includes(request.method)) {
+          return json(request, env, { error: "METHOD_NOT_ALLOWED" }, 405, {
+            allow: contract.methods.join(", "),
+          });
         }
 
         if (pathname === "/mcp") return handleMcpRoute(request, env, storage);

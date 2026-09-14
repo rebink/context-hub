@@ -274,6 +274,10 @@ Phase 24 adds one fail-fast local system scenario, documented in [`e2e-report.md
 
 The scenario verifies single- and multi-project authorization, bounded Context Engine retrieval, provenance, immutable graph replay, snapshot sealing, stale/current transitions, atomic cache replacement, credential revocation, the exact six-tool schema, and output secret absence. It also exposed and corrected trigger-sensitive D1 success accounting in Git connect/sync/disconnect, MCP revocation, and sync-state reporting: authoritative guarded statements use `RETURNING` and require exactly one expected base-row identity, independent of generalized-audit trigger changes. Remote D1/R2, protected Actions Graphify, browser/accessibility, live OAuth/provider, MCP/Pi host, OS secret store, and deployment remain external. The one review, consolidated six-P1 correction, repeated local E2E, and 342-test root gate are complete.
 
+## Final architecture and product QA
+
+Phase 25 is implemented in [`final-qa.md`](final-qa.md). Its deterministic 134-row matrix reconciles PRD functional/nonfunctional requirements, all 35 technical-architecture sections plus eight multi-project invariants, and all 15 MVP acceptance items against production symbols, migrations, tests, or exact missing evidence. `npm run qa:architecture` AST-derives the exhaustive provider inventory and immutable-key data flow; consumes and probes the production route/auth contract; compares every application table, index, trigger SQL hash and foreign key from a fresh migrated database; structurally parses workflow policy; invokes focused semantic tests and the complete migration suite; and runs MCP/Pi audits under bounded isolated subprocesses. The single Phase 25 review, consolidated correction, deterministic architecture QA, local E2E, and 342-test root gate are complete. Local MVP acceptance remains `BLOCKED` on missing historical Phase 6 acceptance evidence, and production launch remains `BLOCKED` on the report's live/browser/remote/operational gates.
+
 ## Deployment and configuration
 
 ### Current

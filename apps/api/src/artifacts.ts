@@ -2,6 +2,7 @@ import { classifyArtifactFreshness } from "./artifact-freshness.js";
 import { readBoundedJsonObject } from "./bounded-json.js";
 import type { ObjectStorage } from "./object-storage.js";
 import { sha256Bytes } from "./security.js";
+import { artifactObjectKey } from "./storage-keys.js";
 
 export type ArtifactUser = { id: string };
 export type ArtifactEnv = { DB: D1Database; WEB_ORIGIN?: string };
@@ -468,7 +469,7 @@ async function createArtifact(
     return fail(request, env, parsed, parsed === "PAYLOAD_TOO_LARGE" ? 413 : 400);
   }
   const artifactId = crypto.randomUUID();
-  const key = `projects/${projectId}/artifacts/${artifactId}/v/1/content`;
+  const key = artifactObjectKey(projectId, artifactId, 1);
   const checksum = await sha256Bytes(parsed.bytes);
   const stored = await putImmutable(storage, key, parsed.bytes, parsed.contentType, checksum);
   if (stored === "collision") return fail(request, env, "CONFLICT", 409);
@@ -583,7 +584,7 @@ async function createVersion(
     return reply(request, env, { error: "CONFLICT", currentVersion: current.current_version }, 409);
   }
   const version = parsed.expectedVersion + 1;
-  const key = `projects/${projectId}/artifacts/${current.id}/v/${version}/content`;
+  const key = artifactObjectKey(projectId, current.id, version);
   const checksum = await sha256Bytes(parsed.bytes);
   const stored = await putImmutable(storage, key, parsed.bytes, parsed.contentType, checksum);
   if (stored !== "stored") {

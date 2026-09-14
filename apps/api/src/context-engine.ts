@@ -16,6 +16,7 @@ import type { GraphRow } from "./graphs.js";
 import { loadVerifiedReadyGraph } from "./graphs.js";
 import type { ObjectStorage } from "./object-storage.js";
 import { sha256Bytes } from "./security.js";
+import { artifactObjectKey, attemptGraphObjectKey, legacyGraphObjectKey } from "./storage-keys.js";
 
 const MAX_ARTIFACT_CANDIDATES = 15;
 const MAX_ARTIFACT_SOURCE_BYTES = 64 * 1024;
@@ -160,14 +161,14 @@ function artifactStorageKey(projectId: string, artifact: ArtifactCandidate): str
     !validStorageInteger(artifact.version)
   )
     return null;
-  return `projects/${projectId}/artifacts/${artifact.id}/v/${artifact.version}/content`;
+  return artifactObjectKey(projectId, artifact.id, artifact.version);
 }
 
 function graphStorageKey(projectId: string, graph: GraphRow): string | null {
   if (!STORAGE_ID.test(projectId) || !validStorageInteger(graph.version)) return null;
   if (graph.storage_layout === "LEGACY_V1") {
     if (graph.selected_publication_id !== null) return null;
-    return `projects/${projectId}/graphs/v/${graph.version}/graph.json`;
+    return legacyGraphObjectKey(projectId, graph.version);
   }
   if (
     graph.storage_layout !== "ATTEMPT_V2" ||
@@ -176,7 +177,12 @@ function graphStorageKey(projectId: string, graph: GraphRow): string | null {
     !PUBLICATION_ID.test(graph.selected_publication_id)
   )
     return null;
-  return `projects/${projectId}/graphs/v/${graph.version}/attempts/${graph.published_attempt}/${graph.selected_publication_id}/graph.json`;
+  return attemptGraphObjectKey(
+    projectId,
+    graph.version,
+    graph.published_attempt,
+    graph.selected_publication_id,
+  );
 }
 
 function sortedDeduplicated(ranked: Ranked[]): ContextEvidence[] {
