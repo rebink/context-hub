@@ -151,7 +151,7 @@ No static route has a theoretical service-subrequest count above 1,000 or D1 que
 - Production source contains zero `setInterval` calls. Browser status refresh is navigation-, mutation-, or user-action-driven. One `setTimeout` performs a single 900 ms Team conflict refresh; it does not reschedule itself.
 - CLI sync/status and Pi commands run on explicit invocation. Offline graph reads use the verified local cache and make no request. There is no background sync daemon or automatic polling.
 - CI runs only for pull requests and pushes to `main`, now has a 20-minute job timeout, and cancels superseded runs for the same workflow/ref. No Actions artifact is uploaded.
-- Graphify is manual `workflow_dispatch`, has a 30-minute timeout, and is serialized per project. `cancel-in-progress: false` is mandatory because cancellation after object-first publication could strand lifecycle state. It uses a self-hosted bounded runner, so GitHub minutes are zero only if repository/account policy still treats self-hosted execution that way; operator costs remain external.
+- Graphify is manual `workflow_dispatch`, has a 30-minute timeout, and is serialized per project. `cancel-in-progress: false` is mandatory because cancellation after object-first publication could strand lifecycle state. It uses the exact GitHub-hosted `ubuntu-24.04` runner; standard hosted minutes are currently free for public repositories, subject to GitHub terms and fair use.
 - Complete graph build identity uniqueness prevents rebuilding the same repository identity/commit/toolchain/profile. The machine publisher retries only ambiguous publication, at most three attempts, with exact immutable identity and create-only recovery; definite rejection is not retried.
 - R2 keys are server-generated and create-only. Artifact, graph, and snapshot reads verify D1 metadata, R2 metadata, bytes, size, and SHA-256. No direct client R2 upload exists.
 - Context retrieval has no remote cache, eliminating authorization-cache contamination but causing a cache miss on every online search. This is an explicit correctness-first tradeoff pending deployed demand evidence.
@@ -169,7 +169,7 @@ No static route has a theoretical service-subrequest count above 1,000 or D1 que
 | Workflow | Trigger/concurrency | Hard repository control | Included-use model |
 | --- | --- | --- | --- |
 | Quality CI | PR + push to `main`; cancel superseded same ref | 20-minute timeout, one quality job, no matrix, no uploaded artifact, pinned actions, read-only token | Private worst case: 20 billed minutes/run; 100 full-timeout runs/month would consume 2,000 included minutes. Public standard runner minutes are currently free. Actual visibility/plan/run duration unknown. |
-| Graphify publication | Manual dispatch; one non-cancelled run/project at a time | 30-minute timeout, one job, bounded self-hosted Linux/x64 runner, no Actions artifact | No GitHub compute charge for self-hosted under current docs, but operator resources are not free. A hosted fallback is not approved. Representative runtime/disk/memory/network remains unmeasured. |
+| Graphify publication | Manual dispatch; one non-cancelled run/project at a time | 30-minute timeout, one job, exact GitHub-hosted ubuntu-24.04 runner, no Actions artifact | Public-repository standard GitHub-hosted minutes are currently free; Oracle Free Tier self-hosting is only an optional later fallback. Representative runtime/disk/memory/network remains unmeasured. |
 
 Path filters are not added to quality CI: documentation, migrations, workflow security, and package-boundary changes are all gate-relevant, so a repository-wide skip could hide correctness regressions. Graphify has no push/PR trigger to filter. Least retention is achieved by uploading no workflow artifact; repository log retention remains an external setting.
 
@@ -203,7 +203,7 @@ Collect all of the following for the same UTC day/billing month and record accou
 2. D1 dashboard/API usage: database size, daily rows read/written, query count/latency/failures, and remote `EXPLAIN QUERY PLAN`/query insights for artifact, graph, snapshot, Activity, Settings, sync, MCP, and one-/twenty-project context shapes against representative cardinalities.
 3. R2 usage/inventory: Standard storage daily peak, object count/bytes by artifacts/graphs/snapshots, Class A/B totals, direct egress path, incomplete/failed-attempt object count/age/bytes, compensation outcomes, and duplicate artifact checksums/bytes.
 4. Pages analytics/build history: project count, builds/month, duration, concurrent queue/cancellations, deployed file count/max file, Functions invocation count (expected zero), and actual cache status for static assets.
-5. GitHub billing/usage: owner plan, repository visibility, included/used hosted minutes, artifact/Packages storage, cache storage, log retention, budget stop-overage setting, workflow run count/duration/cancellations, and confirmation that the Graphify runner is self-hosted and operator-funded.
+5. GitHub billing/usage: owner plan, repository visibility, included/used hosted minutes, artifact/Packages storage, cache storage, log retention, budget stop-overage setting, workflow run count/duration/cancellations, and confirmation that the Graphify runner is GitHub-hosted Ubuntu and public-repository usage remains eligible.
 6. One representative plus one largest-approved Graphify run: checkout/install/build/validation/publication duration, CPU, memory, bounded-volume peak disk, graph bytes/nodes/links, network, retries, and D1/R2 operations. Confirm complete-build dedup on a repeat dispatch.
 7. Account-shared inventory for every other Worker, Pages Function/project, D1 database, R2 bucket, and Actions repository charged to the same owner. Repository-local traffic alone cannot establish headroom.
 
@@ -246,3 +246,9 @@ The architecture requires no paid component only under these explicit assumption
 - Production alerts and budget stop controls are configured externally. Source code cannot prevent other account workloads, dashboard/API writes, provider policy changes, or organic traffic from exhausting shared quotas.
 
 Therefore the correct conclusion is **free-tier-compatible by bounded architecture, not proven zero-cost in deployment**.
+
+## Private-pilot profile update
+
+The public source repository's canonical Graphify workflow now uses exact GitHub-hosted `ubuntu-24.04`, whose standard runner minutes are currently free for public repositories. Oracle Free Tier self-hosting is documented only as a later optional fallback, not the pilot runtime. `FREE_PILOT` constrains entry to an encrypted bounded GitHub stable-ID hash allowlist and exact assigned `pages.dev`/`workers.dev` hosts. These controls reduce accidental and abusive use but cannot mathematically guarantee $0 under unbounded traffic, account-shared consumption, provider changes, or platform enforcement behavior. No live usage, billing, or deployment evidence is claimed.
+
+GitHub-hosted runner isolation and the 30-minute job timeout are provider-enforced dependencies. The workflow attests the hosted runner context and minimum workspace capacity but does not claim a configurable cgroup or hard filesystem ceiling on GitHub-hosted VMs. The legacy bounded self-hosted attestation remains solely for a future Oracle Free Tier fallback.

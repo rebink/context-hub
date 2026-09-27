@@ -120,7 +120,14 @@ class FakeD1 {
       const user = session && this.users.find((row) => row.id === session.user_id);
       return user
         ? {
-            ...pick(user, ["id", "username", "display_name", "avatar_url"]),
+            ...pick(user, [
+              "id",
+              "username",
+              "display_name",
+              "avatar_url",
+              "provider",
+              "provider_user_id",
+            ]),
             session_id: session.id,
           }
         : null;
@@ -1018,6 +1025,58 @@ describe("GitHub OAuth and sessions", () => {
 });
 
 describe("workspaces and project authorization", () => {
+  it("fails closed for malformed or unlisted private-pilot identities before persistence and on sessions", async () => {
+    const db = new FakeD1();
+    const env = bindings(db, true);
+    env.DEPLOYMENT_PROFILE = "FREE_PILOT";
+    const oauthApp = createApp(async (input) => {
+      if (String(input).includes("access_token")) return Response.json({ access_token: "token" });
+      return Response.json({ id: 42, login: "octocat" });
+    });
+    const start = await oauthApp.fetch(request("/auth/github"), env);
+    const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+    const stateCookie = start.headers.get("set-cookie")!.split(";", 1)[0]!;
+    const denied = await oauthApp.fetch(
+      request(`/auth/github/callback?code=code&state=${state}`, undefined, {
+        headers: { cookie: stateCookie },
+      }),
+      env,
+    );
+    assert.equal(denied.status, 403);
+    assert.deepEqual(await body(denied), { error: "AUTH_FAILED" });
+    assert.equal(db.users.length, 0);
+    assert.equal(db.sessions.length, 0);
+
+    env.PILOT_GITHUB_USER_ID_HASHES = await sha256("github:42");
+    const accepted = await login(db);
+    accepted.env.DEPLOYMENT_PROFILE = "FREE_PILOT";
+    accepted.env.PILOT_GITHUB_USER_ID_HASHES = env.PILOT_GITHUB_USER_ID_HASHES;
+    const token = /context_hub_session=([^;,]+)/.exec(
+      accepted.callback.headers.get("set-cookie")!,
+    )?.[1];
+    assert.ok(token);
+    delete accepted.env.PILOT_GITHUB_USER_ID_HASHES;
+    assert.equal(
+      (
+        await accepted.oauthApp.fetch(
+          request("/auth/session", decodeURIComponent(token)),
+          accepted.env,
+        )
+      ).status,
+      401,
+    );
+    accepted.env.PILOT_GITHUB_USER_ID_HASHES = "A".repeat(64);
+    assert.equal(
+      (
+        await accepted.oauthApp.fetch(
+          request("/auth/session", decodeURIComponent(token)),
+          accepted.env,
+        )
+      ).status,
+      401,
+    );
+  });
+
   it("creates and lists multiple workspaces/projects with creator ADMIN", async () => {
     const db = new FakeD1();
     await addUserSession(db, "u1", "token");

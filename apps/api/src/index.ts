@@ -21,6 +21,7 @@ import { handleGlobalActivity, handleGlobalSettings } from "./management.js";
 import { handleMcpCredentialRoute, handleMcpRoute } from "./mcp.js";
 import { handleMetricsRoute } from "./metrics.js";
 import type { ObjectStorage } from "./object-storage.js";
+import { pilotAllows } from "./pilot-access.js";
 import { handleProjectAdministration } from "./project-administration.js";
 import { R2ObjectStorage } from "./r2-object-storage.js";
 import { normalizeGithubRepository } from "./repository-identity.js";
@@ -46,6 +47,7 @@ export interface Env {
   DB: D1Database;
   OBJECTS: R2Bucket;
   APP_ENV?: string;
+  DEPLOYMENT_PROFILE?: string;
   WEB_ORIGIN?: string;
   API_ORIGIN?: string;
   GITHUB_CLIENT_ID?: string;
@@ -55,6 +57,7 @@ export interface Env {
   GITHUB_APP_CLIENT_ID?: string;
   GITHUB_APP_CLIENT_SECRET?: string;
   GITHUB_APP_PRIVATE_KEY?: string;
+  PILOT_GITHUB_USER_ID_HASHES?: string;
 }
 
 type User = {
@@ -63,6 +66,8 @@ type User = {
   username: string;
   display_name: string | null;
   avatar_url: string | null;
+  provider: string;
+  provider_user_id: string;
 };
 
 type Project = {
@@ -153,13 +158,14 @@ async function authenticate(request: Request, env: Env): Promise<User | null> {
   if (!token) return null;
   const tokenHash = await sha256(token);
   const user = await env.DB.prepare(
-    `SELECT u.id, s.id AS session_id, u.username, u.display_name, u.avatar_url
+    `SELECT u.id, s.id AS session_id, u.username, u.display_name, u.avatar_url, u.provider, u.provider_user_id
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.expires_at > ?`,
   )
     .bind(tokenHash, new Date().toISOString())
     .first<User>();
-  return user ?? null;
+  if (!user || !(await pilotAllows(env, user.provider, user.provider_user_id))) return null;
+  return user;
 }
 
 async function health(request: Request, env: Env, storage: ObjectStorage): Promise<Response> {
@@ -251,6 +257,8 @@ async function githubCallback(
     if (cause instanceof AuthProviderResponseError) return error(request, env, "AUTH_FAILED", 502);
     throw cause;
   }
+  if (!(await pilotAllows(env, identity.provider, identity.providerUserId)))
+    return error(request, env, "AUTH_FAILED", 403);
 
   const userId = crypto.randomUUID();
   await env.DB.prepare(

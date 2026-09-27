@@ -153,12 +153,12 @@ The implementation playbook labels Prompt 7 as source "Phase 5"; this master pla
 ### 10. CI graph generation (Prompt 10) — `COMPLETE LOCALLY; LIVE RUNNER RELEASE GATE PENDING`
 
 - [x] Phase 9 passed its single independent review and stop gate; no external machine credential, route, or workflow was included in Phase 9.
-- [x] Added the complete CPython 3.12 Linux x86-64 wheel hash lock and full Action commit pins. The canonical self-hosted workflow fails closed unless it attests cgroup memory and dedicated-filesystem disk limits; representative benchmarks and live-runner evidence remain external release blockers.
+- [x] Added the complete CPython 3.12 Linux x86-64 wheel hash lock and full Action commit pins. The canonical GitHub-hosted `ubuntu-24.04` workflow fails closed on exact hosted runner-context mismatch and minimum workspace capacity; GitHub ephemeral isolation and the 30-minute timeout remain vendor-enforced, while application bounds remain local controls. Representative benchmarks and live-runner evidence remain external release blockers.
 - [x] Added the documented GitHub Actions flow: exact checkout -> GraphifyAdapter -> validate/checksum -> machine publish/register or bounded failure report.
 - [x] Added a separate CI machine principal and one-time high-entropy bearer credential stored only as SHA-256, fixed graph lifecycle scope, exact project/provider-repository binding, and ADMIN-only bounded issue/list/rotate/revoke routes. Human sessions cannot call machine publication routes.
 - [x] Enforced D1-clock credential expiry, atomic rotation/immediate revocation, commit/build/attempt/lease/publication binding, bounded hashed nonce replay protection, least workflow permissions/secrets, and complete-identity duplicate prevention.
 - [x] Heavy graph generation remains outside Worker request/webhook lifecycles; Phase 10 adds no webhook.
-- [x] Local migration, route, lock, runner, and workflow-assumption tests cover auth/isolation/replay, publish/fail transport, exact replay, expiry recovery, atomic lifecycle audit, immutable evidence, and credential exhaustion recovery. Live self-hosted Actions plus remote D1/R2 rotation/revocation/publication evidence remains an external release gate.
+- [x] Local migration, route, lock, runner, and workflow-assumption tests cover auth/isolation/replay, publish/fail transport, exact replay, expiry recovery, atomic lifecycle audit, immutable evidence, and credential exhaustion recovery. Live GitHub-hosted Actions plus remote D1/R2 rotation/revocation/publication evidence remains an external release gate.
 - [x] The additive CI principal/hashed-credential, bounded nonce, immutable audit data models and project/repository/commit-enforcing machine transport are implemented through migration 0014.
 - [x] Completed the single independent phase review, fixed its full P0/P1 set in one consolidated pass without a second review, and passed the 154-test phase stop gate. Phase 11 may begin.
 
@@ -497,3 +497,11 @@ Do not implement these until the MVP ledger, audits, E2E, deployment, and launch
 - [ ] Snapshot MCP tools (`create_snapshot`, `get_snapshot`); snapshots remain web/API/Pi command functionality in MVP and the MCP surface stays at six tools.
 - [ ] AI-generated documentation, full IDE replacement, complex workflow engine, and multi-cloud infrastructure.
 - [ ] Architecture drift detection, artifact approval workflows, PR-aware context, organization-wide context, and other roadmap automation.
+
+### Private-pilot launch profile — `COMPLETE LOCALLY`
+
+- [x] Added mutually exclusive `CUSTOM_DOMAIN` and strict `FREE_PILOT` deployment profiles; the latter permits only exact canonical assigned `pages.dev` and `workers.dev` hosts, no previews/public R2/CORS, exact callback/origin equality, and fail-closed manifest preflight.
+- [x] Added encrypted bounded GitHub stable-ID hash allowlisting before OAuth persistence/session creation and on every authenticated session; malformed/absent production pilot configuration fails closed without raw IDs in deployment artifacts.
+- [x] Changed canonical Graphify CI to exact GitHub-hosted `ubuntu-24.04` for the public repository; Oracle Free Tier is only a documented later fallback.
+- [ ] Live host/privacy/OAuth/quota/billing evidence remains blocked. Free-tier architecture does not mathematically guarantee $0 under abusive or unbounded traffic.
+- **P2 backlog (non-blocking):** add a documentation-drift regression test that derives the canonical Graphify hosted-runner contract from `.github/workflows/graphify.yml` and `scripts/graphify-ci.ts` and checks `ci-graph-publication.md` terminology.

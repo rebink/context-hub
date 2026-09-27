@@ -96,3 +96,11 @@ Production deployment is blocked. Use the external canonical manifest and offlin
 - `docs/ai/metrics.md`: exact metric formulas, sources, privacy/retention, targets, thresholds, and statuses.
 - `docs/ai/metrics-evidence.md`: latest local samples and explicit blocked launch acceptance.
 - `docs/requirements/`: original supplied PRD, architecture, and implementation playbook.
+
+## Private pilot launch profile
+
+`FREE_PILOT` is the zero-purchase private-pilot deployment profile. It accepts only the assigned canonical `https://<pages-project>.pages.dev` Pages origin and `https://<worker>.<account-subdomain>.workers.dev` API origin; it enables `workers.dev`, disables custom domains and all previews, keeps R2 private without `r2.dev`, custom domains, or CORS, and requires exact origin/callback equality. `CUSTOM_DOMAIN` remains the separate strict production profile with `workers_dev = false` and its exact custom route.
+
+In production `FREE_PILOT` additionally requires the encrypted Worker secret `PILOT_GITHUB_USER_ID_HASHES`. Its value is at most 100 comma-separated lowercase SHA-256 digests of `github:<stable GitHub user ID>`; raw IDs must never appear in manifests, variables, receipts, or repository files. Missing or malformed values deny OAuth persistence/session creation and invalidate every existing authenticated session without disclosing allowlist membership. Development behavior is unchanged.
+
+This architecture has no required purchase for a small private pilot, but it cannot mathematically guarantee $0 under abusive or unbounded traffic, changing provider terms, or account-shared usage. Allowlisting and monitoring are controls, not billing proofs. No live deployment or usage evidence is claimed.

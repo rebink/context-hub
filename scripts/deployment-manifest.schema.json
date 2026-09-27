@@ -7,6 +7,7 @@
   "additionalProperties": false,
   "required": [
     "schemaVersion",
+    "profile",
     "release",
     "cloudflare",
     "github",
@@ -17,6 +18,9 @@
   "properties": {
     "schemaVersion": {
       "const": 1
+    },
+    "profile": {
+      "enum": ["CUSTOM_DOMAIN", "FREE_PILOT"]
     },
     "release": {
       "type": "object",
@@ -106,6 +110,7 @@
             "apiOrigin",
             "route",
             "workersDev",
+            "workersDevSubdomain",
             "previewUrls",
             "compatibilityDate",
             "observability"
@@ -129,12 +134,15 @@
                   "$ref": "#/$defs/hostname"
                 },
                 "customDomain": {
-                  "const": true
+                  "type": "boolean"
                 }
               }
             },
             "workersDev": {
-              "const": false
+              "type": "boolean"
+            },
+            "workersDevSubdomain": {
+              "$ref": "#/$defs/resourceName"
             },
             "previewUrls": {
               "const": false
@@ -299,7 +307,12 @@
       }
     },
     "requiredSecrets": {
-      "const": ["GITHUB_CLIENT_SECRET", "GITHUB_APP_CLIENT_SECRET", "GITHUB_APP_PRIVATE_KEY"]
+      "const": [
+        "GITHUB_CLIENT_SECRET",
+        "GITHUB_APP_CLIENT_SECRET",
+        "GITHUB_APP_PRIVATE_KEY",
+        "PILOT_GITHUB_USER_ID_HASHES"
+      ]
     },
     "tooling": {
       "type": "object",
@@ -373,6 +386,70 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "profile": {
+            "const": "CUSTOM_DOMAIN"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "cloudflare": {
+            "properties": {
+              "worker": {
+                "properties": {
+                  "workersDev": {
+                    "const": false
+                  },
+                  "route": {
+                    "properties": {
+                      "customDomain": {
+                        "const": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "profile": {
+            "const": "FREE_PILOT"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "cloudflare": {
+            "properties": {
+              "worker": {
+                "properties": {
+                  "workersDev": {
+                    "const": true
+                  },
+                  "route": {
+                    "properties": {
+                      "customDomain": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "sha": {
       "type": "string",

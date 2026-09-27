@@ -20,11 +20,31 @@ function nonce(): string {
 
 async function attestResources(checkout: string) {
   if (process.platform !== "linux") throw new Error("Canonical CI requires Linux");
-  const cgroup = required("CONTEXT_HUB_MEMORY_CGROUP");
   const volume = await realpath(required("CONTEXT_HUB_BUILD_VOLUME"));
   const checkoutPath = await realpath(checkout);
   if (checkoutPath !== volume && !checkoutPath.startsWith(`${volume}${path.sep}`))
     throw new Error("Checkout is not on the bounded build volume");
+  const disk = await statfs(volume, { bigint: true });
+  const diskLimitBytes = Number(disk.blocks * disk.bsize);
+  if (!Number.isSafeInteger(diskLimitBytes) || diskLimitBytes < MIN_DISK)
+    throw new Error("Runner volume has insufficient free space");
+
+  const mode = required("CONTEXT_HUB_RUNNER_MODE");
+  if (mode === "github-hosted") {
+    if (
+      process.env.GITHUB_ACTIONS !== "true" ||
+      process.env.CONTEXT_HUB_RUNNER_ENVIRONMENT !== "github-hosted" ||
+      process.env.RUNNER_OS !== "Linux" ||
+      process.env.RUNNER_ARCH !== "X64" ||
+      required("CONTEXT_HUB_EXPECTED_RUNNER_LABEL") !== "ubuntu-24.04" ||
+      process.env.ImageOS !== "ubuntu24"
+    )
+      throw new Error("GitHub-hosted runner attestation failed");
+    // GitHub enforces the ephemeral VM and workflow timeout; cgroup ceilings are not configurable here.
+    return { attested: true as const, memoryLimitBytes: MAX_MEMORY, diskLimitBytes };
+  }
+  if (mode !== "self-hosted") throw new Error("Unsupported runner mode");
+  const cgroup = required("CONTEXT_HUB_MEMORY_CGROUP");
   const membership = await readFile("/proc/self/cgroup", "utf8");
   if (!membership.split("\n").some((line) => line.endsWith(`:${cgroup}`)))
     throw new Error("Runner process is not in the configured cgroup");
@@ -33,14 +53,10 @@ async function attestResources(checkout: string) {
   ).trim();
   if (!/^\d+$/.test(rawMemory)) throw new Error("Memory cgroup is unbounded");
   const memoryLimitBytes = Number(rawMemory);
-  const disk = await statfs(volume, { bigint: true });
-  const diskLimitBytes = Number(disk.blocks * disk.bsize);
   if (
     !Number.isSafeInteger(memoryLimitBytes) ||
     memoryLimitBytes < MIN_MEMORY ||
     memoryLimitBytes > MAX_MEMORY ||
-    !Number.isSafeInteger(diskLimitBytes) ||
-    diskLimitBytes < MIN_DISK ||
     diskLimitBytes > MAX_DISK
   )
     throw new Error("Host resource limits are outside the accepted bounds");

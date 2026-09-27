@@ -417,14 +417,15 @@ const BASE_METRICS = Object.freeze([
     formula: "sum workflow billed duration allocated by exact project input",
     unit: "minutes/project/month",
     inclusion: "Quality allocation policy and Graphify runs",
-    exclusion: "Local runs; self-hosted wall time represented as billed GitHub minutes",
+    exclusion:
+      "Local runs; GitHub-hosted Graphify wall time and any future fallback are separate platform evidence",
     source: "GitHub Actions billing and workflow run analytics",
     privacy: "platform aggregate",
     dimensions: ["environment", "workflow"],
     retention: "External monthly aggregate 13 months",
     collection: "External receipt",
     baseline:
-      "Unavailable; self-hosted Graphify may bill zero GitHub minutes but has operator cost",
+      "Unavailable; public-repository standard GitHub-hosted minutes are currently free, subject to provider terms",
     target: "Stay within owner plan; Graphify hard cap 30 minutes/run",
     threshold: "Private hosted account 1,400/1,700/1,900 of current 2,000 minutes/month",
     cadence: "Monthly and before launch",

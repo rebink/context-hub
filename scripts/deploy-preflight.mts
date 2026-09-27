@@ -44,6 +44,7 @@ type GateKey = keyof typeof DEPLOYMENT_CONTRACT.gateCommands;
 
 export type DeploymentManifest = {
   schemaVersion: 1;
+  profile: "CUSTOM_DOMAIN" | "FREE_PILOT";
   release: {
     commit: string;
     branch: "main";
@@ -60,8 +61,9 @@ export type DeploymentManifest = {
       name: string;
       environment: "production";
       apiOrigin: string;
-      route: { pattern: string; customDomain: true };
-      workersDev: false;
+      route: { pattern: string; customDomain: boolean };
+      workersDev: boolean;
+      workersDevSubdomain: string;
       previewUrls: false;
       compatibilityDate: "2025-02-14";
       observability: { enabled: true; headSamplingRate: number; policyReference: string };
@@ -312,10 +314,22 @@ export function validateManifest(input: unknown): DeploymentManifest {
   const root = obj(
     input,
     "$",
-    ["schemaVersion", "release", "cloudflare", "github", "requiredSecrets", "tooling", "gates"],
+    [
+      "schemaVersion",
+      "profile",
+      "release",
+      "cloudflare",
+      "github",
+      "requiredSecrets",
+      "tooling",
+      "gates",
+    ],
     errors,
   );
   if (root.schemaVersion !== 1) errors.push("$.schemaVersion:UNSUPPORTED");
+  const profile = root.profile;
+  if (profile !== "CUSTOM_DOMAIN" && profile !== "FREE_PILOT")
+    errors.push("$.profile:INVALID_PROFILE");
   const release = obj(
     root.release,
     "$.release",
@@ -389,6 +403,7 @@ export function validateManifest(input: unknown): DeploymentManifest {
       "apiOrigin",
       "route",
       "workersDev",
+      "workersDevSubdomain",
       "previewUrls",
       "compatibilityDate",
       "observability",
@@ -396,17 +411,32 @@ export function validateManifest(input: unknown): DeploymentManifest {
     errors,
   );
   text(worker.name, "$.cloudflare.worker.name", errors, DEPLOYMENT_CONTRACT.patterns.resourceName);
+  const workersDevSubdomain = text(
+    worker.workersDevSubdomain,
+    "$.cloudflare.worker.workersDevSubdomain",
+    errors,
+    DEPLOYMENT_CONTRACT.patterns.resourceName,
+  );
   if (worker.environment !== "production")
     errors.push("$.cloudflare.worker.environment:PRODUCTION_REQUIRED");
   const apiOrigin = origin(worker.apiOrigin, "$.cloudflare.worker.apiOrigin", errors);
   const route = obj(worker.route, "$.cloudflare.worker.route", ["pattern", "customDomain"], errors);
   const routePattern = text(route.pattern, "$.cloudflare.worker.route.pattern", errors);
   productionHostname(routePattern, "$.cloudflare.worker.route.pattern", errors);
-  if (routePattern !== new URL(apiOrigin || "https://invalid.invalid").hostname)
-    errors.push("$.cloudflare.worker.route.pattern:ORIGIN_MISMATCH");
-  if (route.customDomain !== true)
-    errors.push("$.cloudflare.worker.route.customDomain:TRUE_REQUIRED");
-  if (worker.workersDev !== false) errors.push("$.cloudflare.worker.workersDev:FALSE_REQUIRED");
+  const apiHost = new URL(apiOrigin || "https://invalid.invalid").hostname;
+  if (profile === "CUSTOM_DOMAIN") {
+    if (routePattern !== apiHost) errors.push("$.cloudflare.worker.route.pattern:ORIGIN_MISMATCH");
+    if (route.customDomain !== true)
+      errors.push("$.cloudflare.worker.route.customDomain:TRUE_REQUIRED");
+    if (worker.workersDev !== false) errors.push("$.cloudflare.worker.workersDev:FALSE_REQUIRED");
+  } else if (profile === "FREE_PILOT") {
+    const subdomain = workersDevSubdomain;
+    if (route.customDomain !== false)
+      errors.push("$.cloudflare.worker.route.customDomain:FALSE_REQUIRED");
+    if (worker.workersDev !== true) errors.push("$.cloudflare.worker.workersDev:TRUE_REQUIRED");
+    if (routePattern !== apiHost || apiHost !== `${worker.name}.${subdomain}.workers.dev`)
+      errors.push("$.cloudflare.worker.apiOrigin:FREE_PILOT_HOST_MISMATCH");
+  }
   if (worker.previewUrls !== false) errors.push("$.cloudflare.worker.previewUrls:FALSE_REQUIRED");
   if (worker.compatibilityDate !== DEPLOYMENT_CONTRACT.compatibilityDate)
     errors.push("$.cloudflare.worker.compatibilityDate:TESTED_DATE_REQUIRED");
@@ -485,6 +515,8 @@ export function validateManifest(input: unknown): DeploymentManifest {
     errors.push("$.cloudflare.pages.productionBranch:MAIN_REQUIRED");
   const webOrigin = origin(pages.webOrigin, "$.cloudflare.pages.webOrigin", errors);
   if (webOrigin === apiOrigin) errors.push("$.cloudflare.pages.webOrigin:DISTINCT_ORIGIN_REQUIRED");
+  if (profile === "FREE_PILOT" && webOrigin !== `https://${pages.projectName}.pages.dev`)
+    errors.push("$.cloudflare.pages.webOrigin:FREE_PILOT_HOST_MISMATCH");
   if (pages.apiPublicVariable !== "VITE_API_URL")
     errors.push("$.cloudflare.pages.apiPublicVariable:INVALID");
   if (pages.previewDeployments !== false)
@@ -607,7 +639,11 @@ export function renderWranglerConfig(
 ): string {
   const c = manifest.cloudflare;
   const g = manifest.github;
-  return `name = ${JSON.stringify(c.worker.name)}\nmain = ${JSON.stringify(main)}\naccount_id = ${JSON.stringify(c.accountId)}\ncompatibility_date = ${JSON.stringify(c.worker.compatibilityDate)}\nworkers_dev = false\npreview_urls = false\nroutes = [{ pattern = ${JSON.stringify(c.worker.route.pattern)}, custom_domain = true }]\n\n[vars]\nAPP_ENV = "production"\nWEB_ORIGIN = ${JSON.stringify(c.pages.webOrigin)}\nAPI_ORIGIN = ${JSON.stringify(c.worker.apiOrigin)}\nGITHUB_CLIENT_ID = ${JSON.stringify(g.oauthClientId)}\nGITHUB_APP_ID = ${JSON.stringify(g.appId)}\nGITHUB_APP_SLUG = ${JSON.stringify(g.appSlug)}\nGITHUB_APP_CLIENT_ID = ${JSON.stringify(g.appClientId)}\n\n[observability]\nenabled = true\nhead_sampling_rate = ${c.worker.observability.headSamplingRate}\n\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = ${JSON.stringify(c.d1.databaseName)}\ndatabase_id = ${JSON.stringify(c.d1.databaseId)}\nmigrations_dir = ${JSON.stringify(migrations)}\n\n[[r2_buckets]]\nbinding = "OBJECTS"\nbucket_name = ${JSON.stringify(c.r2.bucketName)}\n`;
+  const route =
+    manifest.profile === "CUSTOM_DOMAIN"
+      ? `routes = [{ pattern = ${JSON.stringify(c.worker.route.pattern)}, custom_domain = true }]\n`
+      : "";
+  return `name = ${JSON.stringify(c.worker.name)}\nmain = ${JSON.stringify(main)}\naccount_id = ${JSON.stringify(c.accountId)}\ncompatibility_date = ${JSON.stringify(c.worker.compatibilityDate)}\nworkers_dev = ${manifest.profile === "FREE_PILOT" ? "true" : "false"}\npreview_urls = false\n${route}\n[vars]\nAPP_ENV = "production"\nDEPLOYMENT_PROFILE = ${JSON.stringify(manifest.profile)}\nWEB_ORIGIN = ${JSON.stringify(c.pages.webOrigin)}\nAPI_ORIGIN = ${JSON.stringify(c.worker.apiOrigin)}\nGITHUB_CLIENT_ID = ${JSON.stringify(g.oauthClientId)}\nGITHUB_APP_ID = ${JSON.stringify(g.appId)}\nGITHUB_APP_SLUG = ${JSON.stringify(g.appSlug)}\nGITHUB_APP_CLIENT_ID = ${JSON.stringify(g.appClientId)}\n\n[observability]\nenabled = true\nhead_sampling_rate = ${c.worker.observability.headSamplingRate}\n\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = ${JSON.stringify(c.d1.databaseName)}\ndatabase_id = ${JSON.stringify(c.d1.databaseId)}\nmigrations_dir = ${JSON.stringify(migrations)}\n\n[[r2_buckets]]\nbinding = "OBJECTS"\nbucket_name = ${JSON.stringify(c.r2.bucketName)}\n`;
 }
 
 function terminateGroup(child: ChildProcess, signal: NodeJS.Signals): void {

@@ -31,6 +31,7 @@ const SECRETS = {
   GITHUB_CLIENT_SECRET: "local-only-alpha-value",
   GITHUB_APP_CLIENT_SECRET: "local-only-beta-value",
   GITHUB_APP_PRIVATE_KEY: "local-only-gamma-value",
+  PILOT_GITHUB_USER_ID_HASHES: "local-only-digest-list",
 };
 
 function manifest(): DeploymentManifest {
@@ -42,6 +43,7 @@ function manifest(): DeploymentManifest {
   ) as DeploymentManifest["gates"];
   return {
     schemaVersion: 1,
+    profile: "CUSTOM_DOMAIN",
     release: {
       commit: COMMIT,
       branch: "main",
@@ -66,6 +68,7 @@ function manifest(): DeploymentManifest {
         apiOrigin: "https://api.context-hub.acmecorp.com",
         route: { pattern: "api.context-hub.acmecorp.com", customDomain: true },
         workersDev: false,
+        workersDevSubdomain: "acme-workers",
         previewUrls: false,
         compatibilityDate: "2025-02-14",
         observability: {
@@ -366,6 +369,34 @@ test("manifest rejects fixture IDs, public surfaces, preview and secret material
   }, /EXACT_NAMES/);
 });
 
+test("FREE_PILOT accepts only exact canonical Pages and Workers hosts", () => {
+  const pilot = manifest();
+  pilot.profile = "FREE_PILOT";
+  pilot.cloudflare.worker.workersDev = true;
+  pilot.cloudflare.worker.route.customDomain = false;
+  pilot.cloudflare.worker.apiOrigin = "https://context-hub-production.acme-workers.workers.dev";
+  pilot.cloudflare.worker.route.pattern = "context-hub-production.acme-workers.workers.dev";
+  pilot.cloudflare.pages.webOrigin = "https://context-hub-production.pages.dev";
+  pilot.github.oauthCallback = `${pilot.cloudflare.worker.apiOrigin}/auth/github/callback`;
+  pilot.github.appSetupUrl = `${pilot.cloudflare.worker.apiOrigin}/auth/github-app/setup`;
+  pilot.github.appCallback = `${pilot.cloudflare.worker.apiOrigin}/auth/github-app/callback`;
+  assert.deepEqual(validateManifest(pilot), pilot);
+  for (const mutate of [
+    (value: DeploymentManifest) =>
+      (value.cloudflare.worker.apiOrigin =
+        "https://context-hub-production.acme-workers.workers.dev.evil.example"),
+    (value: DeploymentManifest) =>
+      (value.cloudflare.pages.webOrigin = "https://preview.context-hub-production.pages.dev"),
+    (value: DeploymentManifest) => (value.cloudflare.worker.workersDev = false),
+    (value: DeploymentManifest) => (value.cloudflare.worker.route.customDomain = true),
+    (value: DeploymentManifest) => (value.cloudflare.pages.previewDeployments = true),
+  ]) {
+    const value = structuredClone(pilot);
+    mutate(value);
+    assert.throws(() => validateManifest(value), PreflightError);
+  }
+});
+
 test("GitHub client IDs accept documented forms and reject guesses", () => {
   for (const id of ["short", "Iv1_not_documented", "github-client-123"])
     reject((value) => {
@@ -388,6 +419,7 @@ test("generated config is candidate-relative, private and disables both Worker p
   assert.match(config, /main = "\.\/worker\/index\.js"/);
   assert.match(config, /migrations_dir = "\.\/migrations"/);
   assert.match(config, /workers_dev = false\npreview_urls = false/);
+  assert.doesNotMatch(config, /\\\\n/);
   assert.match(config, /database_id = "7d9a1f42-36bc-4e80-9f15-a28c63e704bd"/);
   assert.match(config, /bucket_name = "context-hub-production-objects"/);
   assert.match(config, /WEB_ORIGIN = "https:\/\/context-hub.acmecorp.com"/);

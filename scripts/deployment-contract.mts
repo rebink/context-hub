@@ -1,7 +1,12 @@
 export const DEPLOYMENT_CONTRACT = {
   schemaVersion: 1,
   compatibilityDate: "2025-02-14",
-  requiredSecrets: ["GITHUB_CLIENT_SECRET", "GITHUB_APP_CLIENT_SECRET", "GITHUB_APP_PRIVATE_KEY"],
+  requiredSecrets: [
+    "GITHUB_CLIENT_SECRET",
+    "GITHUB_APP_CLIENT_SECRET",
+    "GITHUB_APP_PRIVATE_KEY",
+    "PILOT_GITHUB_USER_ID_HASHES",
+  ],
   gateCommands: {
     test: "npm test",
     typecheck: "npm run typecheck",
@@ -55,6 +60,7 @@ export const DEPLOYMENT_MANIFEST_SCHEMA = {
   additionalProperties: false,
   required: [
     "schemaVersion",
+    "profile",
     "release",
     "cloudflare",
     "github",
@@ -64,6 +70,7 @@ export const DEPLOYMENT_MANIFEST_SCHEMA = {
   ],
   properties: {
     schemaVersion: { const: DEPLOYMENT_CONTRACT.schemaVersion },
+    profile: { enum: ["CUSTOM_DOMAIN", "FREE_PILOT"] },
     release: {
       type: "object",
       additionalProperties: false,
@@ -121,6 +128,7 @@ export const DEPLOYMENT_MANIFEST_SCHEMA = {
             "apiOrigin",
             "route",
             "workersDev",
+            "workersDevSubdomain",
             "previewUrls",
             "compatibilityDate",
             "observability",
@@ -133,9 +141,13 @@ export const DEPLOYMENT_MANIFEST_SCHEMA = {
               type: "object",
               additionalProperties: false,
               required: ["pattern", "customDomain"],
-              properties: { pattern: { $ref: "#/$defs/hostname" }, customDomain: { const: true } },
+              properties: {
+                pattern: { $ref: "#/$defs/hostname" },
+                customDomain: { type: "boolean" },
+              },
             },
-            workersDev: { const: false },
+            workersDev: { type: "boolean" },
+            workersDevSubdomain: { $ref: "#/$defs/resourceName" },
             previewUrls: { const: false },
             compatibilityDate: { const: DEPLOYMENT_CONTRACT.compatibilityDate },
             observability: {
@@ -253,6 +265,44 @@ export const DEPLOYMENT_MANIFEST_SCHEMA = {
       properties: gateProperties,
     },
   },
+  allOf: [
+    {
+      if: { properties: { profile: { const: "CUSTOM_DOMAIN" } } },
+      // biome-ignore lint/suspicious/noThenProperty: JSON Schema conditional keyword.
+      then: {
+        properties: {
+          cloudflare: {
+            properties: {
+              worker: {
+                properties: {
+                  workersDev: { const: false },
+                  route: { properties: { customDomain: { const: true } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      if: { properties: { profile: { const: "FREE_PILOT" } } },
+      // biome-ignore lint/suspicious/noThenProperty: JSON Schema conditional keyword.
+      then: {
+        properties: {
+          cloudflare: {
+            properties: {
+              worker: {
+                properties: {
+                  workersDev: { const: true },
+                  route: { properties: { customDomain: { const: false } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  ],
   $defs: {
     sha: { type: "string", pattern: DEPLOYMENT_CONTRACT.patterns.sha },
     digest: { type: "string", pattern: DEPLOYMENT_CONTRACT.patterns.digest },

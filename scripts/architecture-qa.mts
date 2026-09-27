@@ -624,6 +624,7 @@ function workflowEvidence() {
   );
   check(graphify.concurrency["cancel-in-progress"] === "false", "Graphify cancellation changed");
   check(graphJob?.timeoutMinutes === 30, "Graphify timeout changed");
+  check(graphJob?.runsOn === "ubuntu-24.04", "Graphify runner changed");
   check(graphJob?.environment === "context-hub-graphify", "Graphify environment changed");
   const actions = [...(ciJob?.steps ?? []), ...(graphJob?.steps ?? [])]
     .filter((step) => step.uses)

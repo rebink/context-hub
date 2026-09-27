@@ -39,7 +39,8 @@ concurrency:
 
 jobs:
   graphify:
-    runs-on: [self-hosted, linux, x64]
+    # Public repositories receive standard GitHub-hosted Ubuntu Actions minutes at no charge.
+    runs-on: ubuntu-24.04
     environment: context-hub-graphify
     timeout-minutes: 30
     steps:
@@ -112,7 +113,9 @@ jobs:
           CONTEXT_HUB_REPOSITORY_ID: ${{ inputs.provider_repository_id }}
           CONTEXT_HUB_CHECKOUT: ${{ github.workspace }}/source
           CONTEXT_HUB_BUILD_VOLUME: ${{ github.workspace }}
-          CONTEXT_HUB_MEMORY_CGROUP: ${{ vars.CONTEXT_HUB_MEMORY_CGROUP }}
+          CONTEXT_HUB_RUNNER_MODE: github-hosted
+          CONTEXT_HUB_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+          CONTEXT_HUB_EXPECTED_RUNNER_LABEL: ubuntu-24.04
           CONTEXT_HUB_GIT_EXECUTABLE: /usr/bin/git
           CONTEXT_HUB_PYTHON_EXECUTABLE: ${{ github.workspace }}/.graphify-venv/bin/python
           CONTEXT_HUB_GRAPHIFY_EXECUTABLE: ${{ github.workspace }}/.graphify-venv/bin/graphify

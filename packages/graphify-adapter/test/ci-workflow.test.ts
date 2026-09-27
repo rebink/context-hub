@@ -11,19 +11,22 @@ async function text(path: string) {
 }
 
 describe("canonical graph workflow assumptions", () => {
-  it("pins Actions, uses least privilege, and requires the bounded self-hosted runner", async () => {
+  it("pins Actions, uses least privilege, and requires the bounded GitHub-hosted Ubuntu runner", async () => {
     const workflow = await text(".github/workflows/graphify.yml");
     const uses = [...workflow.matchAll(/^\s*uses:\s*([^\s]+)$/gm)].map((match) => match[1]);
     assert.ok(uses.length >= 1);
     for (const action of uses) assert.match(action ?? "", /@[0-9a-f]{40}$/);
     assert.match(workflow, /permissions:\n\s+contents: read/);
-    assert.match(workflow, /runs-on: \[self-hosted, linux, x64\]/);
+    assert.match(workflow, /runs-on: ubuntu-24\.04/);
+    assert.doesNotMatch(workflow, /runs-on:\s*\[self-hosted/);
     assert.match(workflow, /environment: context-hub-graphify/);
     assert.match(workflow, /timeout-minutes: 30/);
     assert.match(workflow, /group: graphify-\$\{\{ inputs\.project_id \}\}/);
     assert.match(workflow, /cancel-in-progress: false/);
     assert.doesNotMatch(workflow, /group: graphify-.*graph_version/);
     assert.match(workflow, /--only-binary=:all: --require-hashes/);
+    assert.match(workflow, /CONTEXT_HUB_RUNNER_MODE: github-hosted/);
+    assert.match(workflow, /CONTEXT_HUB_RUNNER_ENVIRONMENT: \$\{\{ runner\.environment \}\}/);
     assert.doesNotMatch(workflow, /pull_request:|push:|repository_dispatch:|workflow_run:/);
   });
 
@@ -79,6 +82,10 @@ describe("canonical graph workflow assumptions", () => {
   it("uses the existing adapter and checks host-enforced memory and disk identity", async () => {
     const runner = await text("scripts/graphify-ci.ts");
     assert.match(runner, /new GraphifyAdapter/);
+    assert.match(runner, /CONTEXT_HUB_RUNNER_MODE/);
+    assert.match(runner, /GITHUB_ACTIONS/);
+    assert.match(runner, /CONTEXT_HUB_RUNNER_ENVIRONMENT/);
+    assert.match(runner, /ImageOS/);
     assert.match(runner, /\/proc\/self\/cgroup/);
     assert.match(runner, /memory\.max/);
     assert.match(runner, /statfs/);

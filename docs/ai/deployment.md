@@ -250,3 +250,13 @@ These first-party sources were accessed **2026-09-15 UTC** and must be reopened 
 - Cloudflare token ownership: [create API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/), [permission catalog](https://developers.cloudflare.com/fundamentals/api/reference/permissions/), and [GitHub Actions guide](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/). Current UI may say Write where older material says Edit; record the live catalog summary.
 
 Community posts, blogs, videos, Stack Overflow and vendor comparisons are not authority where these first-party sources exist.
+
+## Launch profiles
+
+The manifest has an explicit `profile`: `CUSTOM_DOMAIN` preserves the existing strict production contract (`workersDev=false`, exact custom-domain route, no previews). `FREE_PILOT` is the only permitted zero-purchase pilot alternative. It requires `workersDev=true`, `customDomain=false`, an API origin exactly equal to `https://<worker name>.<workersDevSubdomain>.workers.dev`, and a Pages origin exactly equal to `https://<pages project>.pages.dev`. Both profiles retain exact callbacks/origins, disabled Pages/Worker previews, and private R2 with disabled `r2.dev`, no custom domains, and no CORS. The runtime rejects suffix confusion, placeholder/reserved names, and cross-profile combinations before candidate generation.
+
+`FREE_PILOT` adds `PILOT_GITHUB_USER_ID_HASHES` to the encrypted Worker-secret contract. Set it only to one through 100 comma-separated lowercase SHA-256 values of `github:<stable GitHub user ID>`. It is never placed in the manifest, generated vars, receipts, or documentation examples. In production FREE_PILOT, a missing or malformed value fails closed and an unlisted identity receives a nonrevealing OAuth failure; every session is rechecked on every authenticated request.
+
+The canonical Graphify workflow uses the exact GitHub-hosted `ubuntu-24.04` runner for this public repository. Oracle Free Tier self-hosting is only an optional future fallback requiring a separate runner/isolation decision and evidence; it is not the current runtime.
+
+The profile requires no purchase, but no architecture can guarantee $0 under abusive/unbounded traffic, provider changes, or shared account consumption. Allowlisting and monitoring reduce exposure; they are not billing proofs. All live deployment, quota, and host evidence remains not run.
